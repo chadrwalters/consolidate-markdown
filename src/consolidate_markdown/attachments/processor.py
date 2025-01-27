@@ -75,7 +75,16 @@ class AttachmentProcessor:
 
             # Check if we need to process
             if not force and temp_path.exists():
-                if temp_path.stat().st_mtime >= file_path.stat().st_mtime:
+                # For Bear attachments in iCloud, don't use timestamps
+                if 'com~apple~CloudDocs/_BearNotes' in str(file_path):
+                    return temp_path, AttachmentMetadata(
+                        original_path=file_path,
+                        mime_type=mime_type or 'application/octet-stream',
+                        size_bytes=size_bytes,
+                        is_image=False
+                    )
+                # For other files, use timestamp check
+                elif temp_path.stat().st_mtime >= file_path.stat().st_mtime:
                     return temp_path, AttachmentMetadata(
                         original_path=file_path,
                         mime_type=mime_type or 'application/octet-stream',

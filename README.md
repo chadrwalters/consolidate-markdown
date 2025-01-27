@@ -10,6 +10,7 @@ Convert and consolidate Markdown files from multiple sources with AI-powered ima
 - Configurable processing pipeline
 - Parallel processing with --sequential option
 - Atomic file operations and backup system
+- Smart caching system for files and GPT analyses
 
 ## Requirements
 
@@ -59,16 +60,16 @@ cp example_config.toml consolidate_config.toml
 
 ## Usage
 ```bash
-# Run consolidation
+# Run consolidation (uses cache by default)
 uv run python -m consolidate_markdown --config consolidate_config.toml
 
-# Use --delete to clean output directories
-uv run python -m consolidate_markdown --config consolidate_config.toml --delete
+# Force regeneration (clears cache)
+uv run python -m consolidate_markdown --config consolidate_config.toml --force
 
 # Use --sequential for easier debugging
 uv run python -m consolidate_markdown --config consolidate_config.toml --sequential
 
-# Skip GPT image analysis
+# Skip GPT image analysis (uses cached analyses if available)
 uv run python -m consolidate_markdown --config consolidate_config.toml --no-image
 ```
 
@@ -77,6 +78,7 @@ See [docs/README.md](docs/README.md) for full documentation including:
 - [Installation Guide](docs/installation.md)
 - [Configuration Guide](docs/configuration.md)
 - [Architecture Overview](docs/architecture.md)
+- [Caching System](docs/caching.md)
 - [Troubleshooting Guide](docs/troubleshooting.md)
 
 ## License

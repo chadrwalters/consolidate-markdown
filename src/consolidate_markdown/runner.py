@@ -88,17 +88,40 @@ class Runner:
             logger.error(error_msg)
             self.summary.add_error(source.type, error_msg)
 
-    def _merge_result_into_summary(self, source_type: str, result: ProcessingResult) -> None:
-        """Merge ProcessingResult into SummaryLogger."""
-        for _ in range(result.processed):
-            self.summary.add_processed(source_type)
-        for _ in range(result.skipped):
+    def _merge_result_into_summary(self, source_type: str, result: ProcessingResult):
+        """Merge processing result into summary."""
+        # Track notes
+        if result.from_cache > 0:
+            self.summary.add_from_cache(source_type)
+        if result.regenerated > 0:
+            self.summary.add_generated(source_type)
+        if result.skipped > 0:
             self.summary.add_skipped(source_type)
-        for _ in range(result.documents_processed):
-            self.summary.add_documents_processed(source_type)
-        for _ in range(result.images_processed):
-            self.summary.add_images_processed(source_type)
+
+        # Track documents
+        for _ in range(result.documents_from_cache):
+            self.summary.add_document_from_cache(source_type)
+        for _ in range(result.documents_generated):
+            self.summary.add_document_generated(source_type)
+        for _ in range(result.documents_skipped):
+            self.summary.add_document_skipped(source_type)
+
+        # Track images
+        for _ in range(result.images_from_cache):
+            self.summary.add_image_from_cache(source_type)
+        for _ in range(result.images_generated):
+            self.summary.add_image_generated(source_type)
         for _ in range(result.images_skipped):
-            self.summary.add_images_skipped(source_type)
+            self.summary.add_image_skipped(source_type)
+
+        # Track GPT analyses
+        for _ in range(result.gpt_cache_hits):
+            self.summary.add_gpt_from_cache(source_type)
+        for _ in range(result.gpt_new_analyses):
+            self.summary.add_gpt_generated(source_type)
+        for _ in range(result.gpt_skipped):
+            self.summary.add_gpt_skipped(source_type)
+
+        # Track errors
         for error in result.errors:
             self.summary.add_error(source_type, error)
