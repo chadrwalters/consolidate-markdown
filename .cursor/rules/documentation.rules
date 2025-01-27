@@ -1,0 +1,85 @@
+# Documentation Rules
+# Applies to: docs/**/*.md, README.md
+
+rules:
+    directory_structure:
+        root:
+            - "README.md: Project overview and quick start"
+            - "CONTRIBUTING.md: Contribution guidelines"
+            - "CHANGELOG.md: Version history"
+
+        docs/:
+            architecture/:
+                - "overview.md: High-level system architecture"
+                - "decisions/: Architecture Decision Records (ADRs)"
+                - "diagrams/: System and component diagrams"
+                - "components/: Detailed component documentation"
+
+            design/:
+                - "patterns.md: Design patterns used"
+                - "principles.md: Design principles"
+                - "interfaces/: API and interface specifications"
+
+            guides/:
+                - "getting-started.md: Initial setup guide"
+                - "development.md: Development workflow"
+                - "deployment.md: Deployment procedures"
+
+            reference/:
+                - "api/: API documentation"
+                - "configuration/: Configuration options"
+                - "glossary.md: Terms and definitions"
+
+    markdown_standards:
+        - Use ATX headers (# style) consistently
+        - Include table of contents for files longer than 100 lines
+        - Code blocks must specify language for syntax highlighting
+        - Links must use reference-style format for maintainability
+        - Images must include alt text for accessibility
+
+    content_guidelines:
+        audience_focus:
+            - "Consider technical level of target reader"
+            - "Use clear, consistent terminology"
+            - "Define technical terms in glossary.md"
+            - "Include examples for complex concepts"
+
+        maintenance:
+            - "Keep documentation close to related code"
+            - "Update docs with code changes"
+            - "Regular review schedule for accuracy"
+            - "Version documentation with software releases"
+
+        accessibility:
+            - "Use high contrast in diagrams"
+            - "Provide text alternatives for images"
+            - "Structure content for screen readers"
+            - "Avoid idioms and region-specific references"
+
+    diagrams:
+        - "Generate from code when possible"
+        - "Store source files (e.g., mermaid, plantuml)"
+        - "Include both source and rendered images"
+        - "Use consistent styling across diagrams"
+
+    cross_referencing:
+        - "Use relative links between documents"
+        - "Maintain table of contents in README.md"
+        - "Link related documentation sections"
+        - "Reference relevant code examples"
+
+    api_documentation:
+        - All API endpoints must have OpenAPI/Swagger documentation
+        - Include request/response examples
+        - Document all possible response codes
+        - Specify required headers and authentication
+
+    code_documentation:
+        - Module-level docstrings must describe the module's purpose
+        - Class docstrings must describe the class's responsibility
+        - Function docstrings must include:
+            - Brief description
+            - Args with types
+            - Returns with types
+            - Raises with conditions
+        - Complex algorithms must include time/space complexity

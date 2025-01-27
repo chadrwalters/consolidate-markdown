@@ -1,0 +1,16 @@
+[global]
+cm_dir = ".cm"                   # Working directory for temporary files
+log_level = "INFO"               # DEBUG, INFO, WARNING, ERROR
+force_generation = false         # Force reprocessing all files
+no_image = false                 # Set to true to skip GPT image analysis
+openai_key = "${OPENAI_API_KEY}" # OpenAI API key from environment
+
+[[sources]]
+type = "bear"
+srcDir = "~/Documents/Bear Notes" # Replace with your Bear notes path
+destDir = "./output/bear"         # Output directory for Bear notes
+
+[[sources]]
+type = "xbookmarks"
+srcDir = "~/Downloads/x_bookmarks" # Replace with your X bookmarks path
+destDir = "./output/x"             # Output directory for X bookmarks
