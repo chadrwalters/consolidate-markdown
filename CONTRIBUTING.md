@@ -48,9 +48,20 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
    pre-commit install
    ```
 4. Make your changes
-5. Run the test suite:
+5. Test your changes locally:
    ```bash
+   # Run tests
    uv run pytest
+
+   # Run type checking
+   uv run mypy src tests
+
+   # Run formatters
+   uv run black src tests
+   uv run isort src tests
+
+   # Run linting
+   uv run ruff check src tests
    ```
 6. Push to your fork and submit a pull request
 
