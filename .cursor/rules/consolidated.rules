@@ -1,0 +1,589 @@
+# Consolidated Repository Rules
+# Purpose: Single source of truth for repository standards, development practices, and AI usage
+# Note: This is a consolidated version of all rules, existing individual rule files are still authoritative
+
+rules:
+    # ======================
+    # Cross-References
+    # ======================
+    cross_references:
+        testing_and_pr:
+            when: "Creating a pull request"
+            requires:
+                - "All tests pass (see section 5: Testing & Quality)"
+                - "Documentation updates (see section 4: Documentation)"
+            enforced_by:
+                - "Pull request rules (see section 6: Git Workflow)"
+
+        documentation_updates:
+            when: "Changing code"
+            update:
+                - "architecture.md for system changes"
+                - "prd.md for feature changes"
+            enforced_by:
+                - "Pull request requirements"
+                - "ACT mode documentation rules"
+
+        python_execution:
+            commands:
+                - "Always use uv (see section 3: Python Standards)"
+                - "Never use direct python/pytest commands"
+            applies_to:
+                - "Running tests"
+                - "Executing Python code"
+                - "Managing packages"
+
+        mode_specific:
+            plan_mode:
+                - "Documentation updates allowed"
+                - "Test execution allowed"
+                - "No direct code changes"
+            act_mode:
+                - "Code modifications allowed"
+                - "Tests must pass"
+                - "Documentation must be updated"
+
+    # ======================
+    # 1. Project Conventions
+    # ======================
+    project_conventions:
+        repository_structure:
+            - All system files MUST be stored in ${config.project.system_dir}
+            - All logs MUST be stored in ${config.project.system_dir}/${config.project.log_dir}
+            - All temporary files MUST be stored in ${config.project.system_dir}/${config.project.temp_dir}
+            - Input files MUST be in configurable location specified by ${config.project.input_dir}
+            - Output files MUST be in configurable location specified by ${config.project.output_dir}
+
+        naming_conventions:
+            - Use lowercase with hyphens for directory names
+            - Use lowercase with underscores for Python files
+            - Use descriptive names that reflect purpose
+            - Avoid generic names like "utils" or "helpers"
+            - Test files must start with "test_"
+
+        file_organization:
+            - Keep related files in dedicated subdirectories
+            - Separate source code, tests, and resources
+            - All code files MUST be less than ${config.project.max_file_lines} lines
+            - Break down large files into logical modules
+            - Use composition over large monolithic files
+
+    # ======================
+    # 2. Operation Modes
+    # ======================
+    operation_modes:
+        default_mode: "PLAN"
+        valid_modes: ["PLAN", "ACT"]
+
+        mode_rules:
+            conversation_start:
+                - "Every new Composer conversation starts in PLAN mode"
+                - "Print mode header at start of EVERY response"
+                - "Mode header format: '# Mode: {current_mode} - {purpose}'"
+                - "Mode persists until explicitly changed"
+                - "Mode system is inactive in Chat mode"
+                - "Track and log mode changes in .Plan"
+
+            user_overrides:
+                - "User can explicitly request ANY command execution in ANY mode"
+                - "When user requests command execution, document the override in response"
+                - "Format: '# Override: Executing user-requested command: {command}'"
+                - "Always explain command purpose and expected output"
+                - "Show command output to aid in decision making"
+                - "Return to mode-specific restrictions after command execution"
+
+            mode_transitions:
+                - "Switch to ACT mode when user types 'ACT'"
+                - "Switch back to PLAN mode when user types 'PLAN'"
+                - "Must complete current mode's action before switching"
+                - "Cannot switch modes during file modifications"
+                - "Always confirm mode changes in the response"
+                - "When in doubt, stay in PLAN mode"
+
+        plan_mode:
+            purpose: "Strategic planning, documentation updates, and requirement gathering"
+            header: "# Mode: PLAN - Strategic Planning & Analysis"
+
+            principles:
+                safety:
+                    principle: "Default safe state for all operations"
+                    related_actions:
+                        - "file_access: Read any files for analysis"
+                        - "testing: View test results and coverage"
+                        - "command: Execute explicitly requested commands"
+                    restricted:
+                        - "NO automatic file modifications except docs"
+                        - "NO automatic system commands except tests"
+                        - "UNLESS explicitly requested by user"
+
+                understanding:
+                    principle: "Focus on understanding and planning"
+                    related_actions:
+                        - "planning: Gather requirements"
+                        - "planning: Ask clarifying questions"
+                        - "analysis: Analyze user request"
+                    restricted:
+                        - "NO direct code modifications"
+                        - "NO configuration changes"
+
+                analysis:
+                    principle: "Analyze system state and requirements"
+                    related_actions:
+                        - "testing: Run test suites for analysis"
+                        - "testing: View test results and coverage"
+                        - "file_access: View current system state"
+                    restricted:
+                        - "NO package installations"
+                        - "NO database migrations"
+
+                documentation:
+                    principle: "Document decisions and architecture"
+                    related_actions:
+                        - "documentation: Modify files in docs/*"
+                        - "documentation: Create documentation outlines"
+                        - "planning: Design system architecture"
+                    restricted:
+                        - "NO direct system commands"
+
+                preparation:
+                    principle: "Prepare for implementation"
+                    related_actions:
+                        - "planning: Create test plans"
+                        - "testing: Identify test gaps"
+                        - "planning: Generate status reports"
+                    restricted:
+                        - "NO branch or commit creation"
+
+            allowed_actions:
+                file_access:
+                    - "Read any files for analysis"
+                    - "View current system state"
+                    - "Examine test results"
+
+                testing:
+                    - "Run test suites for analysis"
+                    - "View test results and coverage"
+                    - "Identify test gaps"
+                    - "Plan new test cases"
+
+                documentation:
+                    - "Modify files in docs/*"
+                    - "Update .Plan file structure"
+                    - "Create documentation outlines"
+
+                planning:
+                    - "Gather requirements"
+                    - "Ask clarifying questions"
+                    - "Present plan updates"
+                    - "Generate status reports"
+                    - "Review implementation progress"
+                    - "Design system architecture"
+                    - "Create test plans"
+
+            not_allowed:
+                - "NO direct code modifications"
+                - "NO package installations"
+                - "NO database migrations"
+                - "NO configuration changes"
+                - "NO direct system commands"
+                - "NO branch or commit creation"
+
+        act_mode:
+            purpose: "Implementation, testing, and system modifications"
+            header: "# Mode: ACT - Implementation & System Changes"
+
+            principles:
+                implementation:
+                    principle: "Focus on implementation and execution"
+                    related_actions:
+                        - "code_changes: Modify source files"
+                        - "code_changes: Create new files"
+                        - "code_changes: Refactor existing code"
+                    restricted:
+                        - "NO major architectural changes"
+                        - "NO new feature planning"
+
+                testing:
+                    principle: "Run and modify tests"
+                    related_actions:
+                        - "testing: Run test suites"
+                        - "testing: Add new tests"
+                        - "testing: Debug failing tests"
+                    restricted:
+                        - "NO plan structure modifications"
+
+                system_changes:
+                    principle: "Make system modifications"
+                    related_actions:
+                        - "system: Install packages"
+                        - "system: Run migrations"
+                        - "system: Execute system commands"
+                    restricted:
+                        - "NO requirement gathering"
+
+                documentation:
+                    principle: "Update implementation documentation"
+                    related_actions:
+                        - "documentation: Update implementation details"
+                        - "documentation: Document code changes"
+                        - "documentation: Update status in .Plan"
+                    restricted:
+                        - "NO direct edits to architecture docs"
+
+            allowed_actions:
+                code_changes:
+                    - "Modify source files"
+                    - "Create new files"
+                    - "Refactor existing code"
+                    - "Fix bugs"
+
+                testing:
+                    - "Run test suites"
+                    - "Add new tests"
+                    - "Debug failing tests"
+                    - "Generate test data"
+
+                system:
+                    - "Install packages"
+                    - "Run migrations"
+                    - "Execute system commands"
+                    - "Manage git operations"
+
+                documentation:
+                    - "Update implementation details"
+                    - "Document code changes"
+                    - "Update status in .Plan"
+
+            not_allowed:
+                - "NO major architectural changes"
+                - "NO requirement gathering"
+                - "NO new feature planning"
+                - "NO plan structure modifications"
+                - "NO direct edits to architecture docs"
+
+    # ======================
+    # 3. Python Standards
+    # ======================
+    python_standards:
+        language_requirements:
+            - Use Python 3.12+ features where applicable
+            - Type hints are REQUIRED for all function parameters and return types
+            - Use dataclasses for data structures
+            - Follow PEP 8 style guide strictly
+            - Use pathlib instead of os.path for file operations
+            - Use f-strings for string formatting
+            - Use context managers (with statements) for file and resource handling
+
+        code_quality:
+            - Maximum line length: 88 characters (Black formatter standard)
+            - Use Black for code formatting
+            - Use isort for import sorting
+            - Use pylint for linting
+            - Use mypy for type checking
+            - Docstrings required for all public functions and classes
+
+        error_handling:
+            - Use specific exception types instead of bare except clauses
+            - Always include error messages in exceptions
+            - Log exceptions with appropriate log levels
+            - Use custom exceptions for domain-specific errors
+
+        command_execution:
+            python:
+                use: "uv run python"
+                never: ["python", "python3"]
+                example: "uv run python script.py"
+
+            pytest:
+                use: "uv run pytest"
+                never: ["pytest", "python -m pytest"]
+                example: "uv run pytest -v"
+
+    # ======================
+    # 4. Documentation
+    # ======================
+    documentation:
+        core_files:
+            architecture_md:
+                purpose: "Technical system design and implementation details"
+                sections:
+                    - "Core Components: Major system parts and their responsibilities"
+                    - "Data Flow: How information moves through the system"
+                    - "Directory Structure: Code organization"
+                    - "Extension Points: How to add new features"
+                updates:
+                    - "Update when adding new components"
+                    - "Update when changing data flow"
+                    - "Update when modifying system structure"
+                    - "Keep diagrams in sync with code"
+
+            prd_md:
+                purpose: "Product requirements and business context"
+                sections:
+                    - "Product Overview: High-level description and goals"
+                    - "Problem Statement: Why this exists"
+                    - "Features: What the system does"
+                    - "Technical Requirements: System constraints"
+                updates:
+                    - "Update when business requirements change"
+                    - "Update when adding major features"
+                    - "Update when changing technical constraints"
+                    - "Keep examples current with actual usage"
+
+        markdown_standards:
+            headers:
+                - "Use ATX style (# headers)"
+                - "Maximum of 3 levels deep"
+                - "Each file starts with h1 (#)"
+                - "Keep hierarchy logical"
+
+            code_blocks:
+                - "Always specify language"
+                - "Use ```python for Python code"
+                - "Use ```bash for commands"
+                - "Use ```toml for config examples"
+
+            diagrams:
+                - "Use mermaid for all diagrams"
+                - "Include both diagram code and rendered image"
+                - "Keep diagrams focused and simple"
+                - "Update diagrams when changing architecture"
+
+            formatting:
+                - "Use reference-style links"
+                - "Include alt text for all images"
+                - "Keep line length under 100 characters"
+                - "Use bullet lists for features/points"
+                - "Use numbered lists for sequences/steps"
+
+        optional_guides:
+            when_needed:
+                - "Complex workflow explanations"
+                - "Detailed setup instructions"
+                - "Troubleshooting procedures"
+            requirements:
+                - "Must be referenced from architecture.md or prd.md"
+                - "Must solve a specific, complex problem"
+                - "Must be maintained with system changes"
+
+    # ======================
+    # 5. Testing & Quality
+    # ======================
+    testing:
+        test_types:
+            unit_tests:
+                purpose: "Test individual components in isolation"
+                characteristics:
+                    - "Focus on single class/function behavior"
+                    - "Mock all external dependencies"
+                    - "Fast execution (milliseconds)"
+                    - "No file system or network access"
+                location: "tests/unit/"
+                naming: "test_*.py matching source file name"
+
+            integration_tests:
+                purpose: "Test component interactions and workflows"
+                characteristics:
+                    - "Test multiple components working together"
+                    - "Use real file system (in test directory)"
+                    - "Mock external services (API, databases)"
+                    - "Test complete workflows"
+                    - "Can be slower than unit tests"
+                location: "tests/integration/"
+                naming: "test_*_integration.py"
+
+        requirements:
+            - All tests must use pytest framework
+            - Unit tests must be in tests/unit/ directory
+            - Integration tests must be in tests/integration/ directory
+            - Each source file must have corresponding unit tests
+            - Integration tests must cover major workflows
+
+    # ======================
+    # 6. Git Workflow
+    # ======================
+    git_workflow:
+        commit_standards:
+            - Use conventional commits format (type: description)
+            - Types: feat, fix, docs, style, refactor, test, chore
+            - Keep commits atomic and focused
+            - Commit messages must be descriptive and in present tense
+            - Reference issues in commits where applicable
+
+        branch_management:
+            - Use feature branches for all new work
+            - Branch naming: type/description (e.g., feat/add-markdown-processor)
+            - Keep branches up to date with main
+            - Delete branches after merging
+
+        pull_requests:
+            - Include description of changes
+            - Link related issues
+            - Update documentation if needed
+            - Ensure all tests pass
+            - Request review from at least one team member
+
+    # ======================
+    # 7. Error Handling & Logging
+    # ======================
+    error_handling:
+        exception_hierarchy:
+            base_exceptions:
+                - "ConsolidateError: Base exception for all custom errors"
+                - "ConfigError: Configuration-related errors"
+                - "ProcessingError: File processing errors"
+                - "ValidationError: Input validation errors"
+
+        error_procedures:
+            validation:
+                - "Validate all inputs before processing"
+                - "Check file existence before operations"
+                - "Verify file permissions before access"
+                - "Validate configuration before startup"
+
+            recovery:
+                - "Always clean up temporary files on error"
+                - "Restore from backup if file operation fails"
+                - "Roll back partial changes on failure"
+                - "Provide clear recovery instructions in error message"
+
+            user_communication:
+                - "Show exact error location (file, line)"
+                - "Explain what went wrong in plain language"
+                - "Suggest possible fixes"
+                - "Include troubleshooting steps if applicable"
+
+        logging_standards:
+            levels:
+                debug:
+                    - "Detailed information for debugging"
+                    - "Function entry/exit points"
+                    - "Variable values during processing"
+                    - "Only enabled with --debug flag"
+
+                info:
+                    - "Normal operation progress"
+                    - "File processing starts/completions"
+                    - "Configuration loading success"
+                    - "Regular status updates"
+
+                warning:
+                    - "Recoverable issues"
+                    - "Deprecated feature usage"
+                    - "Performance concerns"
+                    - "Missing optional files"
+
+                error:
+                    - "Unrecoverable issues"
+                    - "Failed operations"
+                    - "Missing required files"
+                    - "Configuration errors"
+
+            format:
+                pattern: "{timestamp} [{level}] {module}: {message}"
+                timestamp: "ISO format with timezone"
+                includes:
+                    - "Log level"
+                    - "Module/component name"
+                    - "Function name for debug logs"
+                    - "Process ID for concurrent operations"
+
+            file_handling:
+                location: "${config.project.system_dir}/${config.project.log_dir}"
+                rotation:
+                    - "Daily rotation"
+                    - "Keep last 7 days"
+                    - "Compress old logs"
+                    - "Include date in filename"
+
+        troubleshooting_guides:
+            common_issues:
+                file_access:
+                    symptoms:
+                        - "Permission denied errors"
+                        - "File not found errors"
+                    checks:
+                        - "Verify file permissions"
+                        - "Check file paths"
+                        - "Validate user access rights"
+                    solutions:
+                        - "Adjust file permissions"
+                        - "Create missing directories"
+                        - "Update configuration paths"
+
+                processing:
+                    symptoms:
+                        - "Timeout errors"
+                        - "Memory errors"
+                        - "Incomplete output"
+                    checks:
+                        - "Check input file size"
+                        - "Monitor system resources"
+                        - "Verify temp space"
+                    solutions:
+                        - "Process in smaller batches"
+                        - "Clean temp directory"
+                        - "Increase timeout values"
+
+                configuration:
+                    symptoms:
+                        - "Missing settings"
+                        - "Invalid values"
+                        - "Type mismatches"
+                    checks:
+                        - "Validate config file syntax"
+                        - "Check required fields"
+                        - "Verify value types"
+                    solutions:
+                        - "Copy from example config"
+                        - "Reset to defaults"
+                        - "Update invalid values"
+
+    # ======================
+    # 8. Vision Model Requirements
+    # ======================
+    vision_model:
+        - Use "gpt-4o" for ALL vision/image analysis tasks
+        - NEVER use gpt-4-vision-preview
+        - NEVER use gpt-4-vision
+        - NEVER use any other vision models
+
+    # ======================
+    # 9. Command Triggers
+    # ======================
+    command_triggers:
+        "update_docs":
+            when_user_says: "update docs"
+            action: "Update documentation files in docs/"
+            procedure:
+                - "Parse all Markdown files in docs/"
+                - "Extract relevant updates from conversation"
+                - "Apply any relevant and useful updates"
+
+        "create_plan":
+            when_user_says: "create plan"
+            action: "Create or replace .Plan file"
+            procedure:
+                - "If there is a plan, delete it"
+                - "Create a new plan using planning.rules template"
+                - "Include status markers for each step"
+                - "Operate in PLAN mode until plan is approved"
+                - "Extract relevant updates from conversation"
+                - "Apply conversation updates to plan"
+
+        "update_plan":
+            when_user_says: "update plan"
+            action: "Update existing .Plan file"
+            procedure:
+                - "Read the plan in .Plan"
+                - "Verify current operation mode (PLAN or ACT)"
+                - "In PLAN mode: only update content and structure"
+                - "In ACT mode: only update status and progress"
+                - "Update status markers for each step"
+                - "Apply relevant conversation updates to plan"
+
+        "run_tests":
+            when_user_says: "run tests"
+            action: "Execute test suite"
+            procedure:
+                - "Run command: uv run pytest -v"
