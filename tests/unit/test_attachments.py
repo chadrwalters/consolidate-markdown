@@ -22,7 +22,8 @@ def test_image_processing_jpg(tmp_path):
     assert isinstance(metadata, AttachmentMetadata)
     assert metadata.is_image
     assert metadata.mime_type == "image/jpeg"
-    assert (cm_dir / "temp" / "test.jpg").exists()
+    assert temp_path.exists()
+    assert temp_path == cm_dir / "temp" / "test.jpg"
 
 
 def test_image_processing_heic(tmp_path):
@@ -38,7 +39,8 @@ def test_image_processing_heic(tmp_path):
     assert isinstance(metadata, AttachmentMetadata)
     assert metadata.is_image
     assert metadata.mime_type == "image/heic"
-    assert (cm_dir / "temp" / "test.jpg").exists()
+    assert temp_path.exists()
+    assert temp_path == cm_dir / "temp" / "test.jpg"
 
 
 def test_document_processing(tmp_path):
@@ -54,7 +56,8 @@ def test_document_processing(tmp_path):
     assert isinstance(metadata, AttachmentMetadata)
     assert not metadata.is_image
     assert metadata.mime_type == "application/pdf"
-    assert (cm_dir / "temp" / "test.pdf").exists()
+    assert temp_path.exists()
+    assert temp_path == cm_dir / "temp" / "test.pdf"
 
 
 def test_svg_handling(tmp_path):
@@ -70,7 +73,8 @@ def test_svg_handling(tmp_path):
     assert isinstance(metadata, AttachmentMetadata)
     assert metadata.is_image
     assert metadata.mime_type == "image/svg+xml"
-    assert (cm_dir / "temp" / "test.svg").exists()
+    assert temp_path.exists()
+    assert temp_path == cm_dir / "temp" / "test.svg"
 
 
 @patch("consolidate_markdown.attachments.gpt.OpenAI")

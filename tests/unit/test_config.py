@@ -91,7 +91,7 @@ def test_config_validation(tmp_path):
     config_path.write_text(tomli_w.dumps(invalid_config))
 
     with pytest.raises(ValueError) as exc_info:
-        _ = load_config(config_path)  # Use _ to indicate intentionally unused
+        load_config(config_path)
     assert "Invalid source type: invalid" in str(exc_info.value)
 
     # Test missing OpenAI key when image processing is enabled
@@ -111,7 +111,7 @@ def test_config_validation(tmp_path):
     config_path.write_text(tomli_w.dumps(invalid_config))
 
     with pytest.raises(ValueError) as exc_info:
-        _ = load_config(config_path)  # Use _ to indicate intentionally unused
+        load_config(config_path)
     assert "OpenAI key required when image processing is enabled" in str(exc_info.value)
 
 
@@ -171,6 +171,6 @@ destDir = "{tmp_path / 'output/invalid'}"
     )
 
     with pytest.raises(ValueError) as exc_info:
-        _ = load_config(config_file)  # Use _ to indicate intentionally unused
+        load_config(config_file)
 
     assert "Invalid source type: invalid" in str(exc_info.value)
