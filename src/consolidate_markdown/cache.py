@@ -1,15 +1,18 @@
 """Cache management for consolidate_markdown."""
+
 import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
+
 
 def quick_hash(content: str) -> str:
     """Fast MD5 hash of content."""
     return hashlib.md5(content.encode()).hexdigest()
+
 
 class CacheManager:
     """Manages caching of processed files and GPT analyses."""
@@ -36,7 +39,9 @@ class CacheManager:
         try:
             return json.loads(cache_file.read_text())
         except Exception as e:
-            logger.warning(f"Failed to load cache {cache_file.name}, starting fresh: {e}")
+            logger.warning(
+                f"Failed to load cache {cache_file.name}, starting fresh: {e}"
+            )
             return {}
 
     def _save_cache(self, cache_file: Path, data: Dict):
@@ -50,19 +55,26 @@ class CacheManager:
         """Get cached note info if it exists."""
         cache = self._load_cache(self.notes_file)
         # Normalize path for consistent lookup
-        note_path = str(note_path).replace('\\', '/').replace('\n', '')
+        note_path = str(note_path).replace("\\", "/").replace("\n", "")
         return cache.get(note_path)
 
-    def update_note_cache(self, note_path: str, content_hash: str, timestamp: float, gpt_analyses: int = 0, processed_content: Optional[str] = None):
+    def update_note_cache(
+        self,
+        note_path: str,
+        content_hash: str,
+        timestamp: float,
+        gpt_analyses: int = 0,
+        processed_content: Optional[str] = None,
+    ):
         """Update note cache with new hash, timestamp, GPT analysis count and processed content."""
         cache = self._load_cache(self.notes_file)
         # Normalize path for consistent lookup
-        note_path = str(note_path).replace('\\', '/').replace('\n', '')
+        note_path = str(note_path).replace("\\", "/").replace("\n", "")
         cache[note_path] = {
             "hash": content_hash,
             "timestamp": timestamp,
             "gpt_analyses": gpt_analyses,
-            "processed_content": processed_content
+            "processed_content": processed_content,
         }
         self._save_cache(self.notes_file, cache)
 

@@ -1,17 +1,19 @@
 """Process Bear notes."""
+
 import logging
 import re
+import shutil
 import urllib.parse
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-from ..attachments.processor import AttachmentProcessor, AttachmentMetadata
-from ..attachments.gpt import GPTProcessor, GPTError
-from ..config import Config, SourceConfig
+from ..attachments.gpt import GPTProcessor
+from ..attachments.processor import AttachmentMetadata, AttachmentProcessor
 from ..cache import CacheManager, quick_hash
+from ..config import Config, SourceConfig
 from .base import ProcessingResult, SourceProcessor
 
 logger = logging.getLogger(__name__)
+
 
 class BearProcessor(SourceProcessor):
     """Process Bear notes and their attachments."""
@@ -19,6 +21,7 @@ class BearProcessor(SourceProcessor):
     def __init__(self, source_config: SourceConfig):
         """Initialize processor."""
         super().__init__(source_config)
+        self.validate()  # Call validate to ensure source directory exists
         self.cache_manager = CacheManager(source_config.dest_dir.parent)
         self.attachment_processor = AttachmentProcessor(source_config.dest_dir.parent)
 
@@ -63,14 +66,22 @@ class BearProcessor(SourceProcessor):
 
         return result
 
-    def _process_attachments(self, content: str, attachment_dir: Path,
-                           attachment_processor: AttachmentProcessor,
-                           config: Config,
-                           result: ProcessingResult) -> str:
+    def _process_attachments(
+        self,
+        content: str,
+        attachment_dir: Path,
+        attachment_processor: AttachmentProcessor,
+        config: Config,
+        result: ProcessingResult,
+    ) -> str:
         """Process attachments and update note content."""
         # Find all attachment references
-        image_pattern = r'!\[(.*?)\]\((.*?)\)'
+        image_pattern = r"!\[(.*?)\]\((.*?)\)"
         embed_pattern = r'\[(.*?)\]\((.*?)\)<!-- *{"embed":"true".*?} *-->'
+
+        # Create output attachments directory
+        output_attachments_dir = self.source_config.dest_dir / "attachments"
+        output_attachments_dir.mkdir(exist_ok=True)
 
         def replace_attachment(match: re.Match, is_image: bool = True) -> str:
             alt_text, path = match.groups()
@@ -79,7 +90,7 @@ class BearProcessor(SourceProcessor):
             attachment_path = attachment_dir / Path(decoded_path).name
 
             # Skip .DS_Store files
-            if attachment_path.name == '.DS_Store':
+            if attachment_path.name == ".DS_Store":
                 return match.group(0)
 
             if not attachment_path.exists():
@@ -90,28 +101,26 @@ class BearProcessor(SourceProcessor):
                 temp_path, metadata = attachment_processor.process_file(
                     attachment_path,
                     force=config.global_config.force_generation,
-                    result=result
+                    result=result,
                 )
+
+                # Copy processed file to output directory
+                output_path = output_attachments_dir / attachment_path.name
+                shutil.copy2(temp_path, output_path)
 
                 if is_image and metadata.is_image:
                     result.images_processed += 1  # Only increment for image references
-                    if config.global_config.force_generation:
-                        result.images_generated += 1
-                    return self._format_image(
-                        attachment_path,
-                        metadata,
-                        config,
-                        result
-                    )
+                    result.images_generated += 1  # Always increment for new images
+                    return self._format_image(attachment_path, metadata, config, result)
                 elif not is_image and not metadata.is_image:
-                    result.documents_processed += 1  # Only increment for document references
-                    if config.global_config.force_generation:
-                        result.documents_generated += 1
+                    result.documents_processed += (
+                        1  # Only increment for document references
+                    )
+                    result.documents_generated += (
+                        1  # Always increment for new documents
+                    )
                     return self._format_document_attachment(
-                        alt_text,
-                        attachment_path,
-                        metadata,
-                        result
+                        alt_text, attachment_path, metadata, result
                     )
                 else:
                     # Mismatch between reference type and actual file type
@@ -127,7 +136,7 @@ class BearProcessor(SourceProcessor):
                 return match.group(0)
 
         # Process images and embedded documents
-        content = re.sub(image_pattern, lambda m: replace_attachment(m, True), content)
+        content = re.sub(image_pattern, replace_attachment, content)
         content = re.sub(embed_pattern, lambda m: replace_attachment(m, False), content)
 
         return content
@@ -135,9 +144,9 @@ class BearProcessor(SourceProcessor):
     def _format_image(
         self,
         image_path: Path,
-        metadata: 'AttachmentMetadata',
+        metadata: "AttachmentMetadata",
         config: Config,
-        result: ProcessingResult
+        result: ProcessingResult,
     ) -> str:
         """Format an image with optional GPT description."""
         size_kb = metadata.size_bytes / 1024
@@ -149,8 +158,9 @@ class BearProcessor(SourceProcessor):
             try:
                 # Create GPT processor with cache
                 gpt = GPTProcessor(
-                    config.global_config.openai_key or "dummy-key",  # Ensure we never pass None
-                    CacheManager(config.global_config.cm_dir)
+                    config.global_config.openai_key
+                    or "dummy-key",  # Ensure we never pass None
+                    CacheManager(config.global_config.cm_dir),
                 )
                 description = gpt.describe_image(image_path, result)
             except Exception as e:
@@ -175,12 +185,15 @@ class BearProcessor(SourceProcessor):
         self,
         alt_text: str,
         doc_path: Path,
-        metadata: 'AttachmentMetadata',
-        result: ProcessingResult
+        metadata: "AttachmentMetadata",
+        result: ProcessingResult,
     ) -> str:
         """Format a document attachment."""
         size_kb = metadata.size_bytes / 1024
-        content = metadata.markdown_content or "[Document content will be converted in Phase 4]"
+        content = (
+            metadata.markdown_content
+            or "[Document content will be converted in Phase 4]"
+        )
 
         return f"""
 <!-- EMBEDDED DOCUMENT: {doc_path.name} -->
@@ -192,34 +205,40 @@ class BearProcessor(SourceProcessor):
 </details>
 """
 
-    def process_note(self, note_file: Path, config: Config, result: ProcessingResult) -> None:
+    def process_note(
+        self, note_file: Path, config: Config, result: ProcessingResult
+    ) -> None:
         """Process a single Bear note."""
-        note_path = str(note_file.resolve()).replace('\n', '')
+        note_path = str(note_file.resolve()).replace("\n", "")
         logger.debug(f"Processing Bear note: {note_path}")
 
         # Check if we can use cached version
         cached = self.cache_manager.get_note_cache(note_path)
         content_hash = quick_hash(note_file.read_text())
 
-        if cached is not None and cached['hash'] == content_hash and not config.global_config.force_generation:
+        if (
+            cached is not None
+            and cached["hash"] == content_hash
+            and not config.global_config.force_generation
+        ):
             logger.debug(f"Using cached version of {note_file.name}")
             result.from_cache += 1
             result.processed += 1
 
             # Track cached documents and images
-            if 'documents' in cached:
-                result.documents_from_cache += len(cached['documents'])
-                result.documents_processed += len(cached['documents'])
-            if 'images' in cached:
-                result.images_from_cache += len(cached['images'])
-                result.images_processed += len(cached['images'])
-            if 'gpt_analyses' in cached:
-                result.gpt_cache_hits += cached['gpt_analyses']
+            if "documents" in cached:
+                result.documents_from_cache += len(cached["documents"])
+                result.documents_processed += len(cached["documents"])
+            if "images" in cached:
+                result.images_from_cache += len(cached["images"])
+                result.images_processed += len(cached["images"])
+            if "gpt_analyses" in cached:
+                result.gpt_cache_hits += cached["gpt_analyses"]
 
             # Use cached processed content if available
-            if 'processed_content' in cached:
+            if "processed_content" in cached:
                 output_file = self.source_config.dest_dir / note_file.name
-                output_file.write_text(cached['processed_content'], encoding='utf-8')
+                output_file.write_text(cached["processed_content"], encoding="utf-8")
                 return
 
         # Process the note from scratch
@@ -234,12 +253,12 @@ class BearProcessor(SourceProcessor):
             note_file.parent / note_file.stem,
             self.attachment_processor,
             config,
-            result
+            result,
         )
 
         # Write processed content
         output_file = self.source_config.dest_dir / note_file.name
-        output_file.write_text(processed_content, encoding='utf-8')
+        output_file.write_text(processed_content, encoding="utf-8")
 
         # Update cache with new content
         self.cache_manager.update_note_cache(
@@ -247,5 +266,5 @@ class BearProcessor(SourceProcessor):
             content_hash,
             0.0,  # Ignore timestamps for Bear notes
             gpt_analyses=result.gpt_new_analyses,
-            processed_content=processed_content
+            processed_content=processed_content,
         )

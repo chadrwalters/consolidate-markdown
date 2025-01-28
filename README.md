@@ -20,9 +20,12 @@ Convert and consolidate Markdown files from multiple sources with AI-powered ima
 
 ### Third-Party Programs
 - **Image Processing**
-  - macOS: `sips` (built-in, used for HEIC conversion)
-  - Linux/Windows: Install an alternative HEIC converter
-  - `inkscape` or `rsvg-convert` (for SVG conversion)
+  - HEIC Conversion (one of the following):
+    - ImageMagick (recommended, works on all platforms)
+    - macOS: `sips` (built-in)
+    - Linux: `libheif-tools`
+  - SVG Conversion:
+    - `librsvg` (provides `rsvg-convert`)
 - **Document Processing**
   - `pandoc` (for document format conversion)
 
@@ -34,55 +37,30 @@ Convert and consolidate Markdown files from multiple sources with AI-powered ima
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install required programs
-brew install inkscape  # or brew install librsvg for rsvg-convert
+brew install librsvg
 brew install pandoc
+brew install imagemagick  # optional, sips is built-in
 ```
 
 #### Linux (Ubuntu/Debian)
 ```bash
 # Install required programs
 sudo apt-get update
-sudo apt-get install inkscape  # or librsvg2-bin for rsvg-convert
+sudo apt-get install librsvg2-bin
 sudo apt-get install pandoc
+sudo apt-get install imagemagick  # recommended for HEIC conversion
+# or
+sudo apt-get install libheif-tools  # alternative for HEIC conversion
 ```
 
 #### Windows
-1. Install [Inkscape](https://inkscape.org/release/) or [librsvg](https://wiki.gnome.org/Projects/LibRsvg)
+1. Install [librsvg](https://wiki.gnome.org/Projects/LibRsvg)
 2. Install [Pandoc](https://pandoc.org/installing.html)
-3. Add the installed programs to your system PATH
+3. Install [ImageMagick](https://imagemagick.org/script/download.php#windows) for HEIC conversion
+4. Add the installed programs to your system PATH
 
 # Install with uv
 uv pip install .
 
 # Create and edit config
 cp example_config.toml consolidate_config.toml
-```
-
-## Usage
-```bash
-# Run consolidation (uses cache by default)
-uv run python -m consolidate_markdown --config consolidate_config.toml
-
-# Force regeneration (clears cache)
-uv run python -m consolidate_markdown --config consolidate_config.toml --force
-
-# Use --sequential for easier debugging
-uv run python -m consolidate_markdown --config consolidate_config.toml --sequential
-
-# Skip GPT image analysis (uses cached analyses if available)
-uv run python -m consolidate_markdown --config consolidate_config.toml --no-image
-```
-
-## Documentation
-See [docs/README.md](docs/README.md) for full documentation including:
-- [Installation Guide](docs/installation.md)
-- [Configuration Guide](docs/configuration.md)
-- [Architecture Overview](docs/architecture.md)
-- [Caching System](docs/caching.md)
-- [Troubleshooting Guide](docs/troubleshooting.md)
-
-## License
-MIT
-
-## Changelog
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.

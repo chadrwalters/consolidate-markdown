@@ -1,16 +1,16 @@
 """Process X bookmarks."""
-import logging
-import re
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-from ..attachments.processor import AttachmentProcessor, AttachmentMetadata
-from ..attachments.gpt import GPTProcessor, GPTError
-from ..config import Config
+import logging
+import shutil
+from pathlib import Path
+
+from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager, quick_hash
+from ..config import Config
 from .base import ProcessingResult, SourceProcessor
 
 logger = logging.getLogger(__name__)
+
 
 class XBookmarksProcessor(SourceProcessor):
     """Process X bookmarks and their attachments."""
@@ -18,6 +18,7 @@ class XBookmarksProcessor(SourceProcessor):
     def __init__(self, source_config):
         """Initialize processor."""
         super().__init__(source_config)
+        self.validate()  # Call validate to ensure source directory exists
         self.cache_manager = CacheManager(source_config.dest_dir.parent)
         self.attachment_processor = AttachmentProcessor(source_config.dest_dir.parent)
 
@@ -50,70 +51,91 @@ class XBookmarksProcessor(SourceProcessor):
                         continue
 
                     # Check if we need to process this bookmark
-                    content = index_file.read_text(encoding='utf-8')
+                    content = index_file.read_text(encoding="utf-8")
                     content_hash = quick_hash(content)
                     cached = self.cache_manager.get_note_cache(str(index_file))
 
                     should_process = True
                     if cached and not config.global_config.force_generation:
-                        if cached['hash'] == content_hash:
+                        if cached["hash"] == content_hash:
                             # Check for any newer files in the bookmark directory
                             latest_file = max(
-                                bookmark_dir.glob('*'),
+                                bookmark_dir.glob("*"),
                                 key=lambda p: p.stat().st_mtime if p.is_file() else 0,
-                                default=None
+                                default=None,
                             )
-                            if latest_file and latest_file.stat().st_mtime <= cached['timestamp']:
+                            if (
+                                latest_file
+                                and latest_file.stat().st_mtime <= cached["timestamp"]
+                            ):
                                 should_process = False
 
-                    if not should_process:
+                    if not should_process and cached and "processed_content" in cached:
                         logger.debug(f"Using cached version of {bookmark_dir.name}")
-                        bookmark_result.from_cache += 1
+                        bookmark_result.add_from_cache()
+
+                        # Write cached content
+                        output_file = (
+                            self.source_config.dest_dir / f"{bookmark_dir.name}.md"
+                        )
+                        output_file.write_text(
+                            cached["processed_content"], encoding="utf-8"
+                        )
+
                         result.merge(bookmark_result)
-                        result.processed += 1
                         continue
 
-                    # Process media files
-                    content = self._process_media(
-                        content,
-                        bookmark_dir,
-                        self.attachment_processor,
-                        config,
-                        bookmark_result
-                    )
+                    # If cache is valid and we're not forcing regeneration, use it
+                    if not config.global_config.force_generation and cached:
+                        logger.debug(f"Using cached content for {bookmark_dir}")
+                        bookmark_result.add_from_cache()
+                        processed_content = cached["processed_content"]
+                    else:
+                        # Process bookmark
+                        logger.debug(f"Processing {bookmark_dir}")
+                        # Process media files
+                        media_content = self._process_media(
+                            bookmark_dir,
+                            self.attachment_processor,
+                            config,
+                            bookmark_result,
+                        )
 
-                    if not content:
-                        logger.warning(f"Media processing returned empty content for {bookmark_dir.name}")
-                        content = ""
+                        if media_content:
+                            content += "\n\n" + media_content
 
-                    # Process any embedded attachments
-                    processed_content = self._process_attachments(
-                        content,
-                        bookmark_dir,
-                        self.attachment_processor,
-                        config,
-                        bookmark_result
-                    )
+                        # Process any embedded attachments
+                        processed_content = self._process_attachments(
+                            content,
+                            bookmark_dir,
+                            self.attachment_processor,
+                            config,
+                            bookmark_result,
+                        )
 
-                    if not processed_content:
-                        logger.warning(f"Attachment processing returned empty content for {bookmark_dir.name}")
-                        processed_content = content
+                        if not processed_content:
+                            logger.warning(
+                                f"Attachment processing returned empty content for {bookmark_dir.name}"
+                            )
+                            processed_content = content
+
+                        bookmark_result.add_generated()
 
                     # Write processed bookmark
-                    output_file = self.source_config.dest_dir / f"{bookmark_dir.name}.md"
-                    output_file.write_text(processed_content or content, encoding='utf-8')
+                    output_file = (
+                        self.source_config.dest_dir / f"{bookmark_dir.name}.md"
+                    )
+                    output_file.write_text(processed_content, encoding="utf-8")
 
                     # Update cache
                     self.cache_manager.update_note_cache(
                         str(index_file),
                         content_hash,
                         index_file.stat().st_mtime,
-                        processed_content=processed_content
+                        processed_content=processed_content,
                     )
 
-                    bookmark_result.regenerated += 1
                     result.merge(bookmark_result)
-                    result.processed += 1
                     logger.info(
                         f"Successfully processed: {bookmark_dir.name} "
                         f"({bookmark_result.images_processed} images, "
@@ -136,78 +158,79 @@ class XBookmarksProcessor(SourceProcessor):
 
         return result
 
-    def _process_media(self, content: str, bookmark_dir: Path,
-                      attachment_processor: AttachmentProcessor,
-                      config: Config,
-                      result: ProcessingResult) -> str:
+    def _process_media(
+        self,
+        bookmark_dir: Path,
+        attachment_processor: AttachmentProcessor,
+        config: Config,
+        result: ProcessingResult,
+    ) -> str:
         """Process media files in the bookmark directory."""
-        # Create GPT processor with cache if needed
-        gpt = None
-        if not config.global_config.no_image:
-            gpt = GPTProcessor(
-                config.global_config.openai_key or "dummy-key",
-                CacheManager(config.global_config.cm_dir)
-            )
+        content = ""
+        media_dir = bookmark_dir / "media"
+        if not media_dir.exists() or not media_dir.is_dir():
+            return content
 
-        # Find all media files
-        media_files = []
-        for ext in ['.jpg', '.jpeg', '.png', '.gif']:
-            media_files.extend(bookmark_dir.glob(f"*{ext}"))
+        # Create output media directory
+        output_media_dir = self.source_config.dest_dir / "media"
+        output_media_dir.mkdir(exist_ok=True)
 
         # Process each media file
+        media_files = [
+            f
+            for f in media_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
+        ]
+
         for media_file in media_files:
             try:
                 temp_path, metadata = attachment_processor.process_file(
                     media_file,
                     force=config.global_config.force_generation,
-                    result=result
+                    result=result,
                 )
+
+                # Copy processed file to output directory
+                output_path = output_media_dir / media_file.name
+                shutil.copy2(temp_path, output_path)
 
                 if metadata.is_image:
                     result.images_processed += 1
                     if config.global_config.force_generation:
                         result.images_generated += 1
+
                     size_kb = metadata.size_bytes / 1024
                     dimensions = metadata.dimensions or (0, 0)
 
-                    # Get image description if enabled
-                    description = ""
-                    if gpt:
-                        try:
-                            description = gpt.describe_image(media_file, result)
-                        except Exception as e:
-                            logger.error(f"GPT processing failed for {media_file}: {str(e)}")
-                            description = gpt.get_placeholder(media_file, result)
-                    else:
-                        description = f"[GPT image analysis skipped for {media_file.name}]"
-                        result.images_skipped += 1
-
                     content += f"""
-
 <!-- EMBEDDED IMAGE: {media_file.name} -->
 <details>
 <summary>🖼️ {media_file.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
 
-{description}
+[Image will be analyzed in Phase 4]
 
 </details>
 """
 
             except Exception as e:
                 logger.error(f"Error processing media file {media_file}: {str(e)}")
-                result.images_skipped += 1
 
         return content
 
-    def _process_attachments(self, content: str, bookmark_dir: Path,
-                           attachment_processor: AttachmentProcessor,
-                           config: Config,
-                           result: ProcessingResult) -> str:
+    def _process_attachments(
+        self,
+        content: str,
+        bookmark_dir: Path,
+        attachment_processor: AttachmentProcessor,
+        config: Config,
+        result: ProcessingResult,
+    ) -> str:
         """Process non-media attachments in the bookmark directory."""
         # Find all non-media files (excluding index and media files)
-        skip_exts = {'.md', '.jpg', '.jpeg', '.png', '.gif'}
+        skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif"}
         attachments = [
-            f for f in bookmark_dir.iterdir()
+            f
+            for f in bookmark_dir.iterdir()
             if f.is_file() and f.suffix.lower() not in skip_exts
         ]
 
@@ -217,7 +240,7 @@ class XBookmarksProcessor(SourceProcessor):
                 temp_path, metadata = attachment_processor.process_file(
                     attachment,
                     force=config.global_config.force_generation,
-                    result=result
+                    result=result,
                 )
 
                 if not metadata.is_image:
@@ -225,7 +248,10 @@ class XBookmarksProcessor(SourceProcessor):
                     if config.global_config.force_generation:
                         result.documents_generated += 1
                     size_kb = metadata.size_bytes / 1024
-                    doc_content = metadata.markdown_content or "[Document content will be converted in Phase 4]"
+                    doc_content = (
+                        metadata.markdown_content
+                        or "[Document content will be converted in Phase 4]"
+                    )
 
                     content += f"""
 

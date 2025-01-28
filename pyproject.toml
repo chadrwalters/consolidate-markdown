@@ -5,6 +5,7 @@ description = "Consolidate Markdown files from multiple sources with AI-powered 
 requires-python = ">=3.12"
 dependencies = [
   "tomli>=2.0.1",
+  "tomli-w>=1.0.0",
   "openai>=1.0.0",
   "pathlib>=1.0.1",
   "pillow>=10.0.0",

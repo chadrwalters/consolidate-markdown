@@ -1,0 +1,32 @@
+{
+  "api": {
+    "version": "1.0.0",
+    "endpoints": [
+      {
+        "name": "users",
+        "method": "GET",
+        "path": "/api/users",
+        "parameters": {
+          "page": "integer",
+          "limit": "integer",
+          "sort": "string"
+        }
+      },
+      {
+        "name": "posts",
+        "method": "POST",
+        "path": "/api/posts",
+        "parameters": {
+          "title": "string",
+          "content": "string",
+          "tags": "array"
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "generated": "2024-01-27",
+    "environment": "test",
+    "status": "active"
+  }
+}

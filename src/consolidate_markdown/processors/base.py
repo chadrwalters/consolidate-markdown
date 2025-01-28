@@ -1,12 +1,11 @@
+import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 from ..config import Config, SourceConfig
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class ProcessingResult:
     """Track results of processing a set of notes."""
@@ -34,7 +33,7 @@ class ProcessingResult:
         """Add an error message."""
         self.errors.append(error)
 
-    def merge(self, other: 'ProcessingResult'):
+    def merge(self, other: "ProcessingResult"):
         """Merge another result into this one."""
         self.processed += other.processed
         self.from_cache += other.from_cache
@@ -52,6 +51,20 @@ class ProcessingResult:
         self.gpt_new_analyses += other.gpt_new_analyses
         self.gpt_skipped += other.gpt_skipped
         self.errors.extend(other.errors)
+
+    def add_from_cache(self):
+        """Record a note loaded from cache."""
+        self.processed += 1
+        self.from_cache += 1
+
+    def add_generated(self):
+        """Record a generated note."""
+        self.processed += 1
+        self.regenerated += 1
+
+    def add_skipped(self):
+        """Record a skipped note."""
+        self.skipped += 1
 
     def __str__(self) -> str:
         """Return string representation."""
@@ -86,6 +99,7 @@ class ProcessingResult:
             parts.append(f"{len(self.errors)} errors")
         return ", ".join(parts) if parts else "No results"
 
+
 class SourceProcessor(ABC):
     """Base class for all source processors."""
 
@@ -97,21 +111,28 @@ class SourceProcessor(ABC):
         """Process all files in the source directory."""
         pass
 
-    def validate(self) -> tuple[bool, List[str]]:
-        """Validate source configuration."""
-        errors = []
+    def validate(self) -> None:
+        """Validate source configuration.
 
+        Raises:
+            ValueError: If source configuration is invalid.
+        """
         # Check source directory exists and is readable
         if not self.source_config.src_dir.exists():
-            errors.append(f"Source directory does not exist: {self.source_config.src_dir}")
-        elif not self.source_config.src_dir.is_dir():
-            errors.append(f"Source path is not a directory: {self.source_config.src_dir}")
+            raise ValueError(
+                f"Source directory does not exist: {self.source_config.src_dir}"
+            )
+        if not self.source_config.src_dir.is_dir():
+            raise ValueError(
+                f"Source path is not a directory: {self.source_config.src_dir}"
+            )
 
-        # Check destination parent exists
-        if not self.source_config.dest_dir.parent.exists():
-            errors.append(f"Destination parent directory does not exist: {self.source_config.dest_dir.parent}")
-
-        return len(errors) == 0, errors
+        # Check destination parent directory exists
+        dest_parent = self.source_config.dest_dir.parent
+        if not dest_parent.exists():
+            raise ValueError(
+                f"Destination parent directory does not exist: {dest_parent}"
+            )
 
     def _ensure_dest_dir(self) -> None:
         """Ensure destination directory exists."""
@@ -119,4 +140,4 @@ class SourceProcessor(ABC):
 
     def _normalize_path(self, path: Path) -> Path:
         """Handle paths with spaces and special characters."""
-        return Path(str(path).replace('\\', '/'))
+        return Path(str(path).replace("\\", "/"))

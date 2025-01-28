@@ -1,0 +1,11 @@
+ID,Product,Category,Price,Stock
+1001,Widget A,Electronics,29.99,100
+1002,Gadget B,Electronics,49.99,75
+1003,Tool C,Hardware,19.99,200
+1004,Device D,Electronics,99.99,50
+1005,Item E,Accessories,9.99,500
+1006,Product F,Hardware,39.99,150
+1007,Thing G,Accessories,14.99,300
+1008,Unit H,Electronics,79.99,25
+1009,Part I,Hardware,24.99,250
+1010,Object J,Accessories,19.99,400

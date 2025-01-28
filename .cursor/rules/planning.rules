@@ -132,4 +132,3 @@ rules:
                 - "Require explicit phase change commands"
                 - "Log phase changes in Change Log"
                 - "Update progress percentage on phase change"
-

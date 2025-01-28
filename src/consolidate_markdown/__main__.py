@@ -1,12 +1,12 @@
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
 from .config import load_config
 from .logging import setup_logging
 from .runner import Runner
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -15,44 +15,38 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--config",
-        type=Path,
-        required=True,
-        help="Path to TOML configuration file"
+        "--config", type=Path, required=True, help="Path to TOML configuration file"
     )
 
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force reprocessing of all files"
+        "--force", action="store_true", help="Force reprocessing of all files"
     )
 
     parser.add_argument(
         "--delete",
         action="store_true",
-        help="Delete existing output files before processing"
+        help="Delete existing output files before processing",
     )
 
     parser.add_argument(
-        "--no-image",
-        action="store_true",
-        help="Skip GPT image analysis"
+        "--no-image", action="store_true", help="Skip GPT image analysis"
     )
 
     parser.add_argument(
         "--sequential",
         action="store_true",
-        help="Process sources sequentially (no parallel processing)"
+        help="Process sources sequentially (no parallel processing)",
     )
 
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default=None,
-        help="Override logging level from config"
+        help="Override logging level from config",
     )
 
     return parser.parse_args()
+
 
 def main() -> int:
     """Main entry point."""
@@ -74,6 +68,7 @@ def main() -> int:
             for source in config.sources:
                 if source.dest_dir.exists():
                     import shutil
+
                     shutil.rmtree(source.dest_dir)
                 if config.global_config.cm_dir.exists():
                     shutil.rmtree(config.global_config.cm_dir)
@@ -101,6 +96,7 @@ def main() -> int:
     except Exception as e:
         logging.error(f"Error: {str(e)}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

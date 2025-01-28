@@ -6,9 +6,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class OutputError(Exception):
     """Error during output generation."""
+
     pass
+
 
 class OutputGenerator:
     """Generate and write consolidated markdown output."""
@@ -26,7 +29,9 @@ class OutputGenerator:
             raise OutputError(f"Output file already exists: {output_path}")
 
         # Create temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False
+        ) as temp_file:
             temp_path = Path(temp_file.name)
             try:
                 # Write content to temp file
@@ -49,7 +54,9 @@ class OutputGenerator:
                 if temp_path.exists():
                     temp_path.unlink()
 
-    def format_document(self, title: str, content: str, metadata: Optional[dict] = None) -> str:
+    def format_document(
+        self, title: str, content: str, metadata: Optional[dict] = None
+    ) -> str:
         """Format a document with consistent styling."""
         lines = []
 
@@ -70,11 +77,7 @@ class OutputGenerator:
         return "\n".join(lines)
 
     def format_embedded_document(
-        self,
-        title: str,
-        content: str,
-        doc_type: str,
-        metadata: Optional[dict] = None
+        self, title: str, content: str, doc_type: str, metadata: Optional[dict] = None
     ) -> str:
         """Format an embedded document section."""
         lines = []
@@ -86,7 +89,7 @@ class OutputGenerator:
         # Add summary with metadata
         summary_parts = [f"📄 {title}"]
         if metadata:
-            size_kb = metadata.get('size_bytes', 0) / 1024
+            size_kb = metadata.get("size_bytes", 0) / 1024
             summary_parts.append(f"({size_kb:.0f}KB)")
         lines.append(f"<summary>{' '.join(summary_parts)}</summary>")
         lines.append("")
@@ -99,10 +102,7 @@ class OutputGenerator:
         return "\n".join(lines)
 
     def format_embedded_image(
-        self,
-        title: str,
-        description: str,
-        metadata: Optional[dict] = None
+        self, title: str, description: str, metadata: Optional[dict] = None
     ) -> str:
         """Format an embedded image section."""
         lines = []
@@ -114,8 +114,8 @@ class OutputGenerator:
         # Add summary with metadata
         summary_parts = [f"🖼️ {title}"]
         if metadata:
-            size = metadata.get('size', (0, 0))
-            size_kb = metadata.get('file_size', 0) / 1024
+            size = metadata.get("size", (0, 0))
+            size_kb = metadata.get("file_size", 0) / 1024
             summary_parts.append(f"({size[0]}x{size[1]}, {size_kb:.0f}KB)")
         lines.append(f"<summary>{' '.join(summary_parts)}</summary>")
         lines.append("")
