@@ -34,25 +34,35 @@ jobs:
           brew install inkscape pandoc
 
       - name: Install uv
+        shell: bash
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/env" >> $GITHUB_ENV
+          source "$HOME/.cargo/env"
 
       - name: Install dependencies
+        shell: bash
         run: |
-          $HOME/.cargo/bin/uv pip install --system pip setuptools wheel
-          $HOME/.cargo/bin/uv pip install -e ".[dev]"
+          source "$HOME/.cargo/env"
+          uv pip install --system pip setuptools wheel
+          uv pip install -e ".[dev]"
 
       - name: Run tests
+        shell: bash
         run: |
-          $HOME/.cargo/bin/uv run pytest -v
+          source "$HOME/.cargo/env"
+          uv run pytest -v
 
       - name: Run type checking
+        shell: bash
         run: |
-          $HOME/.cargo/bin/uv run mypy src tests
+          source "$HOME/.cargo/env"
+          uv run mypy src tests
 
       - name: Run linting
+        shell: bash
         run: |
-          $HOME/.cargo/bin/uv run black --check src tests
-          $HOME/.cargo/bin/uv run isort --check-only src tests
-          $HOME/.cargo/bin/uv run ruff check src tests
+          source "$HOME/.cargo/env"
+          uv run black --check src tests
+          uv run isort --check-only src tests
+          uv run ruff check src tests
