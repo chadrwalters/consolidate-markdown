@@ -1,5 +1,7 @@
 # Configuration Guide
 
+This document describes how to configure the consolidate-markdown tool.
+
 ## Configuration File Format
 The tool uses TOML format for configuration. Create a file named `config.toml`:
 
@@ -23,15 +25,17 @@ destDir = "/path/to/output/x"
 ```
 
 ## Command Line Options
+
 ```bash
-consolidate_markdown --config config.toml [options]
+consolidate-markdown --config config.toml [options]
 
 Options:
-  --config PATH      Path to TOML configuration file
-  --force           Force reprocessing of all files
-  --delete          Delete existing output files before processing
-  --no-image        Skip GPT image analysis
-  --sequential      Process sources sequentially (no parallel processing)
+  --config PATH     Path to configuration file (default: config.toml)
+  --no-image       Skip image analysis
+  --force          Force regeneration of all files
+  --delete         Delete existing output files before processing
+  --log-level      Set logging level (DEBUG, INFO, WARNING, ERROR)
+  --debug          Enable debug logging (same as --log-level DEBUG)
 ```
 
 ## Processing Summary

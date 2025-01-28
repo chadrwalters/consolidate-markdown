@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-from ..processors.base import ProcessingResult
+from ..processors.result import ProcessingResult
 from .document import MarkItDown
 from .image import ImageProcessor
 

@@ -1,4 +1,4 @@
-"""GPT-4 Vision integration for image analysis."""
+"""GPT image analysis processor."""
 
 import base64
 import logging
@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionUserMessageParam
 
 from ..cache import CacheManager, quick_hash
-from ..processors.base import ProcessingResult
+from ..processors.result import ProcessingResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,12 @@ class GPTProcessor:
         """Initialize with OpenAI API key."""
         self.api_key = api_key
         self.cache_manager = cache_manager
+
+        # Set OpenAI logging to INFO level before creating client
+        logging.getLogger("openai").setLevel(logging.INFO)
+        logging.getLogger("openai._base_client").setLevel(logging.INFO)
+        logging.getLogger("httpx").setLevel(logging.INFO)
+
         self.client = OpenAI(api_key=api_key)
 
     def _convert_to_supported_format(
@@ -65,70 +72,59 @@ class GPTProcessor:
         return None, False
 
     def describe_image(self, image_path: Path, result: ProcessingResult) -> str:
-        """Get a description of an image using GPT-4 Vision."""
-        try:
-            # Convert image if needed
-            supported_path, was_converted = self._convert_to_supported_format(
-                image_path
-            )
-            if not supported_path:
-                raise GPTError(f"Unsupported image format: {image_path.suffix}")
+        """Get GPT description of image."""
+        # Generate cache key from image content
+        image_hash = quick_hash(str(image_path.read_bytes()))
 
-            # Read image and get hash
-            with open(supported_path, "rb") as image_file:
-                image_data = image_file.read()
-                image_hash = quick_hash(str(image_data))
+        # Check cache first
+        if self.cache_manager:
+            cached = self.cache_manager.get_gpt_cache(image_hash)
+            if cached:
+                logger.debug(f"Cache hit for GPT analysis: {image_hash}")
+                result.gpt_cache_hits += 1
+                return str(cached)
 
-            # Check cache if available
-            if self.cache_manager:
-                cached = self.cache_manager.get_gpt_cache(image_hash)
-                if cached is not None:  # Explicit None check
-                    result.gpt_cache_hits += 1
-                    logger.debug(f"Using cached GPT analysis for {image_path.name}")
-                    return cached
+        logger.debug(f"Cache miss for GPT analysis: {image_hash}")
 
-            # Convert image to base64
-            base64_image = base64.b64encode(image_data).decode("utf-8")
+        # Convert image to base64
+        with open(image_path, "rb") as img_file:
+            img_base64 = base64.b64encode(img_file.read()).decode()
 
-            # Call GPT-4 Vision
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
+        # Create API request with proper type annotation
+        messages: list[ChatCompletionUserMessageParam] = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this image in detail."},
                     {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Describe this image in detail."},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
-                                },
-                            },
-                        ],
-                    }
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"},
+                    },
                 ],
+            }
+        ]
+
+        # Log request without base64 data for debugging
+        logger.debug("Sending GPT request for image analysis (base64 data omitted)")
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=messages,
                 max_tokens=300,
             )
+            description = str(response.choices[0].message.content)
+            result.gpt_new_analyses += 1
 
-            description = response.choices[0].message.content
-            if description is None:  # Explicit None check
-                raise GPTError("GPT returned empty response")
-
-            # Cache the result if cache manager available
+            # Cache the result
             if self.cache_manager:
                 self.cache_manager.update_gpt_cache(image_hash, description)
-                result.gpt_new_analyses += 1
-                logger.debug(f"Cached new GPT analysis for {image_path.name}")
-
-            # Clean up converted file
-            if was_converted and supported_path != image_path:
-                supported_path.unlink(missing_ok=True)
 
             return description
 
         except Exception as e:
+            logger.error(f"GPT API error: {str(e)}")
             result.gpt_skipped += 1
-            logger.error(f"Failed to process image with GPT: {str(e)}")
             return "[Error analyzing image]"
 
     def get_placeholder(self, image_path: Path, result: ProcessingResult) -> str:

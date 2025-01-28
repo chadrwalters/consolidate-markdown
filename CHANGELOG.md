@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Initial project structure
+- Basic markdown processing
+- GPT-powered image analysis
+- Caching system
+- Error handling
+- Logging system
+
+### Changed
+- None
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Fixed
+- None
+
+### Security
+- None
+
 ## [1.0.0] - 2024-01-27
 
 ### Added
@@ -13,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AI-powered image analysis using GPT-4o
 - Document conversion to Markdown (docx, pdf, csv, xlsx)
 - Image format conversion (heic, svg, jpg, png)
-- Parallel processing with --sequential option
 - Configurable processing pipeline via TOML
 - Detailed logging and progress tracking
 - Atomic file operations and backup system

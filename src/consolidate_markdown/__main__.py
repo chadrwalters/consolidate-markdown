@@ -1,100 +1,109 @@
+"""Main entry point for the consolidate-markdown tool."""
+
 import argparse
 import logging
 import sys
 from pathlib import Path
 
-from .config import load_config
-from .logging import setup_logging
-from .runner import Runner
+from consolidate_markdown.config import load_config
+from consolidate_markdown.processors.bear import BearProcessor
+from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
+from consolidate_markdown.runner import Runner
+
+logger = logging.getLogger(__name__)
+
+# Register processors
+Runner.PROCESSORS["bear"] = BearProcessor
+Runner.PROCESSORS["xbookmarks"] = XBookmarksProcessor
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
+    """Parse command line arguments.
+
+    Returns:
+        The parsed arguments.
+    """
     parser = argparse.ArgumentParser(
-        description="Consolidate Markdown files from multiple sources"
+        description="Consolidate markdown files from various sources"
     )
-
     parser.add_argument(
-        "--config", type=Path, required=True, help="Path to TOML configuration file"
+        "--config",
+        type=Path,
+        default=Path("config.toml"),
+        help="Path to configuration file (default: config.toml)",
     )
-
     parser.add_argument(
-        "--force", action="store_true", help="Force reprocessing of all files"
+        "--no-image",
+        action="store_true",
+        help="Skip image analysis",
     )
-
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force regeneration of all files",
+    )
     parser.add_argument(
         "--delete",
         action="store_true",
         help="Delete existing output files before processing",
     )
-
-    parser.add_argument(
-        "--no-image", action="store_true", help="Skip GPT image analysis"
-    )
-
-    parser.add_argument(
-        "--sequential",
-        action="store_true",
-        help="Process sources sequentially (no parallel processing)",
-    )
-
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default=None,
-        help="Override logging level from config",
+        default="INFO",
+        help="Set the logging level",
     )
-
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging (same as --log-level DEBUG)",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
-    """Main entry point."""
-    try:
-        # Parse arguments
-        args = parse_args()
+    """Run the consolidation process.
 
+    Returns:
+        0 on success, non-zero on error.
+    """
+    args = parse_args()
+
+    # Configure logging
+    log_level = logging.DEBUG if args.debug else getattr(logging, args.log_level)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    try:
         # Load configuration
         config = load_config(args.config)
 
-        # Override config with command line arguments
-        config.global_config.force_generation = args.force
+        # Update global config with command line options
         config.global_config.no_image = args.no_image
-        if args.log_level:
-            config.global_config.log_level = args.log_level
+        config.global_config.force_generation = args.force
+        config.global_config.log_level = args.log_level
 
-        # Handle --delete
-        if args.delete:
-            for source in config.sources:
-                if source.dest_dir.exists():
-                    import shutil
-
-                    shutil.rmtree(source.dest_dir)
-                if config.global_config.cm_dir.exists():
-                    shutil.rmtree(config.global_config.cm_dir)
-
-        # Setup logging
-        setup_logging(config.global_config.cm_dir, config.global_config.log_level)
-        logger = logging.getLogger(__name__)
-
-        # Run processing
-        logger.info("Starting consolidation process...")
-        logger.info(f"Using config file: {args.config}")
-        logger.info(f"Working directory: {config.global_config.cm_dir}")
-
+        # Run consolidation
         runner = Runner(config)
-        summary = runner.run(parallel=not args.sequential)
+        summary = runner.run()
 
-        # Print summary
-        print("\n" + summary.get_summary())
+        # Log summary
+        logger.info("\n%s", summary.get_summary())
+
+        if summary.errors:
+            logger.error("Errors occurred during processing:")
+            for error in summary.errors:
+                logger.error(str(error))
+            return 1
 
         return 0
 
-    except KeyboardInterrupt:
-        print("\nProcess interrupted by user")
-        return 130
     except Exception as e:
-        logging.error(f"Error: {str(e)}")
+        logger.error("Error: %s", str(e))
+        if args.debug:
+            logger.exception(e)
         return 1
 
 

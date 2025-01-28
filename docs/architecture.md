@@ -1,64 +1,103 @@
 # Architecture Overview
 
-## Core Components
+This document describes the high-level architecture of the consolidate-markdown tool.
 
-### Configuration System
-- **Config**: Central configuration handler using TOML format
-- **GlobalConfig**: Global settings like working directory and API keys
-- **SourceConfig**: Source-specific settings for Bear notes and X bookmarks
+## Components
 
-### Processing Pipeline
-1. **Source Processors**
-   - `BearProcessor`: Handles Bear notes and their attachments
-   - `XBookmarksProcessor`: Processes X bookmarks and media
-   - Base `SourceProcessor` class defines common interface
+### Runner
 
-2. **Attachment Processing**
-   - `AttachmentProcessor`: Routes files to appropriate handlers
-   - `MarkItDown`: Converts documents to markdown format
-   - `ImageProcessor`: Handles image conversion and optimization
-   - `GPTProcessor`: Generates image descriptions using OpenAI
+The Runner is the main orchestrator that:
+- Loads and validates configuration
+- Initializes source processors
+- Executes the consolidation process
+- Collects and reports results
 
-3. **Output Generation**
-   - `OutputGenerator`: Creates consistent markdown output
-   - Atomic file operations with backup support
-   - Standardized formatting for documents and images
+### Source Processors
 
-## Data Flow
-```mermaid
-graph TD
-    A[Config Loader] --> B[Runner]
-    B --> C[Source Processors]
-    C --> D[Attachment Processor]
-    D --> E[MarkItDown]
-    D --> F[Image Processor]
-    F --> G[GPT Processor]
-    C --> H[Output Generator]
-    E --> H
-    G --> H
-```
+Source processors handle specific types of input:
+- Read source files
+- Process content
+- Generate output files
+- Cache results for efficiency
+
+### Configuration
+
+Configuration is handled through:
+- TOML configuration files
+- Command line options
+- Environment variables (future)
+
+### Caching
+
+The caching system:
+- Stores processed content
+- Tracks file modifications
+- Enables incremental updates
+- Improves performance
+
+### Logging
+
+The logging system:
+- Provides detailed progress information
+- Records errors and warnings
+- Generates processing summaries
+- Supports debugging
 
 ## Key Features
 
-### Parallel Processing
-- Multi-threaded source processing
-- Configurable with --sequential option
-- Automatic CPU core detection
+### Scalability
+- Independent source processing
+- Resource usage limits
+- Efficient caching
 
-### Error Handling
-- Graceful failure recovery
-- Detailed error logging
-- Source-level isolation
+### Extensibility
+- Pluggable source processors
+- Configurable output formats
+- Custom processing rules
 
-### Resource Management
-- Temporary file cleanup
-- Memory usage optimization
+### Reliability
+- Error handling and recovery
+- Validation at each step
+- Detailed logging
 - Atomic file operations
 
-### Security
-- No execution of untrusted content
-- API key management
-- Safe path handling
+## Data Flow
+
+1. Configuration Loading
+   - Parse command line args
+   - Load TOML config
+   - Validate settings
+
+2. Source Processing
+   - Initialize processors
+   - Read source files
+   - Process content
+   - Generate output
+
+3. Result Collection
+   - Track statistics
+   - Record errors
+   - Generate summary
+
+## Future Enhancements
+
+1. Additional Source Types
+   - Support for more input formats
+   - Custom source processors
+
+2. Output Formats
+   - HTML generation
+   - PDF export
+   - Custom templates
+
+3. Performance
+   - Improved caching
+   - Resource optimization
+
+4. Integration
+   - API endpoints
+   - Webhooks
+   - Event notifications
 
 ## Directory Structure
 ```

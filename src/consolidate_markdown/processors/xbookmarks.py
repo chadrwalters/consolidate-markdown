@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager, quick_hash
-from ..config import Config
+from ..config import Config, SourceConfig
 from .base import ProcessingResult, SourceProcessor
 
 logger = logging.getLogger(__name__)
@@ -15,14 +15,13 @@ logger = logging.getLogger(__name__)
 class XBookmarksProcessor(SourceProcessor):
     """Process X bookmarks and their attachments."""
 
-    def __init__(self, source_config):
+    def __init__(self, source_config: SourceConfig):
         """Initialize processor."""
         super().__init__(source_config)
         self.validate()  # Call validate to ensure source directory exists
         self.cache_manager = CacheManager(source_config.dest_dir.parent)
-        self.attachment_processor = AttachmentProcessor(source_config.dest_dir.parent)
 
-    def process(self, config: Config) -> ProcessingResult:
+    def _process_impl(self, config: Config) -> ProcessingResult:
         """Process all X bookmarks in the source directory."""
         result = ProcessingResult()
 
@@ -30,131 +29,123 @@ class XBookmarksProcessor(SourceProcessor):
         if config.global_config.force_generation:
             self.cache_manager.clear_cache()
 
-        try:
-            # Ensure output directory exists
-            self._ensure_dest_dir()
+        # Ensure output directory exists
+        self._ensure_dest_dir()
 
-            # Process each bookmark directory
-            for bookmark_dir in self.source_config.src_dir.iterdir():
-                if not bookmark_dir.is_dir():
+        # Process each bookmark directory
+        for bookmark_dir in self.source_config.src_dir.iterdir():
+            if not bookmark_dir.is_dir():
+                continue
+
+            try:
+                logger.info(f"Processing X bookmark: {bookmark_dir.name}")
+                bookmark_result = ProcessingResult()
+
+                # Look for index file
+                index_file = bookmark_dir / self.source_config.index_filename
+                if not index_file.exists():
+                    logger.warning(f"No index file found in {bookmark_dir.name}")
+                    result.skipped += 1
                     continue
 
-                try:
-                    logger.info(f"Processing X bookmark: {bookmark_dir.name}")
-                    bookmark_result = ProcessingResult()
+                # Check if we need to process this bookmark
+                content = index_file.read_text(encoding="utf-8")
+                content_hash = quick_hash(content)
+                cached = self.cache_manager.get_note_cache(str(index_file))
 
-                    # Look for index file
-                    index_file = bookmark_dir / self.source_config.index_filename
-                    if not index_file.exists():
-                        logger.warning(f"No index file found in {bookmark_dir.name}")
-                        result.skipped += 1
-                        continue
-
-                    # Check if we need to process this bookmark
-                    content = index_file.read_text(encoding="utf-8")
-                    content_hash = quick_hash(content)
-                    cached = self.cache_manager.get_note_cache(str(index_file))
-
-                    should_process = True
-                    if cached and not config.global_config.force_generation:
-                        if cached["hash"] == content_hash:
-                            # Check for any newer files in the bookmark directory
-                            latest_file = max(
-                                bookmark_dir.glob("*"),
-                                key=lambda p: p.stat().st_mtime if p.is_file() else 0,
-                                default=None,
-                            )
-                            if (
-                                latest_file
-                                and latest_file.stat().st_mtime <= cached["timestamp"]
-                            ):
-                                should_process = False
-
-                    if not should_process and cached and "processed_content" in cached:
-                        logger.debug(f"Using cached version of {bookmark_dir.name}")
-                        bookmark_result.add_from_cache()
-
-                        # Write cached content
-                        output_file = (
-                            self.source_config.dest_dir / f"{bookmark_dir.name}.md"
+                should_process = True
+                if cached and not config.global_config.force_generation:
+                    if cached["hash"] == content_hash:
+                        # Check for any newer files in the bookmark directory
+                        latest_file = max(
+                            bookmark_dir.glob("*"),
+                            key=lambda p: p.stat().st_mtime if p.is_file() else 0,
+                            default=None,
                         )
-                        output_file.write_text(
-                            cached["processed_content"], encoding="utf-8"
-                        )
+                        if (
+                            latest_file
+                            and latest_file.stat().st_mtime <= cached["timestamp"]
+                        ):
+                            should_process = False
 
-                        result.merge(bookmark_result)
-                        continue
+                if not should_process and cached and "processed_content" in cached:
+                    logger.debug(f"Using cached version of {bookmark_dir.name}")
+                    bookmark_result.add_from_cache()
 
-                    # If cache is valid and we're not forcing regeneration, use it
-                    if not config.global_config.force_generation and cached:
-                        logger.debug(f"Using cached content for {bookmark_dir}")
-                        bookmark_result.add_from_cache()
-                        processed_content = cached["processed_content"]
-                    else:
-                        # Process bookmark
-                        logger.debug(f"Processing {bookmark_dir}")
-                        # Process media files
-                        media_content = self._process_media(
-                            bookmark_dir,
-                            self.attachment_processor,
-                            config,
-                            bookmark_result,
-                        )
-
-                        if media_content:
-                            content += "\n\n" + media_content
-
-                        # Process any embedded attachments
-                        processed_content = self._process_attachments(
-                            content,
-                            bookmark_dir,
-                            self.attachment_processor,
-                            config,
-                            bookmark_result,
-                        )
-
-                        if not processed_content:
-                            logger.warning(
-                                f"Attachment processing returned empty content for {bookmark_dir.name}"
-                            )
-                            processed_content = content
-
-                        bookmark_result.add_generated()
-
-                    # Write processed bookmark
+                    # Write cached content
                     output_file = (
                         self.source_config.dest_dir / f"{bookmark_dir.name}.md"
                     )
-                    output_file.write_text(processed_content, encoding="utf-8")
-
-                    # Update cache
-                    self.cache_manager.update_note_cache(
-                        str(index_file),
-                        content_hash,
-                        index_file.stat().st_mtime,
-                        processed_content=processed_content,
+                    output_file.write_text(
+                        cached["processed_content"], encoding="utf-8"
                     )
 
                     result.merge(bookmark_result)
-                    logger.info(
-                        f"Successfully processed: {bookmark_dir.name} "
-                        f"({bookmark_result.images_processed} images, "
-                        f"{bookmark_result.documents_processed} documents)"
+                    continue
+
+                # Process bookmark
+                logger.debug(f"Processing {bookmark_dir}")
+                # Process media files
+                media_content = self._process_media(
+                    bookmark_dir,
+                    self.attachment_processor,
+                    config,
+                    bookmark_result,
+                )
+
+                if media_content:
+                    content += "\n\n" + media_content
+
+                # Process any embedded attachments
+                processed_content = self._process_attachments(
+                    content,
+                    bookmark_dir,
+                    self.attachment_processor,
+                    config,
+                    bookmark_result,
+                )
+
+                if not processed_content:
+                    logger.warning(
+                        f"Attachment processing returned empty content for {bookmark_dir.name}"
                     )
+                    processed_content = content
 
-                except Exception as e:
-                    error_msg = f"Error processing {bookmark_dir.name}: {str(e)}"
-                    logger.error(error_msg)
-                    result.errors.append(error_msg)
+                # Add to stats
+                if config.global_config.force_generation or not cached:
+                    bookmark_result.add_generated()
+                else:
+                    bookmark_result.add_from_cache()
 
-            logger.info(
-                f"Completed X bookmarks source: {result.processed} processed "
-                f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
-                f"{result.skipped} skipped"
-            )
+                # Write processed bookmark
+                output_file = self.source_config.dest_dir / f"{bookmark_dir.name}.md"
+                output_file.write_text(processed_content, encoding="utf-8")
 
-        finally:
-            self.attachment_processor.cleanup()
+                # Update cache
+                self.cache_manager.update_note_cache(
+                    str(index_file),
+                    content_hash,
+                    index_file.stat().st_mtime,
+                    processed_content=processed_content,
+                )
+
+                result.merge(bookmark_result)
+                logger.info(
+                    f"Successfully processed: {bookmark_dir.name} "
+                    f"({bookmark_result.images_processed} images, "
+                    f"{bookmark_result.documents_processed} documents)"
+                )
+
+            except Exception as e:
+                error_msg = f"Error processing {bookmark_dir.name}: {str(e)}"
+                logger.error(error_msg)
+                result.errors.append(error_msg)
+
+        logger.info(
+            f"Completed X bookmarks source: {result.processed} processed "
+            f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
+            f"{result.skipped} skipped"
+        )
 
         return result
 

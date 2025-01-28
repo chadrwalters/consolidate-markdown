@@ -41,7 +41,9 @@ class CacheManager:
         """Load a cache file, handling errors."""
         try:
             cache_data = json.loads(cache_file.read_text())
-            logger.debug(f"Loaded cache from {cache_file.name}: {cache_data}")
+            logger.debug(
+                f"Loaded cache from {cache_file.name} ({len(cache_data)} entries)"
+            )
             return cache_data
         except Exception as e:
             logger.warning(
@@ -53,7 +55,7 @@ class CacheManager:
         """Save cache data, handling errors."""
         try:
             cache_file.write_text(json.dumps(data, indent=2))
-            logger.debug(f"Saved cache to {cache_file.name}: {data}")
+            logger.debug(f"Saved cache to {cache_file.name} ({len(data)} entries)")
         except Exception as e:
             logger.error(f"Failed to save cache {cache_file.name}: {e}")
 
@@ -90,7 +92,6 @@ class CacheManager:
                 logger.debug(f"Cache miss for note: {normalized_path}")
             else:
                 logger.debug(f"Cache hit for note: {normalized_path}")
-                logger.debug(f"Cache entry: {result}")
             return result
 
     def update_note_cache(
@@ -123,7 +124,6 @@ class CacheManager:
                 logger.debug(f"Cache miss for GPT analysis: {image_hash}")
             else:
                 logger.debug(f"Cache hit for GPT analysis: {image_hash}")
-                logger.debug(f"Cache entry: {result}")
             return result
 
     def update_gpt_cache(self, image_hash: str, analysis: str):

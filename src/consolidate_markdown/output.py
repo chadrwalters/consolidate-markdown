@@ -20,39 +20,71 @@ class OutputGenerator:
         self.dest_dir = dest_dir
         self.backup_dir = backup_dir or (dest_dir.parent / f"{dest_dir.name}_backup")
 
-    def write_output(self, content: str, filename: str, force: bool = False) -> Path:
+    def write_output(self, filename: str, content: str, force: bool = False) -> Path:
         """Write content to output file atomically."""
         output_path = self.dest_dir / filename
 
+        # Create parent directories
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         # Check for collisions
-        if output_path.exists() and not force:
-            raise OutputError(f"Output file already exists: {output_path}")
+        if output_path.exists():
+            if output_path.is_dir():
+                raise OutputError(f"Cannot write to {output_path}: path is a directory")
+            if not force:
+                raise OutputError(f"Output file already exists: {output_path}")
 
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False
-        ) as temp_file:
+        # Create temporary file in the same directory
+        temp_file = None
+        try:
+            temp_file = tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix=".md",
+                delete=False,
+                dir=output_path.parent,
+                prefix=".tmp_",
+            )
             temp_path = Path(temp_file.name)
-            try:
-                # Write content to temp file
-                temp_file.write(content)
-                temp_file.flush()
 
-                # Create backup if needed
-                if output_path.exists() and self.backup_dir:
-                    self._create_backup(output_path)
+            # Write content
+            temp_path.write_text(content)
 
-                # Ensure directory exists
-                output_path.parent.mkdir(parents=True, exist_ok=True)
+            # Create backup if needed
+            if output_path.exists() and self.backup_dir:
+                self._create_backup(output_path)
 
-                # Atomic move
-                shutil.move(temp_path, output_path)
-                return output_path
+            # Atomic move
+            shutil.move(str(temp_path), str(output_path))
+            return output_path
 
-            finally:
-                # Clean up temp file if something went wrong
-                if temp_path.exists():
-                    temp_path.unlink()
+        except Exception as e:
+            # Clean up temp file if something went wrong
+            if temp_file:
+                try:
+                    Path(temp_file.name).unlink(missing_ok=True)
+                except Exception:
+                    pass  # Best effort cleanup
+            raise OutputError(f"Failed to write output: {str(e)}")
+
+        finally:
+            if temp_file:
+                temp_file.close()
+
+    def _create_backup(self, file_path: Path) -> None:
+        """Create a backup of an existing file."""
+        try:
+            # Create backup directory
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate backup path
+            backup_path = self.backup_dir / file_path.name
+
+            # Copy file with metadata
+            shutil.copy2(str(file_path), str(backup_path))
+            logger.info(f"Created backup: {backup_path}")
+
+        except Exception as e:
+            raise OutputError(f"Failed to create backup of {file_path}: {str(e)}")
 
     def format_document(
         self, title: str, content: str, metadata: Optional[dict] = None
@@ -126,13 +158,3 @@ class OutputGenerator:
         lines.append("</details>")
 
         return "\n".join(lines)
-
-    def _create_backup(self, file_path: Path) -> None:
-        """Create a backup of an existing file."""
-        try:
-            self.backup_dir.mkdir(parents=True, exist_ok=True)
-            backup_path = self.backup_dir / file_path.name
-            shutil.copy2(file_path, backup_path)
-            logger.info(f"Created backup: {backup_path}")
-        except Exception as e:
-            logger.warning(f"Failed to create backup of {file_path}: {str(e)}")

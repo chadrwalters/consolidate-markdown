@@ -26,3 +26,6 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.hatch.build]
+include = ["src/consolidate_markdown/py.typed"]

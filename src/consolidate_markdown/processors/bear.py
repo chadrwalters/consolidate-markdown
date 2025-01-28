@@ -23,9 +23,8 @@ class BearProcessor(SourceProcessor):
         super().__init__(source_config)
         self.validate()  # Call validate to ensure source directory exists
         self.cache_manager = CacheManager(source_config.dest_dir.parent)
-        self.attachment_processor = AttachmentProcessor(source_config.dest_dir.parent)
 
-    def process(self, config: Config) -> ProcessingResult:
+    def _process_impl(self, config: Config) -> ProcessingResult:
         """Process all Bear notes in the source directory."""
         result = ProcessingResult()
 
@@ -33,36 +32,32 @@ class BearProcessor(SourceProcessor):
         if config.global_config.force_generation:
             self.cache_manager.clear_cache()
 
-        try:
-            # Ensure output directory exists
-            self._ensure_dest_dir()
+        # Ensure output directory exists
+        self._ensure_dest_dir()
 
-            # Process each markdown file
-            for note_file in self.source_config.src_dir.glob("*.md"):
-                try:
-                    logger.info(f"Processing Bear note: {note_file.name}")
-                    note_result = ProcessingResult()  # Track stats for this note
-                    self.process_note(note_file, config, note_result)
-                    result.merge(note_result)  # Merge note stats into overall stats
-                    logger.info(
-                        f"Successfully processed: {note_file.name} "
-                        f"({note_result.images_processed} images, "
-                        f"{note_result.documents_processed} documents)"
-                    )
+        # Process each markdown file
+        for note_file in self.source_config.src_dir.glob("*.md"):
+            try:
+                logger.info(f"Processing Bear note: {note_file.name}")
+                note_result = ProcessingResult()  # Track stats for this note
+                self.process_note(note_file, config, note_result)
+                result.merge(note_result)  # Merge note stats into overall stats
+                logger.info(
+                    f"Successfully processed: {note_file.name} "
+                    f"({note_result.images_processed} images, "
+                    f"{note_result.documents_processed} documents)"
+                )
 
-                except Exception as e:
-                    error_msg = f"Error processing {note_file.name}: {str(e)}"
-                    logger.error(error_msg)
-                    result.errors.append(error_msg)
+            except Exception as e:
+                error_msg = f"Error processing {note_file.name}: {str(e)}"
+                logger.error(error_msg)
+                result.errors.append(error_msg)
 
-            logger.info(
-                f"Completed bear source: {result.processed} processed "
-                f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
-                f"{result.skipped} skipped"
-            )
-
-        finally:
-            self.attachment_processor.cleanup()
+        logger.info(
+            f"Completed bear source: {result.processed} processed "
+            f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
+            f"{result.skipped} skipped"
+        )
 
         return result
 
@@ -156,11 +151,10 @@ class BearProcessor(SourceProcessor):
         description = ""
         if not config.global_config.no_image:
             try:
-                # Create GPT processor with cache
+                # Use the processor's existing cache manager to respect force flag
                 gpt = GPTProcessor(
-                    config.global_config.openai_key
-                    or "dummy-key",  # Ensure we never pass None
-                    CacheManager(config.global_config.cm_dir),
+                    config.global_config.openai_key or "dummy-key",
+                    self.cache_manager,  # Use existing cache manager
                 )
                 description = gpt.describe_image(image_path, result)
             except Exception as e:

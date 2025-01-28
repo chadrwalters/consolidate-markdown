@@ -1,42 +1,48 @@
+"""Logging configuration."""
+
 import logging
-import logging.handlers
-from pathlib import Path
+from logging.handlers import RotatingFileHandler
+
+from .config import Config
+
+logger = logging.getLogger(__name__)
 
 
-def setup_logging(cm_dir: Path, log_level: str) -> None:
-    """Configure logging with file and console output."""
-    # Create logs directory
-    log_dir = cm_dir / "logs"
+def setup_logging(config: Config) -> None:
+    """Set up logging configuration."""
+    # First, configure third-party loggers to prevent debug output
+    logging.getLogger("openai").setLevel(logging.INFO)
+    logging.getLogger("openai._base_client").setLevel(logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.INFO)
+    logging.getLogger("httpcore").setLevel(logging.INFO)
+
+    # Create log directory if it doesn't exist
+    log_dir = config.global_config.cm_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Configure root logger
+    # Set up root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
+    root_logger.setLevel(config.global_config.log_level)
 
     # Clear any existing handlers
     root_logger.handlers.clear()
 
-    # File handler with rotation
-    log_file = log_dir / "consolidate.log"
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=1024 * 1024, backupCount=5, encoding="utf-8"  # 1MB
-    )
+    # Configure file logging
+    log_file = log_dir / "consolidate_markdown.log"
     file_formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
+    file_handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024, backupCount=5)
     file_handler.setFormatter(file_formatter)
     root_logger.addHandler(file_handler)
 
-    # Console handler
-    console_handler = logging.StreamHandler()
+    # Configure console logging
     console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    console_handler = logging.StreamHandler()
     console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
 
-    # Suppress HTTP client debug logging
-    logging.getLogger("httpcore").setLevel(logging.INFO)
-    logging.getLogger("httpx").setLevel(logging.INFO)
-    logging.getLogger("openai").setLevel(logging.INFO)
+    logger.debug("Logging configured successfully")
 
 
 class SummaryLogger:
