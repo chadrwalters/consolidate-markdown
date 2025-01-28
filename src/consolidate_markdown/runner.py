@@ -29,18 +29,36 @@ class Runner:
 
         try:
             # Process each source
-            if parallel and len(self.config.sources) > 1:
-                with ThreadPoolExecutor() as executor:
-                    executor.map(self._process_source, self.config.sources)
+            if parallel:
+                try:
+                    with ThreadPoolExecutor() as executor:
+                        # Force evaluation and handle exceptions from map
+                        list(executor.map(self._process_source, self.config.sources))
+                except Exception as e:
+                    error_msg = f"Parallel execution failed: {str(e)}"
+                    logger.error(error_msg)
+                    self.summary.add_error("global", error_msg)
+                    return self.summary
             else:
-                for source in self.config.sources:
-                    self._process_source(source)
+                try:
+                    for source in self.config.sources:
+                        self._process_source(source)
+                except Exception as e:
+                    error_msg = f"Sequential execution failed: {str(e)}"
+                    logger.error(error_msg)
+                    self.summary.add_error("global", error_msg)
+                    return self.summary
 
+        except KeyboardInterrupt:
+            logger.info("Processing cancelled by user")
+            raise
         except Exception as e:
             error_msg = f"Failed to run consolidation: {str(e)}"
             logger.error(error_msg)
             self.summary.add_error("global", error_msg)
+            return self.summary
 
+        logger.info("Completed consolidation")
         return self.summary
 
     def _process_source(self, source: SourceConfig) -> None:
@@ -49,8 +67,7 @@ class Runner:
             logger.info(f"Processing {source.type} source: {source.src_dir}")
 
             processor = self.PROCESSORS[source.type](source)
-            # Validate source configuration
-            processor.validate()  # This will raise ValueError if invalid
+            processor.validate()  # Validate before processing
             result = processor.process(self.config)
 
             # Update summary using _merge_result_into_summary helper

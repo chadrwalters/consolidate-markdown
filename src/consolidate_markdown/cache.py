@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -22,6 +23,8 @@ class CacheManager:
         self.cache_dir = cm_dir / "cache"
         self.notes_file = self.cache_dir / "notes.json"
         self.gpt_file = self.cache_dir / "gpt.json"
+        self.notes_lock = threading.Lock()
+        self.gpt_lock = threading.Lock()
         self._init_cache()
 
     def _init_cache(self):
@@ -51,12 +54,36 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Failed to save cache {cache_file.name}: {e}")
 
+    def _normalize_path(self, path: str) -> str:
+        """Normalize a path by converting to forward slashes and handling newlines.
+
+        This method handles:
+        - Windows-style paths (test\\note.md -> test/note.md)
+        - Unix-style paths (test/note.md -> test/note.md)
+        - Paths with newlines (test\nnote.md -> test/note.md)
+        """
+        # Convert the path to a string
+        path = str(path)
+
+        # Replace actual newlines with forward slashes
+        path = path.replace("\n", "/")
+
+        # Replace any backslashes with forward slashes
+        path = path.replace("\\", "/")
+
+        # Clean up any double slashes
+        while "//" in path:
+            path = path.replace("//", "/")
+
+        return path
+
     def get_note_cache(self, note_path: str) -> Optional[dict]:
         """Get cached note info if it exists."""
-        cache = self._load_cache(self.notes_file)
-        # Normalize path for consistent lookup
-        note_path = str(note_path).replace("\\", "/").replace("\n", "")
-        return cache.get(note_path)
+        with self.notes_lock:
+            cache = self._load_cache(self.notes_file)
+            normalized_path = self._normalize_path(note_path)
+            logger.debug(f"Getting cache for: {normalized_path}")
+            return cache.get(normalized_path)
 
     def update_note_cache(
         self,
@@ -67,30 +94,35 @@ class CacheManager:
         processed_content: Optional[str] = None,
     ):
         """Update note cache with new hash, timestamp, GPT analysis count and processed content."""
-        cache = self._load_cache(self.notes_file)
-        # Normalize path for consistent lookup
-        note_path = str(note_path).replace("\\", "/").replace("\n", "")
-        cache[note_path] = {
-            "hash": content_hash,
-            "timestamp": timestamp,
-            "gpt_analyses": gpt_analyses,
-            "processed_content": processed_content,
-        }
-        self._save_cache(self.notes_file, cache)
+        with self.notes_lock:
+            cache = self._load_cache(self.notes_file)
+            normalized_path = self._normalize_path(note_path)
+            logger.debug(f"Updating cache for: {normalized_path}")
+            cache[normalized_path] = {
+                "hash": content_hash,
+                "timestamp": timestamp,
+                "gpt_analyses": gpt_analyses,
+                "processed_content": processed_content,
+            }
+            self._save_cache(self.notes_file, cache)
 
     def get_gpt_cache(self, image_hash: str) -> Optional[str]:
         """Get cached GPT analysis if it exists."""
-        cache = self._load_cache(self.gpt_file)
-        return cache.get(image_hash)
+        with self.gpt_lock:
+            cache = self._load_cache(self.gpt_file)
+            return cache.get(image_hash)
 
     def update_gpt_cache(self, image_hash: str, analysis: str):
         """Cache GPT analysis result."""
-        cache = self._load_cache(self.gpt_file)
-        cache[image_hash] = analysis
-        self._save_cache(self.gpt_file, cache)
+        with self.gpt_lock:
+            cache = self._load_cache(self.gpt_file)
+            cache[image_hash] = analysis
+            self._save_cache(self.gpt_file, cache)
 
     def clear_cache(self):
         """Clear all cache files (used by --force)."""
         logger.info("Clearing cache due to --force flag")
-        self._save_cache(self.notes_file, {})
-        self._save_cache(self.gpt_file, {})
+        with self.notes_lock:
+            self._save_cache(self.notes_file, {})
+        with self.gpt_lock:
+            self._save_cache(self.gpt_file, {})
