@@ -105,11 +105,7 @@ class SourceProcessor(ABC):
 
     def __init__(self, source_config: SourceConfig):
         self.source_config = source_config
-
-    @abstractmethod
-    def process(self, config: Config) -> ProcessingResult:
-        """Process all files in the source directory."""
-        pass
+        self.validate_called = False
 
     def validate(self) -> None:
         """Validate source configuration.
@@ -117,6 +113,7 @@ class SourceProcessor(ABC):
         Raises:
             ValueError: If source configuration is invalid.
         """
+        self.validate_called = True
         # Check source directory exists and is readable
         if not self.source_config.src_dir.exists():
             raise ValueError(
@@ -141,3 +138,8 @@ class SourceProcessor(ABC):
     def _normalize_path(self, path: Path) -> Path:
         """Handle paths with spaces and special characters."""
         return Path(str(path).replace("\\", "/"))
+
+    @abstractmethod
+    def process(self, config: Config) -> ProcessingResult:
+        """Process all files in the source directory."""
+        pass

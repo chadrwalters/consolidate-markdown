@@ -187,6 +187,11 @@ class SummaryLogger:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["errors"].append(error)
 
+    @property
+    def errors(self) -> list[str]:
+        """Get all errors."""
+        return self.stats["errors"]
+
     def _format_category_stats(
         self, name: str, total: int, generated: int, from_cache: int, skipped: int
     ) -> list[str]:
