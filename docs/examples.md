@@ -34,6 +34,22 @@ destDir = "./output"
 consolidate_markdown --config config.toml
 ```
 
+### ChatGPT Export Processing
+```bash
+# config.toml
+[global]
+cm_dir = ".cm"
+openai_key = "sk-..."  # Optional: for image analysis
+
+[[sources]]
+type = "chatgptexport"
+srcDir = "~/Downloads/ChatGPT Export"
+destDir = "./output/chatgpt"
+
+# Run command
+consolidate_markdown --config config.toml
+```
+
 ## Advanced Usage
 
 ### Multiple Sources

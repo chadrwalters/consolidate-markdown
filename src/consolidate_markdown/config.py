@@ -3,6 +3,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
+# Valid source types
+VALID_SOURCE_TYPES = ["bear", "xbookmarks", "chatgptexport"]
+
 
 @dataclass
 class SourceConfig:
@@ -47,7 +50,7 @@ class Config:
                 errors.append(
                     f"Parent of destination directory does not exist: {source.dest_dir}"
                 )
-            if source.type not in ["bear", "xbookmarks"]:
+            if source.type not in VALID_SOURCE_TYPES:
                 errors.append(f"Invalid source type: {source.type}")
 
         return len(errors) == 0, errors

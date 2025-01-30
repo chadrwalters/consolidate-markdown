@@ -20,12 +20,16 @@ dependencies = [
 dev = ["pytest>=7.0.0", "black>=23.0.0", "isort>=5.0.0", "mypy>=1.0.0"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 
-[tool.hatch.build]
-include = ["src/consolidate_markdown/py.typed"]
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["consolidate_markdown"]
+
+[project.scripts]
+consolidate-markdown = "consolidate_markdown.__main__:main"

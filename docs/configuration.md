@@ -123,6 +123,32 @@ srcDir = "/data/bear"
 destDir = "/www/notes"
 ```
 
+### ChatGPT Export Processing
+```toml
+[global]
+cm_dir = ".cm"
+log_level = "INFO"
+force_generation = false
+no_image = false  # Set to true to skip GPT image analysis
+openai_key = "${OPENAI_API_KEY}"  # Required if no_image = false
+
+[[sources]]
+type = "chatgptexport"
+srcDir = "/path/to/chatgpt/export"  # Directory containing conversations.json
+destDir = "/path/to/output"         # Where to write processed .md files
+```
+
+The ChatGPT processor requires:
+- A valid ChatGPT export directory containing `conversations.json`
+- OpenAI API key if image analysis is enabled (no_image = false)
+- Write permissions for the destination directory
+
+The processor will:
+- Create standardized markdown files (YYYYMMDD - Title.md)
+- Process all conversations found in conversations.json
+- Handle attached images and documents
+- Generate image descriptions using GPT-4 Vision (if enabled)
+
 ## System Requirements
 
 ### Required Programs

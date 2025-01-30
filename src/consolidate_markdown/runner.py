@@ -4,7 +4,8 @@ import logging
 from typing import Dict, Type
 
 from consolidate_markdown.config import Config, SourceConfig
-from consolidate_markdown.logging import SummaryLogger
+from consolidate_markdown.log_setup import SummaryLogger
+from consolidate_markdown.processors import PROCESSOR_TYPES
 from consolidate_markdown.processors.base import ProcessingResult, SourceProcessor
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class Runner:
     """Runner for processing markdown files."""
 
-    PROCESSORS: Dict[str, Type[SourceProcessor]] = {}
+    PROCESSORS: Dict[str, Type[SourceProcessor]] = PROCESSOR_TYPES
 
     def __init__(self, config: Config):
         """Initialize the runner.

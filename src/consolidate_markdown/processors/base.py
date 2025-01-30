@@ -71,9 +71,7 @@ class SourceProcessor(ABC):
         """Create a temporary directory for processing."""
         if self._temp_dir is None:
             # Create a unique temp dir for this processor instance
-            self._temp_dir = (
-                config.global_config.cm_dir / "temp" / self.source_config.type
-            )
+            self._temp_dir = config.global_config.cm_dir / "temp"
             self._temp_dir.mkdir(parents=True, exist_ok=True)
         return self._temp_dir
 

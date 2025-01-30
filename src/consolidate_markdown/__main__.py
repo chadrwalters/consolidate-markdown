@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from consolidate_markdown.config import load_config
+from consolidate_markdown.log_setup import setup_logging
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 from consolidate_markdown.runner import Runner
@@ -69,13 +70,6 @@ def main() -> int:
     """
     args = parse_args()
 
-    # Configure logging
-    log_level = logging.DEBUG if args.debug else getattr(logging, args.log_level)
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-
     try:
         # Load configuration
         config = load_config(args.config)
@@ -83,7 +77,10 @@ def main() -> int:
         # Update global config with command line options
         config.global_config.no_image = args.no_image
         config.global_config.force_generation = args.force
-        config.global_config.log_level = args.log_level
+        config.global_config.log_level = args.log_level if not args.debug else "DEBUG"
+
+        # Configure logging
+        setup_logging(config)
 
         # Run consolidation
         runner = Runner(config)

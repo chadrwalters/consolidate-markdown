@@ -197,3 +197,49 @@ fi
 
 ### Memory Usage
 ```
+
+```
+
+### ChatGPT Export Processing
+
+#### Export Format
+```
+Problem: "conversations.json not found" error
+Solution: Ensure you're pointing to the correct export directory containing conversations.json
+```
+
+```
+Problem: Invalid conversations data format
+Solution: Verify the export is from a supported ChatGPT version and contains valid JSON
+```
+
+#### Image Analysis
+```
+Problem: "OpenAI API error" during image processing
+Solution:
+- Check OpenAI API key is valid
+- Verify you have access to GPT-4 Vision API
+- Consider using --no-image flag to skip analysis
+```
+
+```
+Problem: Image analysis is slow
+Solution:
+- Enable caching (default)
+- Use --no-image for initial testing
+- Process in smaller batches
+```
+
+#### Output Format
+```
+Problem: Missing conversation dates
+Solution: Dates default to "00000000" if create_time is not in export
+```
+
+```
+Problem: Embedded attachments not displaying
+Solution:
+- Check file permissions
+- Verify attachment paths in conversations.json
+- Ensure attachments were included in export
+```
