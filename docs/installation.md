@@ -85,13 +85,41 @@ uv pip install -e ".[dev]"
 
 1. Copy the template configuration:
    ```bash
-   cp example_config.toml consolidate_config.toml
+   cp config.template.toml config.toml
    ```
 
-2. Edit `consolidate_config.toml` with your settings:
-   - Set input/output directories
-   - Configure GPT API key if using image analysis
-   - Adjust processing options
+2. Edit `config.toml` with your settings:
+   ```toml
+   [global]
+   cm_dir = ".cm"  # Cache directory
+   no_image = false  # Set to true to skip image analysis
+   openai_key = ""  # Optional: for GPT-4V image analysis
+
+   [[sources]]
+   type = "claude"  # Processor type for Claude exports
+   src_dir = "path/to/claude/exports"  # Directory containing conversations.json
+   dest_dir = "output/claude"  # Output directory for markdown files
+   ```
+
+## Claude-Specific Setup
+
+### Export Location
+The Claude processor expects the following files in your source directory:
+- `conversations.json`: Contains all conversation data
+- `users.json`: Contains user metadata (optional)
+
+### Attachments
+If your conversations include attachments:
+1. Create an `attachments` directory in your source directory
+2. Place all attachment files there
+3. Ensure file names match the references in conversations.json
+
+### Output Structure
+The processor will generate:
+- Markdown files for each conversation
+- An index file grouping conversations by date
+- An artifacts directory for extracted code and content
+- Processed attachments in the output directory
 
 ## Verification
 
@@ -101,3 +129,9 @@ uv run pytest
 ```
 
 All tests should pass. If you encounter any issues, check the [Troubleshooting Guide](troubleshooting.md).
+
+## Next Steps
+
+1. Read the [Configuration Guide](configuration.md) for detailed settings
+2. Check the [Examples](examples.md) for common usage patterns
+3. Review the [Troubleshooting Guide](troubleshooting.md) if needed

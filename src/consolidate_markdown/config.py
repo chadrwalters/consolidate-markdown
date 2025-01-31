@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 # Valid source types
-VALID_SOURCE_TYPES = ["bear", "xbookmarks", "chatgptexport"]
+VALID_SOURCE_TYPES = ["bear", "xbookmarks", "chatgptexport", "claude"]
 
 
 @dataclass

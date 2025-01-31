@@ -14,6 +14,9 @@ consolidate-markdown --config config.toml
 Process only specific types of content:
 
 ```bash
+# Process only Claude exports
+consolidate-markdown --config config.toml --processor claude
+
 # Process only Bear notes
 consolidate-markdown --config config.toml --processor bear
 
@@ -32,11 +35,11 @@ Process a limited number of items:
 # Process last 5 items from each source
 consolidate-markdown --config config.toml --limit 5
 
+# Process last 10 Claude conversations only
+consolidate-markdown --config config.toml --processor claude --limit 10
+
 # Process last 2 Bear notes only
 consolidate-markdown --config config.toml --processor bear --limit 2
-
-# Process last 10 X bookmarks with force regeneration
-consolidate-markdown --config config.toml --processor xbookmarks --limit 10 --force
 ```
 
 ## Image Processing
@@ -80,7 +83,7 @@ consolidate-markdown --config config.toml --log-level WARNING
 
 ## Configuration Examples
 
-### Multiple Bear Sources
+### Multiple Claude Sources
 
 ```toml
 [global]
@@ -88,23 +91,31 @@ cm_dir = ".cm"
 no_image = false
 
 [[sources]]
-type = "bear"
-src_dir = "~/work/notes"
+type = "claude"
+src_dir = "~/work/claude"
 dest_dir = "output/work"
+options = {
+    date_format = "%Y%m%d",
+    title_format = "{date}-{name}"
+}
 
 [[sources]]
-type = "bear"
-src_dir = "~/personal/notes"
+type = "claude"
+src_dir = "~/personal/claude"
 dest_dir = "output/personal"
+options = {
+    date_format = "%Y%m%d",
+    title_format = "Personal-{date}-{name}"
+}
 ```
 
-Process specific Bear source:
+Process specific Claude source:
 ```bash
-# Process last 5 work notes
-consolidate-markdown --config config.toml --processor bear --limit 5
+# Process last 5 work conversations
+consolidate-markdown --config config.toml --processor claude --limit 5
 
-# Force regeneration of all personal notes
-consolidate-markdown --config config.toml --processor bear --force
+# Force regeneration of all personal conversations
+consolidate-markdown --config config.toml --processor claude --force
 ```
 
 ### Mixed Sources
@@ -115,14 +126,18 @@ cm_dir = ".cm"
 no_image = false
 
 [[sources]]
+type = "claude"
+src_dir = "~/Documents/Claude Exports"
+dest_dir = "output/claude"
+options = {
+    extract_artifacts = true,
+    track_versions = true
+}
+
+[[sources]]
 type = "bear"
 src_dir = "~/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/Local Files/Note Files"
 dest_dir = "output/bear"
-
-[[sources]]
-type = "xbookmarks"
-src_dir = "~/Library/Containers/com.apple.Safari/Data/Library/Safari/Bookmarks.plist"
-dest_dir = "output/bookmarks"
 
 [[sources]]
 type = "chatgptexport"
@@ -132,70 +147,103 @@ dest_dir = "output/chatgpt"
 
 Process specific combinations:
 ```bash
-# Process last 10 items from Bear and X bookmarks
+# Process last 10 items from Claude and Bear
 consolidate-markdown --config config.toml --limit 10
 
-# Process only ChatGPT exports with debug logging
-consolidate-markdown --config config.toml --processor chatgptexport --debug
+# Process only Claude exports with debug logging
+consolidate-markdown --config config.toml --processor claude --debug
 ```
 
-## Environment Variables
-
-Use environment variables for configuration:
-
-```bash
-# Set OpenAI API key
-export OPENAI_API_KEY="your-api-key"
-
-# Set log level
-export CM_LOG_LEVEL="DEBUG"
-
-# Disable image analysis
-export CM_NO_IMAGE=1
-
-# Run with environment configuration
-consolidate-markdown --config config.toml
-```
-
-## Common Workflows
+## Common Claude Workflows
 
 ### Initial Setup
 ```bash
-# Create initial output with image analysis
-consolidate-markdown --config config.toml
+# Create initial output with artifact extraction
+consolidate-markdown --config config.toml --processor claude
 
-# Create initial output without images
-consolidate-markdown --config config.toml --no-image
+# Create initial output without artifact extraction
+consolidate-markdown --config config.toml --processor claude --no-artifacts
 ```
 
 ### Regular Updates
 ```bash
-# Process only recent items
-consolidate-markdown --config config.toml --limit 10
+# Process only recent conversations
+consolidate-markdown --config config.toml --processor claude --limit 10
 
-# Update specific content type
-consolidate-markdown --config config.toml --processor bear --limit 5
+# Update with attachment processing
+consolidate-markdown --config config.toml --processor claude --process-attachments
 ```
 
-### Maintenance
+### Artifact Management
 ```bash
-# Force complete regeneration
-consolidate-markdown --config config.toml --delete --force
+# Force regeneration of artifacts
+consolidate-markdown --config config.toml --processor claude --force-artifacts
 
-# Regenerate specific processor
-consolidate-markdown --config config.toml --processor xbookmarks --force
+# Update artifact versions
+consolidate-markdown --config config.toml --processor claude --update-artifacts
 ```
 
-### Debugging
+### Debugging Claude Processing
 ```bash
-# Debug specific processor
-consolidate-markdown --config config.toml --processor bear --debug --limit 2
+# Debug conversation processing
+consolidate-markdown --config config.toml --processor claude --debug --limit 2
 
-# Debug with forced regeneration
-consolidate-markdown --config config.toml --debug --force --limit 1
+# Debug artifact extraction
+consolidate-markdown --config config.toml --processor claude --debug --force-artifacts
+
+# Debug attachment processing
+consolidate-markdown --config config.toml --processor claude --debug --process-attachments
 ```
 
 ## Error Handling Examples
 
-### Retry Logic
+### Retry Failed Conversations
+```bash
+# Retry failed conversations with debug logging
+consolidate-markdown --config config.toml --processor claude --retry-failed --debug
+
+# Force retry all conversations
+consolidate-markdown --config config.toml --processor claude --retry-all --force
 ```
+
+### Handle Missing Files
+```bash
+# Skip missing attachments
+consolidate-markdown --config config.toml --processor claude --skip-missing
+
+# Report missing files
+consolidate-markdown --config config.toml --processor claude --report-missing
+```
+
+### Data Validation
+```bash
+# Validate conversation format
+consolidate-markdown --config config.toml --processor claude --validate
+
+# Check file integrity
+consolidate-markdown --config config.toml --processor claude --check-integrity
+```
+
+## Best Practices
+
+1. Regular Updates:
+   - Process recent conversations frequently
+   - Use --limit to focus on new content
+   - Enable artifact tracking for code management
+
+2. Artifact Management:
+   - Use version tracking for code changes
+   - Maintain artifact relationships
+   - Regularly update artifact index
+
+3. Attachment Handling:
+   - Keep attachments organized
+   - Process attachments after initial setup
+   - Verify attachment references
+
+4. Error Recovery:
+   - Use debug logging for issues
+   - Retry failed operations
+   - Validate data integrity
+
+For more detailed information, see the [Configuration Guide](configuration.md) and [Troubleshooting Guide](troubleshooting.md).

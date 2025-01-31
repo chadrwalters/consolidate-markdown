@@ -65,32 +65,54 @@ class ProcessingResult:
     def __str__(self) -> str:
         """Return string representation."""
         parts = []
+
+        # Core processing stats
         if self.processed > 0:
             parts.append(f"{self.processed} processed")
-        if self.from_cache > 0:
-            parts.append(f"{self.from_cache} from cache")
-        if self.regenerated > 0:
-            parts.append(f"{self.regenerated} generated")
+            if self.from_cache > 0:
+                parts.append(f"{self.from_cache} from cache")
+            if self.regenerated > 0:
+                parts.append(f"{self.regenerated} generated")
         if self.skipped > 0:
             parts.append(f"{self.skipped} skipped")
+
+        # Document stats
         if self.documents_processed > 0:
-            parts.append(f"{self.documents_processed} documents processed")
-        if self.documents_from_cache > 0:
-            parts.append(f"{self.documents_from_cache} documents from cache")
-        if self.documents_skipped > 0:
-            parts.append(f"{self.documents_skipped} documents skipped")
+            doc_parts = []
+            doc_parts.append(f"{self.documents_processed} documents processed")
+            if self.documents_from_cache > 0:
+                doc_parts.append(f"{self.documents_from_cache} from cache")
+            if self.documents_generated > 0:
+                doc_parts.append(f"{self.documents_generated} generated")
+            if self.documents_skipped > 0:
+                doc_parts.append(f"{self.documents_skipped} skipped")
+            parts.append(" (".join(doc_parts) + ")")
+
+        # Image stats
         if self.images_processed > 0:
-            parts.append(f"{self.images_processed} images processed")
-        if self.images_from_cache > 0:
-            parts.append(f"{self.images_from_cache} images from cache")
-        if self.images_skipped > 0:
-            parts.append(f"{self.images_skipped} images skipped")
-        if self.gpt_cache_hits > 0:
-            parts.append(f"{self.gpt_cache_hits} GPT analyses from cache")
-        if self.gpt_new_analyses > 0:
-            parts.append(f"{self.gpt_new_analyses} new GPT analyses")
-        if self.gpt_skipped > 0:
-            parts.append(f"{self.gpt_skipped} GPT analyses skipped")
+            img_parts = []
+            img_parts.append(f"{self.images_processed} images processed")
+            if self.images_from_cache > 0:
+                img_parts.append(f"{self.images_from_cache} from cache")
+            if self.images_generated > 0:
+                img_parts.append(f"{self.images_generated} generated")
+            if self.images_skipped > 0:
+                img_parts.append(f"{self.images_skipped} skipped")
+            parts.append(" (".join(img_parts) + ")")
+
+        # GPT analysis stats
+        if self.gpt_cache_hits > 0 or self.gpt_new_analyses > 0 or self.gpt_skipped > 0:
+            gpt_parts = []
+            if self.gpt_cache_hits > 0:
+                gpt_parts.append(f"{self.gpt_cache_hits} GPT analyses from cache")
+            if self.gpt_new_analyses > 0:
+                gpt_parts.append(f"{self.gpt_new_analyses} new GPT analyses")
+            if self.gpt_skipped > 0:
+                gpt_parts.append(f"{self.gpt_skipped} GPT analyses skipped")
+            parts.append(" (".join(gpt_parts) + ")")
+
+        # Error summary
         if self.errors:
             parts.append(f"{len(self.errors)} errors")
+
         return ", ".join(parts) if parts else "No results"

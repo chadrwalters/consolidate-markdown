@@ -1,139 +1,84 @@
-# Implementation Plan: Processor Selection and Item Limiting
+# Claude Attachment Handling Improvements
 
-## Overview
-Add functionality to allow running specific processors and limiting the number of items processed.
+## Problem
+Claude exports provide only metadata and extracted text from attachments, unlike other processors that can access the actual files. We need to make this limitation clear in both code and documentation.
 
-## New Features
-1. --processor parameter to run specific processor
-2. --limit parameter to process only N most recent items
+## Changes Required
 
-## Implementation Steps
+### 1. Code Updates
+#### src/consolidate_markdown/processors/claude.py
+- [x] Update `_format_text_attachment` method
+  - Added clear metadata display (file type, size)
+  - Include warning about extracted content limitations
+  - Improve markdown formatting to indicate extracted nature
+  - Added handling for empty attachments with metadata preservation
 
-### 1. CLI Arguments (src/consolidate_markdown/__main__.py)
-- Add new arguments to existing parser:
-  ```python
-  parser.add_argument("--processor", type=str, choices=list(Runner.PROCESSORS.keys()),
-                     help="Run only the specified processor")
-  parser.add_argument("--limit", type=int, help="Limit processing to the last N items")
-  ```
-- Update main() to pass arguments to Runner:
-  ```python
-  runner = Runner(config, delete_existing=args.delete)
-  runner.selected_processor = args.processor
-  runner.processing_limit = args.limit
-  ```
+- [x] Update `_process_attachment` method
+  - Add documentation about Claude limitations
+  - Enhance logging for clarity
+  - Handle binary vs text attachments appropriately
 
-### 2. Runner Updates (src/consolidate_markdown/runner.py)
-- Add new attributes:
-  ```python
-  def __init__(self, config: Config, delete_existing: bool = False):
-      self.selected_processor = None  # Type of processor to run (optional)
-      self.processing_limit = None    # Max items to process per processor
-  ```
-- Update run() method:
-  ```python
-  def run(self, parallel=False):
-      for source in self.config.sources:
-          if self.selected_processor and source.type != self.selected_processor:
-              continue
-          processor = self._create_processor(source)
-          processor.item_limit = self.processing_limit
-  ```
+- [x] Add helper methods
+  - `_format_file_size` for consistent size display
+  - `_get_attachment_icon` for file type indicators
 
-### 3. Base Processor Class (src/consolidate_markdown/processors/base.py)
-- Add item limit support:
-  ```python
-  class SourceProcessor(AttachmentHandlerMixin, ABC):
-      def __init__(self, source_config: SourceConfig):
-          self.item_limit = None
+### 2. Documentation
+#### New: docs/claude-attachments.md
+- [x] Create comprehensive guide
+  - Explained Claude export limitations
+  - Documented attachment handling differences
+  - Provided examples of extracted content
+  - Added examples of empty attachment handling
+  - Included comparison with other processors
 
-      def _apply_limit(self, items: List[Path]) -> List[Path]:
-          """Apply item limit to sorted items."""
-          if not items or self.item_limit is None:
-              return items
-          items.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-          return items[:self.item_limit]
-  ```
+#### Update: docs/README.md
+- [x] Add section on processor differences
+- [x] Document Claude-specific limitations
+- [x] Include example outputs for both content and empty attachments
 
-### 4. Individual Processors
-- Update Bear processor (src/consolidate_markdown/processors/bear.py):
-  ```python
-  def _process_impl(self, config: Config) -> ProcessingResult:
-      result = ProcessingResult()
-      note_files = list(self.source_config.src_dir.glob("*.md"))
-      note_files = self._apply_limit(note_files)
-      for note_file in note_files:
-          self.process_note(note_file, config, result)
-  ```
-- Update X Bookmarks processor (src/consolidate_markdown/processors/xbookmarks.py):
-  ```python
-  def _process_impl(self, config: Config) -> ProcessingResult:
-      result = ProcessingResult()
-      bookmark_dirs = [d for d in self.source_config.src_dir.iterdir() if d.is_dir()]
-      bookmark_dirs = self._apply_limit(bookmark_dirs)
-      for bookmark_dir in bookmark_dirs:
-          # Process bookmark
-  ```
+### 3. Testing
+#### tests/unit/test_claude_processor.py
+- [x] Add test cases for:
+  - Different attachment types (PDF, DOCX, TXT)
+  - Metadata formatting
+  - Warning messages
+  - Markdown output format
+  - Empty attachment handling
 
-### 5. Testing (tests/)
-- Add unit tests for CLI arguments:
-  - Test processor selection
-  - Test item limiting
-  - Test combined usage
-- Add unit tests for Runner:
-  - Test processor filtering
-  - Test limit propagation
-- Add unit tests for processors:
-  - Test sorting by modification time
-  - Test limit application
-- Add integration tests:
-  - Test full workflow with processor selection
-  - Test full workflow with item limits
+### 4. Example Output Format
+```markdown
+<!-- CLAUDE EXPORT: Extracted content from example.pdf -->
+<details>
+<summary>📄 example.pdf (1.2MB PDF) - Extracted Content</summary>
 
-### 6. Documentation
-- Update README.md:
-  ```markdown
-  ## Command Line Options
-  - `--processor TYPE`: Run only the specified processor type (bear, xbookmarks, chatgptexport)
-  - `--limit N`: Process only the N most recent items from each source
+Original File Information:
+- Type: PDF
+- Size: 1.2MB
+- Extracted: 2024-01-30
 
-  ## Examples
-  ```bash
-  # Process only Bear notes
-  consolidate-markdown --config config.toml --processor bear
+Extracted Content:
+```text
+[Content extracted by Claude]
+```
 
-  # Process last 5 items from each source
-  consolidate-markdown --config config.toml --limit 5
+</details>
+```
 
-  # Process last 2 Bear notes only
-  consolidate-markdown --config config.toml --processor bear --limit 2
-  ```
-  ```
+### 5. Error Handling
+- [x] Add clear error messages for missing metadata
+- [x] Implement graceful handling for empty attachments
+- [x] Add metadata preservation for empty attachments
+- [x] Improve logging for attachment processing
 
-## Files to Modify
-1. src/consolidate_markdown/__main__.py
-2. src/consolidate_markdown/runner.py
-3. src/consolidate_markdown/processors/base.py
-4. src/consolidate_markdown/processors/bear.py
-5. src/consolidate_markdown/processors/xbookmarks.py
-6. tests/unit/test_cli.py
-7. tests/unit/test_runner.py
-8. tests/unit/test_processors.py
-9. tests/integration/test_workflow.py
-10. README.md
+### 6. Implementation Order
+1. ✓ Update core attachment formatting code
+2. ✓ Add helper methods for consistent formatting
+3. ✓ Implement empty attachment handling
+4. ✓ Update documentation
+5. ✓ Add comprehensive test coverage
 
-## Order of Implementation
-1. Add CLI arguments in __main__.py
-2. Update Runner class with processor selection and limit
-3. Add item_limit support to SourceProcessor
-4. Update individual processors with limit handling
-5. Add unit tests
-6. Add integration tests
-7. Update documentation
-
-## Notes
-- Use existing ProcessingResult class for tracking metrics
-- Leverage existing processor registration in Runner.PROCESSORS
-- Maintain backward compatibility for existing usage
-- Ensure proper error handling for invalid processor types
-- Add validation for negative limit values
+### 7. Notes
+- Empty attachments now show metadata with clear status indication
+- All changes maintain backward compatibility
+- Documentation updated to reflect new behavior
+- Test coverage includes both content and empty cases

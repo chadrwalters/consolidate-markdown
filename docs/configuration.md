@@ -12,7 +12,7 @@ The following command line options are available:
 - `--debug`: Enable debug logging
 - `--log-level LEVEL`: Set logging level (DEBUG, INFO, WARNING, ERROR)
 - `--no-image`: Skip image analysis
-- `--processor TYPE`: Run only the specified processor type (bear, xbookmarks, chatgptexport)
+- `--processor TYPE`: Run only the specified processor type (claude, bear, xbookmarks, chatgptexport)
 - `--limit N`: Process only the N most recent items from each source
 
 ## Configuration File
@@ -45,16 +45,16 @@ Each source section defines a specific content source to process:
 ```toml
 [[sources]]
 # Source type (required)
-# Valid values: "bear", "xbookmarks", "chatgptexport"
-type = "bear"
+# Valid values: "claude", "bear", "xbookmarks", "chatgptexport"
+type = "claude"
 
 # Source directory (required)
 # Path to input files
-src_dir = "~/Documents/Notes"
+src_dir = "~/Documents/Claude Exports"
 
 # Destination directory (required)
 # Path where processed files will be written
-dest_dir = "./output"
+dest_dir = "./output/claude"
 
 # Source-specific options (optional)
 # These vary by processor type
@@ -62,6 +62,33 @@ options = { key = "value" }
 ```
 
 ## Processor Types
+
+### Claude Exports
+
+Processes Claude conversation exports:
+
+```toml
+[[sources]]
+type = "claude"
+src_dir = "~/Downloads/claude_exports"
+dest_dir = "output/claude"
+options = {
+    # Optional: Custom date format for conversation filenames
+    date_format = "%Y%m%d",
+    # Optional: Custom title format for conversation files
+    title_format = "{date}-{name}",
+    # Optional: Preserve original XML tags in output
+    preserve_tags = false,
+    # Optional: Extract artifacts from conversations
+    extract_artifacts = true,
+    # Optional: Track artifact versions
+    track_versions = true,
+    # Optional: Process attachments
+    process_attachments = true,
+    # Optional: Directory for processed attachments
+    attachments_dir = "attachments"
+}
+```
 
 ### Bear Notes
 
@@ -106,6 +133,64 @@ The following environment variables can be used to override configuration:
 - `CM_CONFIG_PATH`: Path to configuration file
 
 ## Example Configurations
+
+### Basic Claude Configuration
+
+```toml
+[global]
+cm_dir = ".cm"
+no_image = true
+
+[[sources]]
+type = "claude"
+src_dir = "~/Documents/Claude Exports"
+dest_dir = "./output/claude"
+```
+
+### Advanced Claude Configuration
+
+```toml
+[global]
+cm_dir = ".cm"
+openai_key = "sk-..."  # For image analysis in attachments
+
+[[sources]]
+type = "claude"
+src_dir = "~/Documents/Claude Exports"
+dest_dir = "./output/claude"
+options = {
+    date_format = "%Y%m%d",
+    title_format = "{date}-{name}",
+    preserve_tags = false,
+    extract_artifacts = true,
+    track_versions = true,
+    process_attachments = true,
+    attachments_dir = "attachments"
+}
+```
+
+### Multiple Sources Including Claude
+
+```toml
+[global]
+cm_dir = ".cm"
+openai_key = "sk-..."
+
+[[sources]]
+type = "claude"
+src_dir = "~/Documents/Claude Exports"
+dest_dir = "./output/claude"
+
+[[sources]]
+type = "bear"
+src_dir = "~/Documents/Notes"
+dest_dir = "./output/notes"
+
+[[sources]]
+type = "chatgptexport"
+src_dir = "~/Downloads/chatgpt"
+dest_dir = "./output/chatgpt"
+```
 
 ### Basic Configuration
 
