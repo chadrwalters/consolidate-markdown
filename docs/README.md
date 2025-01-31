@@ -30,6 +30,59 @@ This documentation covers the consolidate-markdown project, a tool for processin
    - Force regeneration options
    - Performance considerations
 
+## Processor Differences
+
+### ⚠️ Important: Attachment Handling
+Different chat platforms provide significantly different levels of access to attachments in their exports. Understanding these differences is crucial for choosing the right processor for your needs:
+
+#### Claude (Limited)
+- ❌ NO access to original binary files
+- ❌ NO preservation of original formatting
+- ✓ Only provides metadata and extracted text
+- ✓ Preserves metadata for empty attachments
+- ⚠️ See [Claude Attachment Handling](claude-attachments.md) for detailed limitations
+
+#### ChatGPT (Full Access)
+- ✓ Full access to original files
+- ✓ Preserves binary content and formatting
+- ✓ Maintains file system metadata
+- ✓ Supports downloading original files
+
+### Example Outputs
+
+#### Claude Attachment (Extracted Text Only)
+```markdown
+<!-- CLAUDE EXPORT: Extracted content from example.pdf -->
+<details>
+<summary>📄 example.pdf (1.2MB PDF) - Extracted Content</summary>
+
+Original File Information:
+- Type: PDF
+- Size: 1.2MB
+- Extracted: 2024-01-30
+- Note: Original file not available in Claude export
+
+Extracted Content:
+```text
+[Text content extracted by Claude]
+```
+
+</details>
+```
+
+#### ChatGPT Attachment
+```markdown
+<!-- ATTACHMENT: example.pdf -->
+<details>
+<summary>📄 example.pdf</summary>
+
+![PDF Preview](artifacts/example.pdf)
+
+[Download PDF](artifacts/example.pdf)
+
+</details>
+```
+
 ## Quick Links
 
 - [Bear Export Schema](schemas/bear_export.md)
