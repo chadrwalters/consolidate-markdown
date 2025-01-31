@@ -49,6 +49,17 @@ def parse_args() -> argparse.Namespace:
         help="Delete existing output files before processing",
     )
     parser.add_argument(
+        "--processor",
+        type=str,
+        choices=list(Runner.PROCESSORS.keys()),
+        help="Run only the specified processor type",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Limit processing to the last N items per source",
+    )
+    parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="INFO",
@@ -62,45 +73,58 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def ensure_cm_directory(config_path: Path) -> None:
+    """Ensure the .cm directory exists.
+
+    Args:
+        config_path: Path to the config file, used to determine workspace root.
+    """
+    workspace_root = config_path.parent
+    cm_dir = workspace_root / ".cm"
+    log_dir = cm_dir / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+
 def main() -> int:
-    """Run the consolidation process.
+    """Main entry point.
 
     Returns:
-        0 on success, non-zero on error.
+        int: Exit code (0 for success, non-zero for failure)
     """
     args = parse_args()
+    config = load_config(args.config)
+
+    # Apply command line overrides
+    if args.log_level:
+        config.global_config.log_level = args.log_level
+    if args.debug:
+        config.global_config.log_level = "DEBUG"
+    if args.no_image:
+        config.global_config.no_image = True
+    if args.force:
+        config.global_config.force_generation = True
+
+    # Set up logging
+    setup_logging(config)
+
+    # Create and run the processor
+    runner = Runner(config, delete_existing=args.delete)
+    if args.processor:
+        runner.selected_processor = args.processor
+    if args.limit:
+        runner.processing_limit = args.limit
 
     try:
-        # Load configuration
-        config = load_config(args.config)
-
-        # Update global config with command line options
-        config.global_config.no_image = args.no_image
-        config.global_config.force_generation = args.force
-        config.global_config.log_level = args.log_level if not args.debug else "DEBUG"
-
-        # Configure logging
-        setup_logging(config)
-
-        # Run consolidation
-        runner = Runner(config)
-        summary = runner.run()
-
-        # Log summary
-        logger.info("\n%s", summary.get_summary())
-
-        if summary.errors:
-            logger.error("Errors occurred during processing:")
-            for error in summary.errors:
-                logger.error(str(error))
+        result = runner.run()
+        print(str(result))
+        if result.errors:
             return 1
-
         return 0
-
+    except KeyboardInterrupt:
+        logger.info("Processing cancelled by user")
+        return 130
     except Exception as e:
-        logger.error("Error: %s", str(e))
-        if args.debug:
-            logger.exception(e)
+        logger.error(f"Processing failed: {str(e)}")
         return 1
 
 

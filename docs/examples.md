@@ -1,152 +1,201 @@
 # Usage Examples
 
+This document provides examples of common use cases for the consolidate-markdown tool.
+
 ## Basic Usage
 
-### Simple Bear Notes Processing
+Process all configured sources:
 ```bash
-# config.toml
+consolidate-markdown --config config.toml
+```
+
+## Processor Selection
+
+Process only specific types of content:
+
+```bash
+# Process only Bear notes
+consolidate-markdown --config config.toml --processor bear
+
+# Process only X bookmarks
+consolidate-markdown --config config.toml --processor xbookmarks
+
+# Process only ChatGPT exports
+consolidate-markdown --config config.toml --processor chatgptexport
+```
+
+## Item Limiting
+
+Process a limited number of items:
+
+```bash
+# Process last 5 items from each source
+consolidate-markdown --config config.toml --limit 5
+
+# Process last 2 Bear notes only
+consolidate-markdown --config config.toml --processor bear --limit 2
+
+# Process last 10 X bookmarks with force regeneration
+consolidate-markdown --config config.toml --processor xbookmarks --limit 10 --force
+```
+
+## Image Processing
+
+Control image analysis:
+
+```bash
+# Skip image analysis
+consolidate-markdown --config config.toml --no-image
+
+# Force regeneration of image descriptions
+consolidate-markdown --config config.toml --force
+```
+
+## Cache Control
+
+Manage caching behavior:
+
+```bash
+# Force regeneration of all files
+consolidate-markdown --config config.toml --force
+
+# Delete existing output and cache before processing
+consolidate-markdown --config config.toml --delete
+
+# Force regeneration of last 5 items only
+consolidate-markdown --config config.toml --force --limit 5
+```
+
+## Logging
+
+Control log output:
+
+```bash
+# Enable debug logging
+consolidate-markdown --config config.toml --debug
+
+# Set specific log level
+consolidate-markdown --config config.toml --log-level WARNING
+```
+
+## Configuration Examples
+
+### Multiple Bear Sources
+
+```toml
 [global]
 cm_dir = ".cm"
-no_image = true
+no_image = false
 
 [[sources]]
 type = "bear"
-srcDir = "~/Documents/Bear Notes"
-destDir = "./output"
+src_dir = "~/work/notes"
+dest_dir = "output/work"
 
-# Run command
-consolidate_markdown --config config.toml
+[[sources]]
+type = "bear"
+src_dir = "~/personal/notes"
+dest_dir = "output/personal"
 ```
 
-### X Bookmarks with Image Analysis
+Process specific Bear source:
 ```bash
-# config.toml
+# Process last 5 work notes
+consolidate-markdown --config config.toml --processor bear --limit 5
+
+# Force regeneration of all personal notes
+consolidate-markdown --config config.toml --processor bear --force
+```
+
+### Mixed Sources
+
+```toml
 [global]
 cm_dir = ".cm"
-openai_key = "sk-..."
+no_image = false
+
+[[sources]]
+type = "bear"
+src_dir = "~/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/Local Files/Note Files"
+dest_dir = "output/bear"
 
 [[sources]]
 type = "xbookmarks"
-srcDir = "~/Downloads/x_bookmarks"
-destDir = "./output"
-
-# Run command
-consolidate_markdown --config config.toml
-```
-
-### ChatGPT Export Processing
-```bash
-# config.toml
-[global]
-cm_dir = ".cm"
-openai_key = "sk-..."  # Optional: for image analysis
+src_dir = "~/Library/Containers/com.apple.Safari/Data/Library/Safari/Bookmarks.plist"
+dest_dir = "output/bookmarks"
 
 [[sources]]
 type = "chatgptexport"
-srcDir = "~/Downloads/ChatGPT Export"
-destDir = "./output/chatgpt"
-
-# Run command
-consolidate_markdown --config config.toml
+src_dir = "~/Downloads/chatgpt_exports"
+dest_dir = "output/chatgpt"
 ```
 
-## Advanced Usage
-
-### Multiple Sources
+Process specific combinations:
 ```bash
-# config.toml
-[global]
-cm_dir = ".cm"
-openai_key = "sk-..."
+# Process last 10 items from Bear and X bookmarks
+consolidate-markdown --config config.toml --limit 10
 
-[[sources]]
-type = "bear"
-srcDir = "/notes/bear"
-destDir = "/output/bear"
-
-[[sources]]
-type = "xbookmarks"
-srcDir = "/bookmarks/x"
-destDir = "/output/x"
-
-# Run command
-consolidate_markdown --config config.toml
+# Process only ChatGPT exports with debug logging
+consolidate-markdown --config config.toml --processor chatgptexport --debug
 ```
 
-### Force Regeneration
-```bash
-# Reprocess all files
-consolidate_markdown --config config.toml --force
+## Environment Variables
 
-# Clean start
-consolidate_markdown --config config.toml --delete
+Use environment variables for configuration:
+
+```bash
+# Set OpenAI API key
+export OPENAI_API_KEY="your-api-key"
+
+# Set log level
+export CM_LOG_LEVEL="DEBUG"
+
+# Disable image analysis
+export CM_NO_IMAGE=1
+
+# Run with environment configuration
+consolidate-markdown --config config.toml
 ```
 
-### Performance Tuning
-```bash
-# Sequential processing
-consolidate_markdown --config config.toml --sequential
+## Common Workflows
 
-# Skip image analysis
-consolidate_markdown --config config.toml --no-image
+### Initial Setup
+```bash
+# Create initial output with image analysis
+consolidate-markdown --config config.toml
+
+# Create initial output without images
+consolidate-markdown --config config.toml --no-image
+```
+
+### Regular Updates
+```bash
+# Process only recent items
+consolidate-markdown --config config.toml --limit 10
+
+# Update specific content type
+consolidate-markdown --config config.toml --processor bear --limit 5
+```
+
+### Maintenance
+```bash
+# Force complete regeneration
+consolidate-markdown --config config.toml --delete --force
+
+# Regenerate specific processor
+consolidate-markdown --config config.toml --processor xbookmarks --force
+```
+
+### Debugging
+```bash
+# Debug specific processor
+consolidate-markdown --config config.toml --processor bear --debug --limit 2
+
+# Debug with forced regeneration
+consolidate-markdown --config config.toml --debug --force --limit 1
 ```
 
 ## Error Handling Examples
 
 ### Retry Logic
-```toml
-[global]
-cm_dir = ".cm"
-log_level = "DEBUG"  # More detailed logging
-openai_key = "sk-..."
-
-[[sources]]
-type = "bear"
-srcDir = "/notes"
-destDir = "/output"
 ```
-
-### Backup Strategy
-```bash
-# Create backup before processing
-cp -r /output /output_backup
-
-# Run with potential destructive options
-consolidate_markdown --config config.toml --delete
-```
-
-## Workflow Examples
-
-### Daily Notes Backup
-```bash
-#!/bin/bash
-# backup_notes.sh
-
-# Set environment variables
-export OPENAI_API_KEY="sk-..."
-
-# Run consolidation
-consolidate_markdown --config ~/.config/cm/config.toml
-
-# Backup output
-timestamp=$(date +%Y%m%d)
-tar -czf "backup_$timestamp.tar.gz" output/
-```
-
-### Automated Processing
-```bash
-# crontab entry
-0 2 * * * /path/to/backup_notes.sh >> /var/log/cm_backup.log 2>&1
-```
-
-### Integration Example
-```python
-from consolidate_markdown.config import load_config
-from consolidate_markdown.runner import Runner
-
-def process_notes(config_path):
-    """Process notes programmatically."""
-    config = load_config(config_path)
-    runner = Runner(config)
-    summary = runner.run()
-    return summary.get_summary()

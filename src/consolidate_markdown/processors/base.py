@@ -2,7 +2,7 @@ import logging
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from ..attachments.gpt import GPTProcessor
 from ..attachments.processor import AttachmentMetadata, AttachmentProcessor
@@ -134,6 +134,7 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
         self.validate_called = False
         self._attachment_processor: Optional[AttachmentProcessor] = None
         self._temp_dir: Optional[Path] = None
+        self.item_limit: Optional[int] = None  # Maximum number of items to process
 
     @property
     def attachment_processor(self) -> AttachmentProcessor:
@@ -192,6 +193,20 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
             except Exception as e:
                 logger.warning(f"Failed to clean up temp dir {self._temp_dir}: {e}")
             self._temp_dir = None
+
+    def _apply_limit(self, items: List[Path]) -> List[Path]:
+        """Apply item limit to sorted items.
+
+        Args:
+            items: List of paths to sort and limit.
+
+        Returns:
+            Limited list of paths, sorted by modification time (newest first).
+        """
+        if not items or self.item_limit is None:
+            return items
+        items.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        return items[: self.item_limit]
 
     def process(self, config: Config) -> ProcessingResult:
         """Process the source."""

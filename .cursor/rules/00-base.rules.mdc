@@ -87,7 +87,7 @@ rule_file_numbering:
                 - "41-logging.rules.mdc: Logging standards"
 
         "50-59: Operation Modes":
-            description: "PLAN/ACT mode definitions and transitions"
+            description: "PLAN/2025-01-31 mode definitions and transitions"
             examples:
                 - "50-operation-modes.rules.mdc: Mode definitions"
                 - "51-mode-transitions.rules.mdc: Mode switching rules"
@@ -176,7 +176,7 @@ file_requirements:
 # <section: validation>
 rule_validation:
     requirements:
-        - "All rules must be clear and actionable"
+        - "All rules must be clear and 2025-01-31ionable"
         - "Examples must be accurate and current"
         - "Cross-references must be valid"
         - "MDC hints must be properly formatted"

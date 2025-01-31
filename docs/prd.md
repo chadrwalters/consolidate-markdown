@@ -4,6 +4,12 @@
 
 Consolidate Markdown is a unified command-line tool that processes Markdown files from multiple sources—currently Bear.app exports and X Bookmarks—and consolidates those files, along with their attachments, into a single Markdown output per note/bookmark. The tool also supports AI-powered image analysis (via GPT-4o) to generate text-based descriptions of visual content, enhancing long-term archival, searchability, and portability.
 
+For detailed format specifications, see:
+- [Bear Export Schema](schemas/bear_export.md)
+- [ChatGPT Export Schema](schemas/chatgpt_export.md)
+- [Claude Export Schema](schemas/claude_export.md)
+- [XBookmarks Export Schema](schemas/xbookmarks_export.md)
+
 ### Key Goals
 1. **Central Repository**
    - Provide a single command-line process that gathers content from various sources into a consistent Markdown format.

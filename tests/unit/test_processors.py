@@ -3,7 +3,6 @@ import pytest
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
-from consolidate_markdown.runner import Runner
 
 
 def test_bear_basic_note(tmp_path):
@@ -236,34 +235,26 @@ def test_summary_stats_multiple_files(tmp_path):
     config = Config(global_config=global_config, sources=[source_config])
 
     # First run - should generate all files
-    runner = Runner(config)
-    summary = runner.run(parallel=False)
+    processor = XBookmarksProcessor(source_config)
+    result = processor.process(config)
 
-    # Verify source stats
-    source_stats = summary.source_stats["xbookmarks"]
-    assert source_stats["processed"] == 3
-    assert source_stats["generated"] == 3
-    assert source_stats["from_cache"] == 0
-    assert source_stats["skipped"] == 0
+    # Verify stats
+    assert result.processed == 3
+    assert result.regenerated == 3
+    assert result.from_cache == 0
+    assert result.skipped == 0
 
-    # Second run - should use cache for all files
-    config.global_config.force_generation = False
-    runner = Runner(config)
-    summary = runner.run(parallel=False)
+    # Second run - should use cache
+    result = processor.process(config)
+    assert result.processed == 3
+    assert result.regenerated == 0
+    assert result.from_cache == 3
+    assert result.skipped == 0
 
-    source_stats = summary.source_stats["xbookmarks"]
-    assert source_stats["processed"] == 3
-    assert source_stats["generated"] == 0
-    assert source_stats["from_cache"] == 3
-    assert source_stats["skipped"] == 0
-
-    # Third run with force - should regenerate all files
+    # Force regeneration
     config.global_config.force_generation = True
-    runner = Runner(config)
-    summary = runner.run(parallel=False)
-
-    source_stats = summary.source_stats["xbookmarks"]
-    assert source_stats["processed"] == 3
-    assert source_stats["generated"] == 3
-    assert source_stats["from_cache"] == 0
-    assert source_stats["skipped"] == 0
+    result = processor.process(config)
+    assert result.processed == 3
+    assert result.regenerated == 3
+    assert result.from_cache == 0
+    assert result.skipped == 0

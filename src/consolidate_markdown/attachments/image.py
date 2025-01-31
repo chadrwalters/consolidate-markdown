@@ -3,7 +3,7 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from PIL import Image
 
@@ -98,120 +98,69 @@ class ImageProcessor:
             if temp_path.stat().st_mtime >= image_path.stat().st_mtime:
                 return temp_path, self._extract_metadata(temp_path)
 
-        # Handle SVG files by converting to PNG then JPG
-        if image_path.suffix.lower() == ".svg":
-            try:
-                # First convert to PNG
-                png_path = self.temp_dir / f"{image_path.stem}.png"
-                converter_cmd = _get_svg_converter()
+        # Process based on file type
+        suffix = image_path.suffix.lower()
+        if suffix not in self.SUPPORTED_FORMATS:
+            raise ImageProcessingError(f"Unsupported image format: {suffix}")
 
-                # Build command based on converter type
-                if "rsvg-convert" in converter_cmd[0]:
-                    cmd = [*converter_cmd, str(image_path), "--output", str(png_path)]
-                else:  # inkscape
-                    cmd = [
-                        *converter_cmd,
-                        str(image_path),
-                        f"--export-filename={png_path}",
-                    ]
-
-                # Run conversion
-                subprocess.run(cmd, check=True, capture_output=True)
-
-                # Then convert PNG to JPG using PIL
-                jpg_path = self.temp_dir / f"{image_path.stem}.jpg"
-                with Image.open(png_path) as img:
-                    # Convert to RGB mode if necessary
-                    if img.mode in ("RGBA", "LA") or (
-                        img.mode == "P" and "transparency" in img.info
-                    ):
-                        background = Image.new("RGB", img.size, (255, 255, 255))
-                        if img.mode == "P":
-                            img = img.convert("RGBA")
-                        background.paste(img, mask=img.split()[-1])
-                        img = background
-                    elif img.mode != "RGB":
-                        img = img.convert("RGB")
-                    img.save(jpg_path, "JPEG", quality=95)
-
-                # Clean up temporary PNG
-                png_path.unlink()
-
-                return jpg_path, self._extract_metadata(jpg_path)
-            except Exception as e:
-                logger.warning(
-                    f"SVG conversion failed for {image_path.name}, using basic copy: {str(e)}"
-                )
-                # Fall back to copying the original file
+        try:
+            # Handle SVG files - copy without conversion
+            if suffix == ".svg":
                 shutil.copy2(image_path, temp_path)
                 return temp_path, self._extract_metadata(temp_path)
 
-        # Convert HEIC to JPG if needed
-        if image_path.suffix.lower() == ".heic":
-            jpg_path = self.temp_dir / f"{image_path.stem}.jpg"
-            try:
+            # Handle HEIC files - convert to JPEG
+            if suffix == ".heic":
                 converter_cmd, converter_type = _get_heic_converter()
-                if converter_type == "sips":
-                    subprocess.run(
-                        [*converter_cmd, str(image_path), "--out", str(jpg_path)],
-                        check=True,
-                        capture_output=True,
-                    )
-                elif converter_type == "libheif":
-                    subprocess.run(
-                        [*converter_cmd, str(image_path), str(jpg_path)],
-                        check=True,
-                        capture_output=True,
-                    )
-                elif converter_type == "imagemagick":
-                    subprocess.run(
-                        [*converter_cmd, str(image_path), str(jpg_path)],
-                        check=True,
-                        capture_output=True,
-                    )
-                return jpg_path, self._extract_metadata(jpg_path)
-            except Exception as e:
-                logger.warning(
-                    f"HEIC conversion failed for {image_path.name}, using basic copy: {str(e)}"
-                )
-                # Fall back to copying the original file but keep .jpg extension
-                temp_path = self.temp_dir / f"{image_path.stem}.jpg"
-                shutil.copy2(image_path, temp_path)
-                return temp_path, self._extract_metadata(temp_path)
+                temp_path = temp_path.with_suffix(".jpg")
 
-        # Just copy the file for other formats
-        shutil.copy2(image_path, temp_path)
-        return temp_path, self._extract_metadata(temp_path)
+                if converter_type == "sips":
+                    # sips requires output path without extension
+                    output_path = temp_path.with_suffix("")
+                    cmd = [*converter_cmd, str(image_path), "-o", str(output_path)]
+                elif converter_type == "libheif":
+                    cmd = [*converter_cmd, str(image_path), str(temp_path)]
+                else:  # imagemagick
+                    cmd = [*converter_cmd, str(image_path), str(temp_path)]
+
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True)
+                except subprocess.CalledProcessError as e:
+                    raise ImageProcessingError(
+                        f"HEIC conversion failed: {e.stderr.decode()}"
+                    )
+
+            # Handle other image formats - copy with metadata
+            else:
+                shutil.copy2(image_path, temp_path)
+
+            return temp_path, self._extract_metadata(temp_path)
+
+        except Exception as e:
+            if temp_path.exists():
+                temp_path.unlink()
+            raise ImageProcessingError(f"Image processing failed: {str(e)}")
 
     def _extract_metadata(self, image_path: Path) -> Dict:
         """Extract metadata from an image file."""
-        try:
-            # For unsupported formats, return basic metadata
-            if image_path.suffix.lower() == ".heic":  # Removed .svg since we convert it
-                return {
-                    "size_bytes": image_path.stat().st_size,
-                    "format": image_path.suffix.lower().lstrip("."),
-                    "mode": "unknown",
-                    "dimensions": (0, 0),
-                }
+        metadata: Dict[str, Any] = {
+            "size_bytes": image_path.stat().st_size,
+            "dimensions": None,
+        }
 
-            # For supported formats, use PIL
+        # For SVG files, don't try to get dimensions with PIL
+        if image_path.suffix.lower() == ".svg":
+            return metadata
+
+        try:
             with Image.open(image_path) as img:
-                metadata = {
-                    "size_bytes": image_path.stat().st_size,
-                    "format": img.format.lower() if img.format else "unknown",
-                    "mode": img.mode,
-                    "dimensions": img.size,
-                }
-                return metadata
-        except Exception:
-            # Fallback metadata for any errors
-            return {
-                "size_bytes": image_path.stat().st_size if image_path.exists() else 0,
-                "format": image_path.suffix.lower().lstrip("."),
-                "mode": "unknown",
-                "dimensions": (0, 0),
-            }
+                metadata["dimensions"] = tuple(
+                    int(x) for x in img.size
+                )  # Convert to tuple of ints
+        except Exception as e:
+            logger.warning(f"Failed to extract image dimensions: {str(e)}")
+
+        return metadata
 
     def cleanup(self) -> None:
         """Clean up temporary files."""

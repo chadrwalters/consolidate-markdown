@@ -49,6 +49,27 @@ consolidate-markdown --config config.toml
 - `--no-image`: Skip image analysis
 - `--force`: Force regeneration of all files
 - `--debug`: Enable debug logging
+- `--processor TYPE`: Run only the specified processor type (bear, xbookmarks, chatgptexport)
+- `--limit N`: Process only the N most recent items from each source
+
+## Examples
+
+```bash
+# Process all sources
+consolidate-markdown --config config.toml
+
+# Process only Bear notes
+consolidate-markdown --config config.toml --processor bear
+
+# Process last 5 items from each source
+consolidate-markdown --config config.toml --limit 5
+
+# Process last 2 Bear notes only
+consolidate-markdown --config config.toml --processor bear --limit 2
+
+# Force regeneration of all files
+consolidate-markdown --config config.toml --force
+```
 
 ## Documentation
 

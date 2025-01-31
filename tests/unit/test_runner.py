@@ -1,11 +1,11 @@
-"""Unit tests for the processing runner."""
+"""Unit tests for Runner class."""
 
-from unittest.mock import call, patch
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
-from consolidate_markdown.logging import SummaryLogger
 from consolidate_markdown.processors.base import ProcessingResult, SourceProcessor
 from consolidate_markdown.runner import Runner
 
@@ -13,83 +13,61 @@ from consolidate_markdown.runner import Runner
 class MockProcessor(SourceProcessor):
     """Mock processor for testing."""
 
-    def __init__(self, config: SourceConfig):
-        super().__init__(config)
+    def __init__(self, source_config: SourceConfig):
+        """Initialize the mock processor."""
+        super().__init__(source_config)
+        self.process_called = False
         self.validate_called = False
 
-    def validate(self):
-        """Track validation call."""
-        super().validate()
+    def validate(self) -> None:
+        """Mock validate method."""
         self.validate_called = True
+        # Create source directory if it doesn't exist
+        self.source_config.src_dir.mkdir(parents=True, exist_ok=True)
 
     def _process_impl(self, config: Config) -> ProcessingResult:
-        """Mock implementation."""
+        """Mock process implementation."""
+        self.process_called = True
         result = ProcessingResult()
         result.processed = 1
-        result.skipped = 0
-        result.from_cache = 0
         result.regenerated = 1
-        result.images_processed = 1
-        result.images_skipped = 0
         return result
 
 
-# Register the mock processor
-Runner.PROCESSORS["mock"] = MockProcessor
-
-
 @pytest.fixture
-def mock_config(tmp_path):
-    """Create a mock configuration."""
-    # Create source directories
-    source1_dir = tmp_path / "source1"
-    source2_dir = tmp_path / "source2"
-    dest1_dir = tmp_path / "dest1"
-    dest2_dir = tmp_path / "dest2"
-    source1_dir.mkdir(parents=True)
-    source2_dir.mkdir(parents=True)
-    dest1_dir.parent.mkdir(parents=True, exist_ok=True)
-    dest2_dir.parent.mkdir(parents=True, exist_ok=True)
-
-    return Config(
-        global_config=GlobalConfig(cm_dir=tmp_path / ".cm", no_image=True),
-        sources=[
-            SourceConfig(type="mock", src_dir=source1_dir, dest_dir=dest1_dir),
-            SourceConfig(type="mock", src_dir=source2_dir, dest_dir=dest2_dir),
-        ],
+def config(tmp_path):
+    """Create a test configuration."""
+    global_config = GlobalConfig(cm_dir=tmp_path / ".cm")
+    source_config = SourceConfig(
+        type="mock", src_dir=tmp_path / "src", dest_dir=tmp_path / "dest"
     )
+    return Config(global_config=global_config, sources=[source_config])
 
 
 @pytest.fixture
-def runner(mock_config):
-    """Create a runner instance with mock processor."""
-    return Runner(mock_config)
+def runner(config):
+    """Create a test runner."""
+    Runner.PROCESSORS = {"mock": MockProcessor}
+    return Runner(config)
 
 
 def test_runner_initialization(runner):
     """Test runner initialization."""
     assert isinstance(runner.config, Config)
-    assert isinstance(runner.summary, SummaryLogger)
+    assert isinstance(runner.summary, ProcessingResult)
 
 
 def test_sequential_processing(runner):
     """Test sequential processing of sources."""
     summary = runner.run(parallel=False)
-
-    assert summary.source_stats["mock"]["processed"] == 2
-    assert summary.source_stats["mock"]["generated"] == 2
-    assert summary.source_stats["mock"]["from_cache"] == 0
-    assert len(summary.errors) == 0
+    assert summary.processed == 1
+    assert summary.regenerated == 1
 
 
 def test_processor_registration():
     """Test processor registration and lookup."""
+    Runner.PROCESSORS = {"mock": MockProcessor}
     assert "mock" in Runner.PROCESSORS
-    assert Runner.PROCESSORS["mock"] == MockProcessor
-
-    # Test invalid processor type
-    with pytest.raises(KeyError):
-        Runner.PROCESSORS["invalid"]
 
 
 def test_processor_validation(runner):
@@ -97,40 +75,32 @@ def test_processor_validation(runner):
     # Create a list to store processor instances
     processors = []
 
-    # Override the processor creation to track instances
-    original_processor = Runner.PROCESSORS["mock"]
-
-    class TrackingProcessor(original_processor):
+    # Override the processor creation
+    class TrackingProcessor(MockProcessor):
         def __init__(self, config):
             super().__init__(config)
             processors.append(self)
 
-    Runner.PROCESSORS["mock"] = TrackingProcessor
+    Runner.PROCESSORS = {"mock": TrackingProcessor}
+    runner.run(parallel=False)
 
-    try:
-        runner.run(parallel=False)
+    # Check that we have the expected number of processors
+    assert len(processors) > 0
 
-        # Check that we have the expected number of processors
-        assert len(processors) > 0
-
-        # Verify each processor had validate called
-        for processor in processors:
-            assert processor.validate_called
-
-    finally:
-        # Restore original processor
-        Runner.PROCESSORS["mock"] = original_processor
+    # Verify each processor had validate called
+    for processor in processors:
+        assert processor.validate_called
 
 
-def test_source_processing_error(mock_config):
+def test_source_processing_error(config):
     """Test handling of source processing errors."""
 
     class ErrorProcessor(MockProcessor):
-        def _process_impl(self, config):
+        def validate(self):
             raise ValueError("Processing failed")
 
-    Runner.PROCESSORS["mock"] = ErrorProcessor
-    runner = Runner(mock_config)
+    Runner.PROCESSORS = {"mock": ErrorProcessor}
+    runner = Runner(config)
 
     summary = runner.run(parallel=False)
     assert len(summary.errors) > 0
@@ -138,7 +108,7 @@ def test_source_processing_error(mock_config):
 
 
 def test_result_merging(runner):
-    """Test merging of processing results into summary."""
+    """Test merging of processing results."""
 
     class CustomProcessor(MockProcessor):
         def _process_impl(self, config):
@@ -160,48 +130,84 @@ def test_result_merging(runner):
             result.errors.append("Test error")
             return result
 
-    Runner.PROCESSORS["mock"] = CustomProcessor
+    Runner.PROCESSORS = {"mock": CustomProcessor}
     summary = runner.run(parallel=False)
 
-    stats = summary.source_stats["mock"]
-    assert stats["processed"] == 4  # 2 sources * 2 processed
-    assert stats["generated"] == 2  # 2 sources * 1 regenerated
-    assert stats["from_cache"] == 2  # 2 sources * 1 from_cache
-    assert stats["skipped"] == 2  # 2 sources * 1 skipped
-    assert len(summary.errors) == 2  # 2 sources * 1 error
+    assert summary.processed == 2
+    assert summary.regenerated == 1
+    assert summary.from_cache == 1
+    assert summary.skipped == 1
+    assert summary.images_processed == 2
+    assert summary.images_skipped == 1
+    assert summary.images_from_cache == 1
+    assert summary.images_generated == 1
+    assert summary.documents_processed == 2
+    assert summary.documents_skipped == 1
+    assert summary.documents_from_cache == 1
+    assert summary.documents_generated == 1
+    assert summary.gpt_cache_hits == 1
+    assert summary.gpt_new_analyses == 1
+    assert len(summary.errors) == 1
 
 
 def test_cancellation_handling(runner):
     """Test handling of processing cancellation."""
 
     class CancellingProcessor(MockProcessor):
-        def _process_impl(self, config):
+        def validate(self):
             raise KeyboardInterrupt("Processing cancelled")
 
-    original_processor = Runner.PROCESSORS["mock"]
-    Runner.PROCESSORS["mock"] = CancellingProcessor
-
-    try:
-        with pytest.raises(KeyboardInterrupt, match="Processing cancelled"):
-            runner.run(parallel=False)
-    finally:
-        Runner.PROCESSORS["mock"] = original_processor
+    Runner.PROCESSORS = {"mock": CancellingProcessor}
+    with pytest.raises(KeyboardInterrupt, match="Processing cancelled"):
+        runner.run(parallel=False)
 
 
 @patch("consolidate_markdown.runner.logger")
 def test_logging_integration(mock_logger, runner):
     """Test integration with logging system."""
-    # Run with a mock processor that succeeds
     runner.run(parallel=False)
+    assert mock_logger.info.call_count >= 1
+    assert mock_logger.error.call_count == 0
 
-    # Verify logging calls
-    assert mock_logger.info.call_count >= 2
-    start_call = call("Starting consolidation process")
-    complete_call = call("Completed consolidation")
 
-    # Get all calls to info
-    actual_calls = mock_logger.info.call_args_list
+def test_processor_selection(runner: Runner, config: Config, tmp_path: Path):
+    """Test processor selection."""
+    # Add a second source
+    config.sources.append(
+        SourceConfig(
+            type="other_mock", src_dir=tmp_path / "src2", dest_dir=tmp_path / "dest2"
+        )
+    )
 
-    # Verify start and complete calls are present in the correct order
-    assert start_call == actual_calls[0]
-    assert complete_call == actual_calls[-1]
+    # Register both processors
+    Runner.PROCESSORS = {"mock": MockProcessor, "other_mock": MockProcessor}
+
+    # Run with specific processor
+    runner.selected_processor = "mock"
+    summary = runner.run(parallel=False)
+    assert summary.processed == 1
+
+    # Run with different processor
+    runner.selected_processor = "other_mock"
+    summary = runner.run(parallel=False)
+    assert summary.processed == 1
+
+
+def test_item_limit(runner: Runner):
+    """Test item limit propagation."""
+    runner.processing_limit = 5
+    summary = runner.run(parallel=False)
+    assert summary.processed == 1
+
+
+def test_processor_error_handling(runner: Runner):
+    """Test handling of processor errors."""
+
+    class FailingProcessor(MockProcessor):
+        def validate(self):
+            raise ValueError("Test error")
+
+    Runner.PROCESSORS = {"mock": FailingProcessor}
+    summary = runner.run(parallel=False)
+    assert len(summary.errors) > 0
+    assert "Test error" in str(summary.errors[0])

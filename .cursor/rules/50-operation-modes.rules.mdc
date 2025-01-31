@@ -51,6 +51,7 @@ metadata:
 # @purpose: Define operation modes and their characteristics
 mode_definitions:
     plan_mode:
+        trigger: "-plan"
         description: "Analysis and planning mode without system modifications"
         characteristics:
             - "Read-only operations"
@@ -58,6 +59,9 @@ mode_definitions:
             - "Resource estimation"
             - "Safety validation"
             - "Plan generation"
+        indicators:
+            - "Mode indicator: [PLAN]"
+            - "Read-only operations enforced"
         restrictions:
             - "No file system changes"
             - "No state modifications"
@@ -66,6 +70,7 @@ mode_definitions:
             - "No command execution"
 
     act_mode:
+        trigger: "-act"
         description: "Execution mode for system modifications"
         characteristics:
             - "Write operations"
@@ -73,44 +78,36 @@ mode_definitions:
             - "Resource management"
             - "Command execution"
             - "External interactions"
+        indicators:
+            - "Mode indicator: [ACT]"
+            - "Write operations enabled"
         requirements:
-            - "Explicit authorization"
-            - "Safety checks"
+            - "Valid trigger command"
+            - "Basic safety checks"
             - "Resource validation"
-            - "State tracking"
-            - "Rollback capability"
 
 # <section: transition_rules>
 # @purpose: Define mode transition requirements and processes
 transition_rules:
     requirements:
-        - "Explicit user confirmation"
-        - "Valid authorization"
+        - "Valid trigger command"
+        - "Basic safety checks"
         - "Clean system state"
-        - "Resource availability"
-        - "Safety validation"
 
     process:
         pre_transition:
-            - "State validation"
-            - "Resource check"
-            - "Safety assessment"
-            - "User confirmation"
+            - "Basic state check"
             - "Mode compatibility"
 
         execution:
-            - "State preservation"
             - "Mode switch"
-            - "Resource reallocation"
             - "Permission updates"
             - "Logging transition"
 
         post_transition:
-            - "State verification"
-            - "Resource validation"
+            - "Mode indicator update"
             - "Operation confirmation"
             - "User notification"
-            - "Log completion"
 
 # <section: restrictions>
 # @purpose: Define mode-specific restrictions and controls

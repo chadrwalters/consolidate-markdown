@@ -33,8 +33,12 @@ class BearProcessor(SourceProcessor):
         # Ensure output directory exists
         self._ensure_dest_dir()
 
+        # Get all markdown files and apply limit if set
+        note_files = list(self.source_config.src_dir.glob("*.md"))
+        note_files = self._apply_limit(note_files)
+
         # Process each markdown file
-        for note_file in self.source_config.src_dir.glob("*.md"):
+        for note_file in note_files:
             try:
                 logger.info(f"Processing Bear note: {note_file.name}")
                 note_result = ProcessingResult()  # Track stats for this note

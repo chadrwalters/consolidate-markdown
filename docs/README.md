@@ -1,35 +1,58 @@
-# Consolidate Markdown (v1.0.0)
+# Consolidate Markdown Documentation
 
-A unified command-line tool that processes Markdown files from multiple sources with AI-powered image analysis.
+## Overview
 
-## Quick Start
-```bash
-# Install with uv
-uv pip install .
+This documentation covers the consolidate-markdown project, a tool for processing and consolidating Markdown files from various sources into a unified format.
 
-# Run with example config
-uv run python -m consolidate_markdown --config ./example_config.toml
-```
+## Contents
 
-## Documentation
-- [Installation Guide](./installation.md) - Setup and requirements
-- [Configuration Guide](./configuration.md) - Configure the tool
-- [Architecture](./architecture.md) - Design and implementation
-- [Development Guide](./development.md) - Contributing and development
-- [API Reference](./api.md) - API documentation
-- [File Support](./file_support.md) - Supported file types
+1. [Product Requirements](prd.md)
+   - Detailed product requirements and specifications
+   - Feature descriptions and technical requirements
 
-## Key Features
-- Process Bear.app notes and X Bookmarks
-- AI-powered image descriptions using GPT-4o
-- Document conversion to Markdown
-- Configurable processing pipeline
-- Detailed processing statistics:
-  - Notes processed (markdown files)
-  - Images processed/skipped
-  - Documents processed (non-image attachments)
+2. [Configuration](configuration.md)
+   - Configuration file format and options
+   - Command line arguments
+   - Environment variables
 
-## Version
-- Current: v1.0.0
-- Status: In Development
-- Phase: 1 - Sequential Processing
+3. [Data Formats](schemas/README.md)
+   - Schemas for supported data formats
+   - Export format specifications
+   - Common patterns and structures
+
+4. [Examples](examples.md)
+   - Usage examples and common patterns
+   - Configuration examples
+   - Processing demonstrations
+
+5. [Caching](caching.md)
+   - Cache management and behavior
+   - Force regeneration options
+   - Performance considerations
+
+## Quick Links
+
+- [Bear Export Schema](schemas/bear_export.md)
+- [ChatGPT Export Schema](schemas/chatgpt_export.md)
+- [Claude Export Schema](schemas/claude_export.md)
+- [XBookmarks Export Schema](schemas/xbookmarks_export.md)
+
+## Getting Started
+
+1. Install dependencies:
+   ```bash
+   uv pip install -r requirements.txt
+   ```
+
+2. Configure sources in `consolidate_config.toml`
+
+3. Run the tool:
+   ```bash
+   uv run python -m consolidate_markdown --config ./consolidate_config.toml
+   ```
+
+## Additional Resources
+
+- [Configuration Template](../config.template.toml)
+- [Test Fixtures](../tests/fixtures/README.md)
+- [Source Code](../src/consolidate_markdown/)

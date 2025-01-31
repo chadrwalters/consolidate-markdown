@@ -32,11 +32,12 @@ class XBookmarksProcessor(SourceProcessor):
         # Ensure output directory exists
         self._ensure_dest_dir()
 
-        # Process each bookmark directory
-        for bookmark_dir in self.source_config.src_dir.iterdir():
-            if not bookmark_dir.is_dir():
-                continue
+        # Get all bookmark directories and apply limit if set
+        bookmark_dirs = [d for d in self.source_config.src_dir.iterdir() if d.is_dir()]
+        bookmark_dirs = self._apply_limit(bookmark_dirs)
 
+        # Process each bookmark directory
+        for bookmark_dir in bookmark_dirs:
             try:
                 logger.info(f"Processing X bookmark: {bookmark_dir.name}")
                 bookmark_result = ProcessingResult()

@@ -1,10 +1,10 @@
 """Runner for processing markdown files."""
 
 import logging
-from typing import Dict, Type
+import shutil
+from typing import Dict, Optional, Type
 
-from consolidate_markdown.config import Config, SourceConfig
-from consolidate_markdown.log_setup import SummaryLogger
+from consolidate_markdown.config import Config
 from consolidate_markdown.processors import PROCESSOR_TYPES
 from consolidate_markdown.processors.base import ProcessingResult, SourceProcessor
 
@@ -16,99 +16,89 @@ class Runner:
 
     PROCESSORS: Dict[str, Type[SourceProcessor]] = PROCESSOR_TYPES
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, delete_existing: bool = False):
         """Initialize the runner.
 
         Args:
             config: The configuration to use.
+            delete_existing: Whether to delete existing output files and .cm directory.
         """
         self.config = config
-        self.summary = SummaryLogger()
+        self.summary = ProcessingResult()
+        self.delete_existing = delete_existing
+        self.selected_processor: Optional[str] = (
+            None  # Type of processor to run (optional)
+        )
+        self.processing_limit: Optional[int] = (
+            None  # Max items to process per processor
+        )
 
-    def run(self, parallel: bool = False) -> SummaryLogger:
-        """Run the processing.
+    def _delete_existing(self) -> None:
+        """Delete existing output files and .cm directory."""
+        try:
+            # Delete .cm directory
+            cm_dir = self.config.global_config.cm_dir
+            if cm_dir.exists():
+                logger.info(f"Deleting .cm directory: {cm_dir}")
+                shutil.rmtree(cm_dir)
+
+            # Delete output directories
+            for source in self.config.sources:
+                dest_dir = source.dest_dir
+                if dest_dir.exists():
+                    logger.info(f"Deleting output directory: {dest_dir}")
+                    shutil.rmtree(dest_dir)
+        except Exception as e:
+            logger.error(f"Error deleting existing files: {str(e)}")
+            raise
+
+    def run(self, parallel: bool = False) -> ProcessingResult:
+        """Run the consolidation process.
 
         Args:
-            parallel: Ignored. Kept for backwards compatibility.
+            parallel: Whether to process sources in parallel (not implemented).
 
         Returns:
-            The processing summary.
-
-        Raises:
-            KeyboardInterrupt: If processing is cancelled.
+            The processing result.
         """
-        logger.info("Starting consolidation process")
+        # Reset summary for new run
+        self.summary = ProcessingResult()
 
-        try:
-            for source_config in self.config.sources:
-                self._process_source(source_config)
-        except KeyboardInterrupt as e:
-            logger.warning("Processing cancelled")
-            raise e
-        finally:
-            logger.info("Completed consolidation")
+        if self.delete_existing:
+            self._delete_existing()
 
+        for source in self.config.sources:
+            # Skip if a specific processor is selected and this isn't it
+            if self.selected_processor and source.type != self.selected_processor:
+                logger.debug(f"Skipping {source.type} processor (not selected)")
+                continue
+
+            try:
+                processor_class = self.PROCESSORS.get(source.type)
+                if not processor_class:
+                    error_msg = f"Unknown processor type: {source.type}"
+                    logger.error(error_msg)
+                    self.summary.errors.append(error_msg)
+                    continue
+
+                processor = processor_class(source)
+                if self.processing_limit is not None:
+                    processor.item_limit = self.processing_limit
+
+                # Validate and process
+                try:
+                    processor.validate()
+                    result = processor.process(self.config)
+                    self.summary.merge(result)
+                except Exception as e:
+                    error_msg = f"Error processing source {source.type}: {str(e)}"
+                    logger.error(error_msg)
+                    self.summary.errors.append(error_msg)
+
+            except Exception as e:
+                error_msg = f"Error creating processor for {source.type}: {str(e)}"
+                logger.error(error_msg)
+                self.summary.errors.append(error_msg)
+
+        logger.info("Completed consolidation")
         return self.summary
-
-    def _process_source(self, source_config: SourceConfig) -> None:
-        """Process a single source.
-
-        Args:
-            source_config: The source configuration.
-        """
-        try:
-            processor_class = self.PROCESSORS[source_config.type]
-            processor = processor_class(source_config)
-            processor.validate()
-
-            result = processor.process(self.config)
-            self._merge_result(source_config.type, result)
-
-        except Exception as e:
-            logger.error("Error processing source %s: %s", source_config.type, str(e))
-            self.summary.add_error(source_config.type, str(e))
-
-    def _merge_result(self, source_type: str, result: ProcessingResult) -> None:
-        """Merge a processing result into the summary.
-
-        Args:
-            source_type: The type of source that was processed.
-            result: The processing result to merge.
-        """
-        # Initialize source stats if needed
-        if source_type not in self.summary.source_stats:
-            self.summary._init_source_stats(source_type)
-
-        # Add note stats
-        for _ in range(result.from_cache):
-            self.summary.add_from_cache(source_type)
-        for _ in range(result.regenerated):
-            self.summary.add_generated(source_type)
-        for _ in range(result.skipped):
-            self.summary.add_skipped(source_type)
-
-        # Add document stats
-        for _ in range(result.documents_from_cache):
-            self.summary.add_document_from_cache(source_type)
-        for _ in range(result.documents_generated):
-            self.summary.add_document_generated(source_type)
-        for _ in range(result.documents_skipped):
-            self.summary.add_document_skipped(source_type)
-
-        # Add image stats
-        for _ in range(result.images_from_cache):
-            self.summary.add_image_from_cache(source_type)
-        for _ in range(result.images_generated):
-            self.summary.add_image_generated(source_type)
-        for _ in range(result.images_skipped):
-            self.summary.add_image_skipped(source_type)
-
-        # Add GPT stats
-        for _ in range(result.gpt_cache_hits):
-            self.summary.add_gpt_from_cache(source_type)
-        for _ in range(result.gpt_new_analyses):
-            self.summary.add_gpt_generated(source_type)
-
-        # Add errors
-        for error in result.errors:
-            self.summary.add_error(source_type, str(error))

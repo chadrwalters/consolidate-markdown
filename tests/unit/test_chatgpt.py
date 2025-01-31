@@ -2,13 +2,13 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 import pytest
 
 from consolidate_markdown.attachments.processor import AttachmentProcessor
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
-from consolidate_markdown.processors import ChatGPTProcessor
+from consolidate_markdown.processors.chatgpt import ChatGPTProcessor
 
 
 @pytest.fixture
@@ -329,3 +329,444 @@ def test_multiple_conversations(config: Config, temp_output_dir: Path):
         assert "Created: " in content  # Has timestamp
         assert "Model: gpt-4" in content  # Has model info
         assert "## User" in content  # Has messages
+
+
+@pytest.fixture
+def sample_code_block_conversation() -> Dict[str, Any]:
+    """Create a sample conversation with code blocks."""
+    return {
+        "title": "Code Examples",
+        "create_time": "2024-02-15T10:00:00Z",
+        "model": "gpt-4",
+        "mapping": {
+            "msg1": {
+                "id": "msg1",
+                "message": {
+                    "author": {"role": "user"},
+                    "content": "Show me a Python example of a decorator.",
+                    "parent": None,
+                },
+            },
+            "msg2": {
+                "id": "msg2",
+                "message": {
+                    "author": {"role": "assistant"},
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Here's an example of a timing decorator in Python:",
+                        },
+                        {
+                            "type": "code",
+                            "language": "python",
+                            "text": """import functools
+import time
+
+def timer(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        end = time.perf_counter()
+        print(f"{func.__name__} took {end - start:.2f} seconds")
+        return result
+    return wrapper
+
+@timer
+def slow_function():
+    time.sleep(1)
+    return "Done!"
+""",
+                        },
+                        {"type": "text", "text": "And here's how you would use it:"},
+                        {
+                            "type": "code",
+                            "language": "python",
+                            "text": """result = slow_function()
+print(result)  # Output: slow_function took 1.00 seconds\\nDone!""",
+                        },
+                    ],
+                    "parent": "msg1",
+                },
+            },
+        },
+        "current_node": "msg2",
+    }
+
+
+@pytest.fixture
+def sample_interactive_conversation() -> Dict[str, Any]:
+    """Create a sample conversation with interactive elements."""
+    return {
+        "title": "Interactive Features",
+        "create_time": "2024-02-16T11:00:00Z",
+        "model": "gpt-4",
+        "mapping": {
+            "msg1": {
+                "id": "msg1",
+                "message": {
+                    "author": {"role": "system"},
+                    "content": "You are in Python REPL mode. Show step-by-step execution.",
+                    "parent": None,
+                },
+            },
+            "msg2": {
+                "id": "msg2",
+                "message": {
+                    "author": {"role": "user"},
+                    "content": "Calculate fibonacci(5)",
+                    "parent": "msg1",
+                },
+            },
+            "msg3": {
+                "id": "msg3",
+                "message": {
+                    "author": {"role": "assistant"},
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "tool": "python_repl",
+                            "input": "def fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)\\n\\nprint(fibonacci(5))",
+                        },
+                        {"type": "tool_result", "output": "5"},
+                        {
+                            "type": "text",
+                            "text": "Let's break down the execution steps:\n1. fibonacci(5) calls fibonacci(4) + fibonacci(3)\n2. fibonacci(4) calls fibonacci(3) + fibonacci(2)\n3. And so on...",
+                        },
+                    ],
+                    "parent": "msg2",
+                },
+            },
+        },
+        "current_node": "msg3",
+    }
+
+
+@pytest.fixture
+def sample_rich_content_conversation() -> Dict[str, Any]:
+    """Create a sample conversation with rich content types."""
+    return {
+        "title": "Rich Content Examples",
+        "create_time": "2024-02-17T12:00:00Z",
+        "model": "gpt-4",
+        "mapping": {
+            "msg1": {
+                "id": "msg1",
+                "message": {
+                    "author": {"role": "user"},
+                    "content": "Show me examples of tables, math equations, and diagrams.",
+                    "parent": None,
+                },
+            },
+            "msg2": {
+                "id": "msg2",
+                "message": {
+                    "author": {"role": "assistant"},
+                    "content": [
+                        {"type": "text", "text": "Here's a comparison table:"},
+                        {
+                            "type": "table",
+                            "headers": [
+                                "Algorithm",
+                                "Time Complexity",
+                                "Space Complexity",
+                            ],
+                            "rows": [
+                                ["Bubble Sort", "O(n²)", "O(1)"],
+                                ["Quick Sort", "O(n log n)", "O(log n)"],
+                                ["Merge Sort", "O(n log n)", "O(n)"],
+                            ],
+                        },
+                        {"type": "text", "text": "Here's the quadratic formula:"},
+                        {
+                            "type": "math",
+                            "latex": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+                        },
+                        {"type": "text", "text": "And here's a simple flowchart:"},
+                        {
+                            "type": "mermaid",
+                            "diagram": """graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great!]
+    B -->|No| D[Debug]
+    D --> B""",
+                        },
+                    ],
+                    "parent": "msg1",
+                },
+            },
+        },
+        "current_node": "msg2",
+    }
+
+
+@pytest.fixture
+def sample_advanced_files_conversation(config: Config) -> Dict[str, Any]:
+    """Create a sample conversation with advanced file types."""
+    # Create test files in the source directory
+    export_dir = config.sources[0].src_dir
+    files_dir = export_dir / "files"
+    files_dir.mkdir(exist_ok=True)
+
+    # Create test files with proper type hints
+    test_files: Dict[str, Union[str, bytes]] = {
+        "script.py": """def hello(name):
+    print(f"Hello, {name}!")""",
+        "config.yaml": """server:
+  host: localhost
+  port: 8080
+  debug: true""",
+        "data.json": """{
+  "users": [
+    {"name": "Alice", "role": "admin"},
+    {"name": "Bob", "role": "user"}
+  ]
+}""",
+        "archive.zip": b"fake zip data",  # Using bytes literal for binary data
+    }
+
+    for name, content in test_files.items():
+        file_path = files_dir / name
+        if isinstance(content, bytes):
+            file_path.write_bytes(content)  # For binary data
+        else:
+            file_path.write_text(content)  # For text data
+
+    return {
+        "title": "Advanced File Types",
+        "create_time": "2024-02-18T13:00:00Z",
+        "model": "gpt-4",
+        "mapping": {
+            "msg1": {
+                "id": "msg1",
+                "message": {
+                    "author": {"role": "user"},
+                    "content": "Here are some different types of files to process.",
+                    "parent": None,
+                },
+            },
+            "msg2": {
+                "id": "msg2",
+                "message": {
+                    "author": {"role": "assistant"},
+                    "content": [
+                        {"type": "text", "text": "I'll analyze each file:"},
+                        {
+                            "type": "file",
+                            "file_url": {"url": str(files_dir / "script.py")},
+                            "metadata": {"language": "python"},
+                        },
+                        {
+                            "type": "file",
+                            "file_url": {"url": str(files_dir / "config.yaml")},
+                            "metadata": {"language": "yaml"},
+                        },
+                        {
+                            "type": "file",
+                            "file_url": {"url": str(files_dir / "data.json")},
+                            "metadata": {"language": "json"},
+                        },
+                        {
+                            "type": "file",
+                            "file_url": {"url": str(files_dir / "archive.zip")},
+                            "metadata": {"type": "archive"},
+                        },
+                    ],
+                    "parent": "msg1",
+                },
+            },
+        },
+        "current_node": "msg2",
+    }
+
+
+def test_code_blocks(
+    config: Config,
+    temp_output_dir: Path,
+    sample_code_block_conversation: Dict[str, Any],
+):
+    """Test processing conversation with code blocks."""
+    conversations_file = config.sources[0].src_dir / "conversations.json"
+    conversations_file.write_text(
+        json.dumps([sample_code_block_conversation]), encoding="utf-8"
+    )
+
+    processor = ChatGPTProcessor(config.sources[0])
+    result = processor.process(config)
+
+    assert result.processed == 1
+    assert result.errors == []
+
+    output_files = list(temp_output_dir.glob("*.md"))
+    assert len(output_files) == 1
+    content = output_files[0].read_text(encoding="utf-8")
+
+    # Check code block formatting
+    assert "```python" in content
+    assert "def timer(func):" in content
+    assert "```" in content
+    assert "And here's how you would use it:" in content
+
+
+def test_interactive_elements(
+    config: Config,
+    temp_output_dir: Path,
+    sample_interactive_conversation: Dict[str, Any],
+):
+    """Test processing conversation with interactive elements."""
+    conversations_file = config.sources[0].src_dir / "conversations.json"
+    conversations_file.write_text(
+        json.dumps([sample_interactive_conversation]), encoding="utf-8"
+    )
+
+    processor = ChatGPTProcessor(config.sources[0])
+    result = processor.process(config)
+
+    assert result.processed == 1
+    assert result.errors == []
+
+    output_files = list(temp_output_dir.glob("*.md"))
+    assert len(output_files) == 1
+    content = output_files[0].read_text(encoding="utf-8")
+
+    # Check interactive elements
+    assert "## System" in content
+    assert "Python REPL mode" in content
+    assert "Tool: python_repl" in content
+    assert "Output: 5" in content
+
+
+def test_rich_content(
+    config: Config,
+    temp_output_dir: Path,
+    sample_rich_content_conversation: Dict[str, Any],
+):
+    """Test processing conversation with rich content."""
+    conversations_file = config.sources[0].src_dir / "conversations.json"
+    conversations_file.write_text(
+        json.dumps([sample_rich_content_conversation]), encoding="utf-8"
+    )
+
+    processor = ChatGPTProcessor(config.sources[0])
+    result = processor.process(config)
+
+    assert result.processed == 1
+    assert result.errors == []
+
+    output_files = list(temp_output_dir.glob("*.md"))
+    assert len(output_files) == 1
+    content = output_files[0].read_text(encoding="utf-8")
+
+    # Check rich content formatting
+    assert "| Algorithm | Time Complexity | Space Complexity |" in content
+    assert "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" in content
+    assert "```mermaid" in content
+    assert "graph TD" in content
+
+
+def test_advanced_files(
+    config: Config,
+    temp_output_dir: Path,
+    sample_advanced_files_conversation: Dict[str, Any],
+):
+    """Test processing conversation with advanced file types."""
+    conversations_file = config.sources[0].src_dir / "conversations.json"
+    conversations_file.write_text(
+        json.dumps([sample_advanced_files_conversation]), encoding="utf-8"
+    )
+
+    processor = ChatGPTProcessor(config.sources[0])
+    result = processor.process(config)
+
+    assert result.processed == 1
+    assert result.errors == []
+    assert result.documents_processed == 4
+
+    output_files = list(temp_output_dir.glob("*.md"))
+    assert len(output_files) == 1
+    content = output_files[0].read_text(encoding="utf-8")
+
+    # Check file handling
+    assert "```python" in content
+    assert "def hello(name):" in content
+    assert "```yaml" in content
+    assert "host: localhost" in content
+    assert "```json" in content
+    assert '"users":' in content
+    assert "[Archive: archive.zip]" in content
+
+
+def test_process_conversation_with_attachments(tmp_path: Path) -> None:
+    """Test processing a conversation with attachments."""
+    # Create test conversation directory
+    conv_dir = tmp_path / "conversation"
+    conv_dir.mkdir(parents=True)
+
+    # Create attachments directory
+    attachments_dir = conv_dir / "attachments"
+    attachments_dir.mkdir()
+
+    # Create test image
+    test_jpg = attachments_dir / "test.jpg"
+    test_jpg.write_bytes(b"fake jpg data")
+
+    # Create test document
+    test_pdf = attachments_dir / "test.pdf"
+    test_pdf.write_bytes(b"fake pdf data")
+
+    # Create conversations.json
+    conversations = [
+        {
+            "title": "Test Conversation",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Here are some files",
+                    "attachments": [
+                        {"name": "test.jpg", "mime_type": "image/jpeg"},
+                        {"name": "test.pdf", "mime_type": "application/pdf"},
+                    ],
+                }
+            ],
+        }
+    ]
+
+    conversations_file = conv_dir / "conversations.json"
+    conversations_file.write_text(json.dumps(conversations))
+
+    # Create output directory
+    output_dir = tmp_path / "output"
+    output_dir.mkdir(parents=True)
+
+    # Create processor and process
+    source_config = SourceConfig(
+        type="chatgptexport",
+        src_dir=conv_dir,
+        dest_dir=output_dir,
+        index_filename="index.md",
+    )
+    config = Config(
+        global_config=GlobalConfig(
+            cm_dir=tmp_path / ".cm",
+            log_level="INFO",
+            force_generation=False,
+            no_image=True,
+            openai_key=None,
+        ),
+        sources=[source_config],
+    )
+    processor = ChatGPTProcessor(source_config=source_config)
+    result = processor.process(config)
+
+    # Verify attachments were processed
+    assert result.processed == 1
+    output_file = output_dir / "00000000 - Test_Conversation.md"
+    content = output_file.read_text()
+
+    # Check for image attachment
+    assert "<!-- EMBEDDED IMAGE: test.jpg -->" in content
+    assert "![test.jpg](attachments/test.jpg)" in content
+
+    # Check for PDF attachment
+    assert "<!-- EMBEDDED PDF: test.pdf -->" in content
+    assert "[View PDF](attachments/test.pdf)" in content

@@ -1,5 +1,234 @@
 # Troubleshooting Guide
 
+This document provides solutions for common issues you may encounter when using consolidate-markdown.
+
+## Command Line Issues
+
+### Invalid Processor Type
+
+**Problem**: Error when using `--processor` with an invalid type.
+
+**Solution**:
+1. Use one of the supported processor types:
+   - `bear`
+   - `xbookmarks`
+   - `chatgptexport`
+2. Check for typos in the processor name
+3. Verify the processor type is configured in your config.toml
+
+Example:
+```bash
+# Correct usage
+consolidate-markdown --config config.toml --processor bear
+
+# Incorrect usage (will error)
+consolidate-markdown --config config.toml --processor bears
+```
+
+### Item Limit Issues
+
+**Problem**: `--limit` option not working as expected.
+
+**Solutions**:
+1. Verify the limit is a positive integer
+2. Check if source directories contain the expected number of items
+3. Ensure items have valid modification times for sorting
+4. Use debug logging to see which items are being selected:
+   ```bash
+   consolidate-markdown --config config.toml --limit 5 --debug
+   ```
+
+## Configuration Issues
+
+### Source Directory Not Found
+
+**Problem**: Source directory specified in config.toml cannot be found.
+
+**Solutions**:
+1. Verify the directory path is correct
+2. Check if the directory exists
+3. Ensure you have read permissions
+4. Use absolute paths or paths relative to home (~)
+
+Example config:
+```toml
+[[sources]]
+type = "bear"
+src_dir = "~/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/Local Files/Note Files"
+dest_dir = "output/bear"
+```
+
+### Multiple Sources of Same Type
+
+**Problem**: Issues when configuring multiple sources of the same type.
+
+**Solutions**:
+1. Use unique destination directories for each source
+2. Verify each source directory exists
+3. Check permissions for all directories
+4. Use debug logging to track processing:
+   ```bash
+   consolidate-markdown --config config.toml --debug
+   ```
+
+Example config:
+```toml
+[[sources]]
+type = "bear"
+src_dir = "~/work/notes"
+dest_dir = "output/work"
+
+[[sources]]
+type = "bear"
+src_dir = "~/personal/notes"
+dest_dir = "output/personal"
+```
+
+## Processing Issues
+
+### No Items Processed
+
+**Problem**: Tool runs but no items are processed.
+
+**Solutions**:
+1. Check source directory contains files
+2. Verify file permissions
+3. Ensure processor type matches source content
+4. Try processing specific source:
+   ```bash
+   consolidate-markdown --config config.toml --processor bear --debug
+   ```
+
+### Partial Processing
+
+**Problem**: Only some items are processed.
+
+**Solutions**:
+1. Check if `--limit` option is set
+2. Verify file permissions for all items
+3. Look for error messages in debug log
+4. Try forcing regeneration:
+   ```bash
+   consolidate-markdown --config config.toml --force
+   ```
+
+### Cache Issues
+
+**Problem**: Changes not reflected in output.
+
+**Solutions**:
+1. Force regeneration:
+   ```bash
+   consolidate-markdown --config config.toml --force
+   ```
+2. Delete cache and output:
+   ```bash
+   consolidate-markdown --config config.toml --delete
+   ```
+3. Check cache directory permissions
+4. Verify sufficient disk space
+
+## Processor-Specific Issues
+
+### Bear Notes
+
+**Problem**: Bear notes not processing.
+
+**Solutions**:
+1. Verify Bear notes directory path
+2. Check file permissions
+3. Ensure notes are in expected format
+4. Try processing with debug:
+   ```bash
+   consolidate-markdown --config config.toml --processor bear --debug
+   ```
+
+### X Bookmarks
+
+**Problem**: X bookmarks not processing.
+
+**Solutions**:
+1. Check bookmarks file exists
+2. Verify file format is correct
+3. Ensure read permissions
+4. Try processing with debug:
+   ```bash
+   consolidate-markdown --config config.toml --processor xbookmarks --debug
+   ```
+
+### ChatGPT Export
+
+**Problem**: ChatGPT exports not processing.
+
+**Solutions**:
+1. Verify export directory contains conversations.json
+2. Check file format is valid
+3. Ensure read permissions
+4. Try processing with debug:
+   ```bash
+   consolidate-markdown --config config.toml --processor chatgptexport --debug
+   ```
+
+## Common Error Messages
+
+### "Invalid processor type"
+
+**Cause**: Specified processor type is not supported.
+**Solution**: Use one of: bear, xbookmarks, chatgptexport
+
+### "Source directory not found"
+
+**Cause**: Source directory does not exist or is inaccessible.
+**Solution**: Verify path and permissions
+
+### "No items found to process"
+
+**Cause**: Source directory empty or items not recognized.
+**Solution**: Check source directory contents and processor type
+
+### "Cache directory not writable"
+
+**Cause**: Insufficient permissions for cache directory.
+**Solution**: Check .cm directory permissions
+
+## Debugging Tips
+
+1. Enable debug logging:
+   ```bash
+   consolidate-markdown --config config.toml --debug
+   ```
+
+2. Process specific source:
+   ```bash
+   consolidate-markdown --config config.toml --processor TYPE
+   ```
+
+3. Limit items for testing:
+   ```bash
+   consolidate-markdown --config config.toml --limit 1
+   ```
+
+4. Force regeneration:
+   ```bash
+   consolidate-markdown --config config.toml --force
+   ```
+
+5. Check log files in .cm/logs/
+
+## Getting Help
+
+If you continue to experience issues:
+
+1. Enable debug logging
+2. Check all log files
+3. Verify configuration
+4. Test with minimal configuration
+5. Report issues with:
+   - Debug logs
+   - Configuration file
+   - Error messages
+   - Steps to reproduce
+
 ## Common Issues
 
 ### Installation Problems

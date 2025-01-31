@@ -52,6 +52,20 @@ metadata:
 # <section: trigger_patterns>
 # @purpose: Define trigger patterns and activation rules
 trigger_patterns:
+    mode_transitions:
+        plan:
+            pattern: "^-plan\\b"
+            description: "Trigger PLAN mode"
+            examples:
+                - "-plan"
+                - "-plan <scope>"
+        act:
+            pattern: "^-act\\b"
+            description: "Trigger ACT mode"
+            examples:
+                - "-act"
+                - "-act <scope>"
+
     pattern_definition:
         - "Regular expression based patterns"
         - "Natural language triggers"
@@ -78,6 +92,27 @@ trigger_patterns:
 # <section: command_formats>
 # @purpose: Define command structure and formatting
 command_formats:
+    mode_commands:
+        plan:
+            syntax: "-plan [scope]"
+            description: "Enter planning mode"
+            options:
+                scope: "Optional scope limitation"
+            examples:
+                - "-plan"
+                - "-plan filesystem"
+                - "-plan analysis"
+
+        act:
+            syntax: "-act [scope]"
+            description: "Enter action mode"
+            options:
+                scope: "Optional scope limitation"
+            examples:
+                - "-act"
+                - "-act filesystem"
+                - "-act implementation"
+
     command_structure:
         - "Command prefix requirements"
         - "Parameter formatting"

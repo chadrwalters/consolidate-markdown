@@ -21,7 +21,11 @@ class AttachmentMetadata:
     size_bytes: int
     is_image: bool
     dimensions: Optional[tuple[int, int]] = None
-    markdown_content: Optional[str] = None
+    markdown_content: str = ""  # Default to empty string instead of None
+    created_time: Optional[float] = None
+    modified_time: Optional[float] = None
+    file_hash: Optional[str] = None
+    error: Optional[str] = None
 
 
 class AttachmentProcessor:
@@ -49,6 +53,20 @@ class AttachmentProcessor:
         size_bytes = file_path.stat().st_size
         is_image = mime_type and mime_type.startswith("image/")
 
+        # Get file timestamps
+        stat = file_path.stat()
+        created_time = stat.st_ctime
+        modified_time = stat.st_mtime
+
+        # Calculate file hash for caching
+        file_hash: Optional[str] = None
+        try:
+            import hashlib
+
+            file_hash = hashlib.md5(file_path.read_bytes()).hexdigest()
+        except Exception as e:
+            logger.warning(f"Failed to calculate hash for {file_path}: {str(e)}")
+
         # Process image files
         if is_image:
             try:
@@ -61,12 +79,14 @@ class AttachmentProcessor:
                     size_bytes=img_metadata["size_bytes"],
                     is_image=True,
                     dimensions=img_metadata["dimensions"],
+                    created_time=created_time,
+                    modified_time=modified_time,
+                    file_hash=file_hash,
                 )
                 return temp_path, metadata
             except Exception as e:
-                logger.warning(
-                    f"Image processing failed for {file_path.name}, using basic copy: {str(e)}"
-                )
+                error_msg = f"Image processing failed: {str(e)}"
+                logger.warning(f"{error_msg} for {file_path.name}, using basic copy")
                 # Fallback to basic copy if image processing fails
                 temp_path = self.temp_dir / file_path.name
                 temp_path.parent.mkdir(parents=True, exist_ok=True)
@@ -77,6 +97,10 @@ class AttachmentProcessor:
                     size_bytes=size_bytes,
                     is_image=True,
                     dimensions=None,
+                    created_time=created_time,
+                    modified_time=modified_time,
+                    file_hash=file_hash,
+                    error=error_msg,
                 )
                 return temp_path, metadata
 
@@ -95,6 +119,9 @@ class AttachmentProcessor:
                         mime_type=mime_type or "application/octet-stream",
                         size_bytes=size_bytes,
                         is_image=False,
+                        created_time=created_time,
+                        modified_time=modified_time,
+                        file_hash=file_hash,
                     )
                 # For other files, use timestamp check
                 elif temp_path.stat().st_mtime >= file_path.stat().st_mtime:
@@ -103,19 +130,25 @@ class AttachmentProcessor:
                         mime_type=mime_type or "application/octet-stream",
                         size_bytes=size_bytes,
                         is_image=False,
+                        created_time=created_time,
+                        modified_time=modified_time,
+                        file_hash=file_hash,
                     )
 
             # Copy to temp location
             shutil.copy2(file_path, temp_path)
 
             # Convert document to markdown if applicable
-            markdown_content = None
+            markdown_content: str = ""  # Initialize with empty string
+            error_msg_doc: Optional[str] = None
             if file_path.suffix.lower() in MarkItDown.SUPPORTED_FORMATS:
                 try:
+                    # convert_to_markdown always returns str or raises an exception
                     markdown_content = self.markitdown.convert_to_markdown(
                         file_path, force
                     )
                 except Exception as e:
+                    error_msg_doc = f"Document conversion failed: {str(e)}"
                     markdown_content = f"[Error converting {file_path.name}: {str(e)}]"
 
             metadata = AttachmentMetadata(
@@ -124,12 +157,15 @@ class AttachmentProcessor:
                 size_bytes=size_bytes,
                 is_image=False,
                 markdown_content=markdown_content,
+                created_time=created_time,
+                modified_time=modified_time,
+                file_hash=file_hash,
+                error=error_msg_doc,
             )
             return temp_path, metadata
         except Exception as e:
-            logger.warning(
-                f"Document conversion failed for {file_path.name}, using basic copy: {str(e)}"
-            )
+            error_msg = f"Document processing failed: {str(e)}"
+            logger.warning(f"{error_msg} for {file_path.name}, using basic copy")
             # Fallback to basic copy
             temp_path = self.temp_dir / file_path.name
             temp_path.parent.mkdir(parents=True, exist_ok=True)
@@ -139,6 +175,10 @@ class AttachmentProcessor:
                 mime_type=mime_type or "application/octet-stream",
                 size_bytes=size_bytes,
                 is_image=False,
+                created_time=created_time,
+                modified_time=modified_time,
+                file_hash=file_hash,
+                error=error_msg,
             )
             return temp_path, metadata
 

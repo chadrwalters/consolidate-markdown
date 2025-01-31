@@ -2,200 +2,188 @@
 
 This document describes how to configure the consolidate-markdown tool.
 
-## Configuration File Format
-The tool uses TOML format for configuration. Create a file named `config.toml`:
+## Command Line Options
+
+The following command line options are available:
+
+- `--config PATH`: Path to configuration file (required)
+- `--force`: Force regeneration of all files
+- `--delete`: Delete existing output and cache before processing
+- `--debug`: Enable debug logging
+- `--log-level LEVEL`: Set logging level (DEBUG, INFO, WARNING, ERROR)
+- `--no-image`: Skip image analysis
+- `--processor TYPE`: Run only the specified processor type (bear, xbookmarks, chatgptexport)
+- `--limit N`: Process only the N most recent items from each source
+
+## Configuration File
+
+The configuration file uses TOML format and consists of a global section and one or more source sections.
+
+### Global Configuration
+
+The global section defines settings that apply to all processors:
 
 ```toml
 [global]
-cm_dir = ".cm"                      # Working directory
-log_level = "INFO"                  # Logging level (DEBUG, INFO, WARNING, ERROR)
-force_generation = false            # Force regeneration of all files
-no_image = false                    # Skip GPT image analysis
-openai_key = "<YOUR_KEY_HERE>"      # OpenAI API key
+# Directory for cache files (required)
+cm_dir = ".cm"
 
+# Skip image analysis (optional, default: false)
+no_image = false
+
+# OpenAI API key for image analysis (optional)
+openai_key = "sk-..."
+
+# Log level (optional, default: INFO)
+log_level = "INFO"
+```
+
+### Source Configuration
+
+Each source section defines a specific content source to process:
+
+```toml
 [[sources]]
-type = "bear"                       # Source type: "bear" or "xbookmarks"
-srcDir = "/path/to/bear/notes"      # Source directory
-destDir = "/path/to/output/bear"    # Output directory
+# Source type (required)
+# Valid values: "bear", "xbookmarks", "chatgptexport"
+type = "bear"
 
+# Source directory (required)
+# Path to input files
+src_dir = "~/Documents/Notes"
+
+# Destination directory (required)
+# Path where processed files will be written
+dest_dir = "./output"
+
+# Source-specific options (optional)
+# These vary by processor type
+options = { key = "value" }
+```
+
+## Processor Types
+
+### Bear Notes
+
+Processes Bear note files:
+
+```toml
+[[sources]]
+type = "bear"
+src_dir = "~/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/Local Files/Note Files"
+dest_dir = "output/bear"
+```
+
+### X Bookmarks
+
+Processes X (Twitter) bookmarks:
+
+```toml
 [[sources]]
 type = "xbookmarks"
-srcDir = "/path/to/x/bookmarks"
-destDir = "/path/to/output/x"
+src_dir = "~/Library/Containers/com.apple.Safari/Data/Library/Safari/Bookmarks.plist"
+dest_dir = "output/bookmarks"
 ```
 
-## Command Line Options
+### ChatGPT Export
 
-```bash
-consolidate-markdown --config config.toml [options]
+Processes ChatGPT conversation exports:
 
-Options:
-  --config PATH     Path to configuration file (default: config.toml)
-  --no-image       Skip image analysis
-  --force          Force regeneration of all files
-  --delete         Delete existing output files before processing
-  --log-level      Set logging level (DEBUG, INFO, WARNING, ERROR)
-  --debug          Enable debug logging (same as --log-level DEBUG)
-```
-
-## Processing Summary
-The tool provides detailed statistics for each source and overall:
-```
-Summary for Bear Source:
-  - X notes processed (markdown files)
-  - Y images skipped (when using --no-image)
-  - Z documents processed (non-image attachments)
-
-Summary for Xbookmarks Source:
-  - A notes processed (bookmark entries)
-  - B images skipped (when using --no-image)
-  - C documents processed (non-image attachments)
-
-Overall:
-  - Total notes processed
-  - Total images skipped
-  - Total documents processed
-  - Any errors encountered
+```toml
+[[sources]]
+type = "chatgptexport"
+src_dir = "~/Downloads/chatgpt_exports"
+dest_dir = "output/chatgpt"
 ```
 
 ## Environment Variables
-- `OPENAI_API_KEY`: OpenAI API key (overrides config file)
-- `CM_LOG_LEVEL`: Override logging level
-- `CM_NO_IMAGE`: Set to "1" to disable image analysis
 
-## Directory Structure
-- `.cm/`: Working directory for temporary files
-  - `logs/`: Log files
-  - `markitdown/`: Document conversion workspace
-  - `images/`: Image processing workspace
-- Output directories: Specified in config for each source
+The following environment variables can be used to override configuration:
 
-## File Type Support
-- Images: jpg, jpeg, png, svg, heic
-- Documents: docx, pdf, csv, xlsx
-- Text: md, txt
+- `OPENAI_API_KEY`: OpenAI API key for image analysis
+- `CM_LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
+- `CM_NO_IMAGE`: Skip image analysis (set to any value to enable)
+- `CM_CONFIG_PATH`: Path to configuration file
 
 ## Example Configurations
 
-### Basic Setup
+### Basic Configuration
+
 ```toml
 [global]
 cm_dir = ".cm"
-log_level = "INFO"
 no_image = true
 
 [[sources]]
 type = "bear"
-srcDir = "~/Documents/Bear Notes"
-destDir = "./output/bear"
+src_dir = "~/Documents/Notes"
+dest_dir = "./output/notes"
 ```
 
 ### Multiple Sources
+
 ```toml
 [global]
 cm_dir = ".cm"
-log_level = "INFO"
 openai_key = "sk-..."
 
 [[sources]]
 type = "bear"
-srcDir = "/notes/bear"
-destDir = "/output/bear"
+src_dir = "~/Documents/Notes"
+dest_dir = "./output/notes"
 
 [[sources]]
 type = "xbookmarks"
-srcDir = "/bookmarks/x"
-destDir = "/output/x"
-```
-
-### Production Setup
-```toml
-[global]
-cm_dir = "/var/lib/cm"
-log_level = "WARNING"
-force_generation = false
-no_image = false
-openai_key = "${OPENAI_API_KEY}"
-
-[[sources]]
-type = "bear"
-srcDir = "/data/bear"
-destDir = "/www/notes"
-```
-
-### ChatGPT Export Processing
-```toml
-[global]
-cm_dir = ".cm"
-log_level = "INFO"
-force_generation = false
-no_image = false  # Set to true to skip GPT image analysis
-openai_key = "${OPENAI_API_KEY}"  # Required if no_image = false
+src_dir = "~/Downloads/bookmarks"
+dest_dir = "./output/bookmarks"
 
 [[sources]]
 type = "chatgptexport"
-srcDir = "/path/to/chatgpt/export"  # Directory containing conversations.json
-destDir = "/path/to/output"         # Where to write processed .md files
+src_dir = "~/Downloads/chatgpt"
+dest_dir = "./output/chatgpt"
 ```
 
-The ChatGPT processor requires:
-- A valid ChatGPT export directory containing `conversations.json`
-- OpenAI API key if image analysis is enabled (no_image = false)
-- Write permissions for the destination directory
+### Development Configuration
 
-The processor will:
-- Create standardized markdown files (YYYYMMDD - Title.md)
-- Process all conversations found in conversations.json
-- Handle attached images and documents
-- Generate image descriptions using GPT-4 Vision (if enabled)
-
-## System Requirements
-
-### Required Programs
-The following third-party programs must be installed and available in your system PATH:
-
-#### Image Processing
-- **HEIC Conversion**
-  - macOS: `sips` (built-in)
-  - Linux/Windows: Install an alternative HEIC converter
-- **SVG Conversion** (at least one of):
-  - `inkscape` (preferred, supports more SVG features)
-  - `rsvg-convert` (faster, but more basic)
-
-#### Document Processing
-- **pandoc**: Required for converting various document formats to markdown
-  - Supports: docx, pdf, csv, xlsx
-  - Must be in system PATH
-
-### Verifying Installation
-You can verify the required programs are installed and accessible:
-
-```bash
-# Check pandoc
-pandoc --version
-
-# Check inkscape
-inkscape --version  # or
-rsvg-convert --version
-
-# Check sips (macOS only)
-sips --version
-```
-
-### Program-Specific Configuration
-Some programs may require additional configuration:
-
-#### Inkscape
-- Default SVG to PNG conversion settings can be adjusted in Inkscape preferences
-- Command-line options can be modified in config.toml:
 ```toml
 [global]
-inkscape_options = "--export-type=png --export-dpi=300"
+cm_dir = ".cm"
+log_level = "DEBUG"
+no_image = true
+
+[[sources]]
+type = "bear"
+src_dir = "./test_data/notes"
+dest_dir = "./test_output"
 ```
 
-#### Pandoc
-- Default conversion options can be customized:
-```toml
-[global]
-pandoc_options = "--wrap=none --reference-links"
-```
+## Best Practices
+
+1. Use absolute paths or paths relative to the user's home directory (~) for reliability
+2. Keep cache directory (.cm) in the same directory as the configuration file
+3. Use separate destination directories for different source types
+4. Enable debug logging during initial setup or troubleshooting
+5. Use environment variables for sensitive information (e.g., API keys)
+
+## Troubleshooting
+
+Common configuration issues and solutions:
+
+1. File permissions:
+   - Ensure read access to source directories
+   - Ensure write access to destination and cache directories
+
+2. Path resolution:
+   - Use absolute paths if relative paths cause issues
+   - Verify paths exist and are accessible
+
+3. API configuration:
+   - Set OPENAI_API_KEY environment variable
+   - Verify API key is valid if using image analysis
+
+4. Cache issues:
+   - Use --delete to start fresh
+   - Check .cm directory permissions
+   - Verify sufficient disk space
+
+For more detailed troubleshooting information, see troubleshooting.md.
