@@ -44,8 +44,14 @@ class XBookmarksProcessor(SourceProcessor):
                 # Look for index file
                 index_file = bookmark_dir / self.source_config.index_filename
                 if not index_file.exists():
-                    logger.warning(f"No index file found in {bookmark_dir.name}")
-                    result.skipped += 1
+                    # Special case: don't count 'images' directory in skip count
+                    if bookmark_dir.name != "images":
+                        logger.warning(f"No index file found in {bookmark_dir.name}")
+                        result.skipped += 1
+                    else:
+                        logger.debug(
+                            f"Skipping special images directory: {bookmark_dir.name}"
+                        )
                     continue
 
                 # Check if we need to process this bookmark
@@ -85,31 +91,58 @@ class XBookmarksProcessor(SourceProcessor):
 
                 # Process bookmark
                 logger.debug(f"Processing {bookmark_dir}")
-                # Process media files
-                media_content = self._process_media(
-                    bookmark_dir,
-                    self.attachment_processor,
-                    config,
-                    bookmark_result,
-                )
 
+                # Create output media directory
+                output_media_dir = self.source_config.dest_dir / "media"
+                output_media_dir.mkdir(exist_ok=True)
+
+                # Process media files
+                media_content = ""
+                media_dir = bookmark_dir / "media"
+                if media_dir.exists() and media_dir.is_dir():
+                    media_files = [
+                        f
+                        for f in media_dir.iterdir()
+                        if f.is_file()
+                        and f.suffix.lower()
+                        in {".jpg", ".jpeg", ".png", ".gif", ".svg"}
+                    ]
+
+                    for media_file in media_files:
+                        attachment_content = self._process_attachment(
+                            media_file,
+                            output_media_dir,
+                            self.attachment_processor,
+                            config,
+                            bookmark_result,
+                        )
+                        if attachment_content:
+                            media_content += "\n\n" + attachment_content
+
+                # Process non-media attachments
+                skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif", ".svg"}
+                attachments = [
+                    f
+                    for f in bookmark_dir.iterdir()
+                    if f.is_file() and f.suffix.lower() not in skip_exts
+                ]
+
+                # Add media content to the main content
                 if media_content:
                     content += "\n\n" + media_content
 
-                # Process any embedded attachments
-                processed_content = self._process_attachments(
-                    content,
-                    bookmark_dir,
-                    self.attachment_processor,
-                    config,
-                    bookmark_result,
-                )
-
-                if not processed_content:
-                    logger.warning(
-                        f"Attachment processing returned empty content for {bookmark_dir.name}"
+                # Process each attachment
+                for attachment in attachments:
+                    attachment_content = self._process_attachment(
+                        attachment,
+                        output_media_dir,
+                        self.attachment_processor,
+                        config,
+                        bookmark_result,
+                        is_image=False,
                     )
-                    processed_content = content
+                    if attachment_content:
+                        content += "\n\n" + attachment_content
 
                 # Add to stats
                 if config.global_config.force_generation or not cached:
@@ -119,14 +152,14 @@ class XBookmarksProcessor(SourceProcessor):
 
                 # Write processed bookmark
                 output_file = self.source_config.dest_dir / f"{bookmark_dir.name}.md"
-                output_file.write_text(processed_content, encoding="utf-8")
+                output_file.write_text(content, encoding="utf-8")
 
                 # Update cache
                 self.cache_manager.update_note_cache(
                     str(index_file),
                     content_hash,
                     index_file.stat().st_mtime,
-                    processed_content=processed_content,
+                    processed_content=content,
                 )
 
                 result.merge(bookmark_result)

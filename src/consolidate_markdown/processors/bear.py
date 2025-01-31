@@ -2,12 +2,10 @@
 
 import logging
 import re
-import shutil
 import urllib.parse
 from pathlib import Path
 
-from ..attachments.gpt import GPTProcessor
-from ..attachments.processor import AttachmentMetadata, AttachmentProcessor
+from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager, quick_hash
 from ..config import Config, SourceConfig
 from .base import ProcessingResult, SourceProcessor
@@ -69,11 +67,7 @@ class BearProcessor(SourceProcessor):
         config: Config,
         result: ProcessingResult,
     ) -> str:
-        """Process attachments and update note content."""
-        # Find all attachment references
-        image_pattern = r"!\[(.*?)\]\((.*?)\)"
-        embed_pattern = r'\[(.*?)\]\((.*?)\)<!-- *{"embed":"true".*?} *-->'
-
+        """Process attachments in content."""
         # Create output attachments directory
         output_attachments_dir = self.source_config.dest_dir / "attachments"
         output_attachments_dir.mkdir(exist_ok=True)
@@ -92,112 +86,25 @@ class BearProcessor(SourceProcessor):
                 logger.warning(f"Attachment not found: {attachment_path}")
                 return match.group(0)
 
-            try:
-                temp_path, metadata = attachment_processor.process_file(
-                    attachment_path,
-                    force=config.global_config.force_generation,
-                    result=result,
-                )
-
-                # Copy processed file to output directory
-                output_path = output_attachments_dir / attachment_path.name
-                shutil.copy2(temp_path, output_path)
-
-                if is_image and metadata.is_image:
-                    result.images_processed += 1  # Only increment for image references
-                    result.images_generated += 1  # Always increment for new images
-                    return self._format_image(attachment_path, metadata, config, result)
-                elif not is_image and not metadata.is_image:
-                    result.documents_processed += (
-                        1  # Only increment for document references
-                    )
-                    result.documents_generated += (
-                        1  # Always increment for new documents
-                    )
-                    return self._format_document_attachment(
-                        alt_text, attachment_path, metadata, result
-                    )
-                else:
-                    # Mismatch between reference type and actual file type
-                    logger.warning(f"Attachment type mismatch for {attachment_path}")
-                    if is_image:
-                        result.images_skipped += 1
-                    return match.group(0)
-
-            except Exception as e:
-                logger.error(f"Error processing attachment {attachment_path}: {str(e)}")
-                if is_image:
-                    result.images_skipped += 1
-                return match.group(0)
+            # Process the attachment using the base class method
+            markdown = self._process_attachment(
+                attachment_path,
+                output_attachments_dir,
+                attachment_processor,
+                config,
+                result,
+                alt_text=alt_text,
+                is_image=is_image,
+            )
+            return markdown if markdown else match.group(0)
 
         # Process images and embedded documents
+        image_pattern = r"!\[(.*?)\]\((.*?)\)"
+        embed_pattern = r'\[(.*?)\]\((.*?)\)<!-- *{"embed":"true".*?} *-->'
         content = re.sub(image_pattern, replace_attachment, content)
         content = re.sub(embed_pattern, lambda m: replace_attachment(m, False), content)
 
         return content
-
-    def _format_image(
-        self,
-        image_path: Path,
-        metadata: "AttachmentMetadata",
-        config: Config,
-        result: ProcessingResult,
-    ) -> str:
-        """Format an image with optional GPT description."""
-        size_kb = metadata.size_bytes / 1024
-        dimensions = metadata.dimensions or (0, 0)
-
-        # Get image description if enabled
-        description = ""
-        if not config.global_config.no_image:
-            try:
-                # Use the processor's existing cache manager to respect force flag
-                gpt = GPTProcessor(
-                    config.global_config.openai_key or "dummy-key",
-                    self.cache_manager,  # Use existing cache manager
-                )
-                description = gpt.describe_image(image_path, result)
-            except Exception as e:
-                logger.error(f"GPT processing failed for {image_path}: {str(e)}")
-                gpt = GPTProcessor("dummy-key")  # Create new instance for placeholder
-                description = gpt.get_placeholder(image_path, result)
-        else:
-            gpt = GPTProcessor("dummy-key")
-            description = gpt.get_placeholder(image_path, result)
-
-        return f"""
-<!-- EMBEDDED IMAGE: {image_path.name} -->
-<details>
-<summary>🖼️ {image_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
-
-{description}
-
-</details>
-"""
-
-    def _format_document_attachment(
-        self,
-        alt_text: str,
-        doc_path: Path,
-        metadata: "AttachmentMetadata",
-        result: ProcessingResult,
-    ) -> str:
-        """Format a document attachment."""
-        size_kb = metadata.size_bytes / 1024
-        content = (
-            metadata.markdown_content
-            or "[Document content will be converted in Phase 4]"
-        )
-
-        return f"""
-<!-- EMBEDDED DOCUMENT: {doc_path.name} -->
-<details>
-<summary>📄 {doc_path.name} ({size_kb:.0f}KB)</summary>
-
-{content}
-
-</details>
-"""
 
     def process_note(
         self, note_file: Path, config: Config, result: ProcessingResult

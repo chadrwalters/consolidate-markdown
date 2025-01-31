@@ -54,12 +54,23 @@ def _get_svg_converter() -> List[str]:
     try:
         # Try rsvg-convert first
         subprocess.run(["rsvg-convert", "--version"], capture_output=True, check=True)
-        return ["rsvg-convert"]
+        return [
+            "rsvg-convert"
+        ]  # Basic command, we'll add output format in the process_image method
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+
+    try:
+        # Try inkscape as fallback
+        subprocess.run(["inkscape", "--version"], capture_output=True, check=True)
+        return [
+            "inkscape"
+        ]  # Basic command, we'll add output format in the process_image method
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
 
     raise ImageProcessingError(
-        "SVG converter not found. Please install librsvg (rsvg-convert)."
+        "SVG converter not found. Please install librsvg (rsvg-convert) or inkscape."
     )
 
 
@@ -87,10 +98,53 @@ class ImageProcessor:
             if temp_path.stat().st_mtime >= image_path.stat().st_mtime:
                 return temp_path, self._extract_metadata(temp_path)
 
-        # Handle SVG files by copying directly
+        # Handle SVG files by converting to PNG then JPG
         if image_path.suffix.lower() == ".svg":
-            shutil.copy2(image_path, temp_path)
-            return temp_path, self._extract_metadata(temp_path)
+            try:
+                # First convert to PNG
+                png_path = self.temp_dir / f"{image_path.stem}.png"
+                converter_cmd = _get_svg_converter()
+
+                # Build command based on converter type
+                if "rsvg-convert" in converter_cmd[0]:
+                    cmd = [*converter_cmd, str(image_path), "--output", str(png_path)]
+                else:  # inkscape
+                    cmd = [
+                        *converter_cmd,
+                        str(image_path),
+                        f"--export-filename={png_path}",
+                    ]
+
+                # Run conversion
+                subprocess.run(cmd, check=True, capture_output=True)
+
+                # Then convert PNG to JPG using PIL
+                jpg_path = self.temp_dir / f"{image_path.stem}.jpg"
+                with Image.open(png_path) as img:
+                    # Convert to RGB mode if necessary
+                    if img.mode in ("RGBA", "LA") or (
+                        img.mode == "P" and "transparency" in img.info
+                    ):
+                        background = Image.new("RGB", img.size, (255, 255, 255))
+                        if img.mode == "P":
+                            img = img.convert("RGBA")
+                        background.paste(img, mask=img.split()[-1])
+                        img = background
+                    elif img.mode != "RGB":
+                        img = img.convert("RGB")
+                    img.save(jpg_path, "JPEG", quality=95)
+
+                # Clean up temporary PNG
+                png_path.unlink()
+
+                return jpg_path, self._extract_metadata(jpg_path)
+            except Exception as e:
+                logger.warning(
+                    f"SVG conversion failed for {image_path.name}, using basic copy: {str(e)}"
+                )
+                # Fall back to copying the original file
+                shutil.copy2(image_path, temp_path)
+                return temp_path, self._extract_metadata(temp_path)
 
         # Convert HEIC to JPG if needed
         if image_path.suffix.lower() == ".heic":
