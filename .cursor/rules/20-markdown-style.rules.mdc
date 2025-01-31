@@ -1,0 +1,255 @@
+---
+description:
+globs:
+---
+---
+title: Markdown Style Rules
+version: 1.0.0
+date: 2025-01-31
+status: Active
+dependencies:
+  - 00-base.rules.mdc
+patterns:
+  inherit:
+    - markdown.documentation
+  local:
+    docs:
+      - "docs/**/*.md"
+      - "**/*.md"
+    exclude:
+      - "node_modules/**/*.md"
+      - "build/**/*.md"
+      - "dist/**/*.md"
+      - "tests/**/*.md"
+---
+
+# Markdown Style Rules
+# Version: 1.0.0
+# Purpose: Define Markdown formatting and style standards
+# @since: 1.0.0
+# @updated: 2025-01-31
+# @requires: @rule(00-base.rules.mdc:documentation_standards)
+
+# <section: metadata>
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Established formatting standards"
+                - "Added accessibility rules"
+                - "Defined MDC processing"
+
+    dependencies:
+        - "@rule(00-base.rules.mdc:documentation_standards)"
+# </section: metadata>
+
+# <section: formatting_standards>
+# @purpose: Define general Markdown formatting rules
+formatting_standards:
+    general:
+        - "Use consistent spacing"
+        - "One blank line between sections"
+        - "No trailing whitespace"
+        - "Use UTF-8 encoding"
+        - "Line length ≤ 80 characters"
+
+    paragraphs:
+        - "One blank line before and after"
+        - "No indentation for paragraphs"
+        - "Use soft wrapping"
+        - "Consistent line endings"
+        - "No double spaces"
+
+    emphasis:
+        - "Use * for italics"
+        - "Use ** for bold"
+        - "Use *** for bold italics"
+        - "No underscores for emphasis"
+        - "No mixed emphasis styles"
+
+    lists:
+        unordered:
+            - "Use - for list items"
+            - "Consistent indentation (2 spaces)"
+            - "One item per line"
+            - "Align wrapped content"
+            - "Blank line before and after"
+        ordered:
+            - "Use 1. for all items"
+            - "Let Markdown handle numbering"
+            - "Consistent indentation"
+            - "Align wrapped content"
+            - "Blank line before and after"
+
+# <section: header_conventions>
+# @purpose: Define header formatting and organization
+header_conventions:
+    structure:
+        - "Use ATX headers (#)"
+        - "Space after hash marks"
+        - "Title case for headers"
+        - "No trailing hashes"
+        - "Maximum of 4 levels"
+
+    hierarchy:
+        - "# Title (H1)"
+        - "## Major Section (H2)"
+        - "### Subsection (H3)"
+        - "#### Minor Section (H4)"
+
+    spacing:
+        - "Two blank lines before H1"
+        - "One blank line after H1"
+        - "One blank line before H2-H4"
+        - "One blank line after H2-H4"
+
+# <section: code_blocks>
+# @purpose: Define code block formatting and usage
+code_blocks:
+    fenced:
+        - "Use triple backticks (```)"
+        - "Specify language"
+        - "Indent content consistently"
+        - "No trailing whitespace"
+        - "Blank line before and after"
+
+    inline:
+        - "Use single backticks (`)"
+        - "No spaces inside backticks"
+        - "Escape backticks if needed"
+        - "Use for code references"
+        - "Use for commands"
+
+    examples: |
+        ```python
+        def example():
+            return "Hello, World!"
+        ```
+
+        Use `pip install` for package installation
+
+# <section: diagrams>
+# @purpose: Define diagram formats and requirements
+diagrams:
+    formats:
+        - "Mermaid for flowcharts"
+        - "PlantUML for UML"
+        - "ASCII art for simple diagrams"
+        - "SVG for complex graphics"
+        - "PNG for screenshots"
+
+    requirements:
+        - "Include alt text"
+        - "Use consistent styling"
+        - "Provide source files"
+        - "Document generation steps"
+        - "Optimize for readability"
+
+# <section: accessibility>
+# @purpose: Define accessibility requirements
+accessibility:
+    images:
+        - "Alt text for all images"
+        - "Descriptive file names"
+        - "Text alternatives for diagrams"
+        - "Caption complex images"
+        - "No text as images"
+
+    structure:
+        - "Logical heading hierarchy"
+        - "Descriptive link text"
+        - "List for navigation"
+        - "Tables with headers"
+        - "Clear document structure"
+
+# <section: links>
+# @purpose: Define link formatting and management
+links:
+    formatting:
+        - "Use reference style for repeated links"
+        - "Descriptive link text"
+        - "No bare URLs"
+        - "Check link validity"
+        - "Use relative paths"
+
+    organization:
+        - "Group reference links"
+        - "Sort alphabetically"
+        - "Use meaningful IDs"
+        - "Document external links"
+        - "Verify link targets"
+
+# <section: tables>
+# @purpose: Define table formatting standards
+tables:
+    formatting:
+        - "Align header separators"
+        - "Use minimum column width"
+        - "Consistent spacing"
+        - "Header row required"
+        - "Column alignment optional"
+
+    example: |
+        | Name    | Type    | Description     |
+        |---------|---------|-----------------|
+        | id      | integer | Primary key     |
+        | name    | string  | Resource name   |
+        | status  | enum    | Current status  |
+
+# <section: frontmatter>
+# @purpose: Define frontmatter standards
+frontmatter:
+    required:
+        - "title: Document title"
+        - "version: Semantic version"
+        - "date: ISO 8601 format"
+        - "status: Document status"
+
+    optional:
+        - "description: Brief summary"
+        - "author: Document owner"
+        - "tags: Content categories"
+        - "dependencies: Related docs"
+
+# <section: mdc_processing>
+# @purpose: Define MDC-specific formatting rules
+mdc_processing:
+    hints:
+        - "Use @rule for references"
+        - "Use @since for versions"
+        - "Use @updated for changes"
+        - "Use @purpose for sections"
+        - "Use @requires for dependencies"
+
+    sections:
+        - "Mark with <section: name>"
+        - "Include @purpose comment"
+        - "Group related content"
+        - "Clear section boundaries"
+        - "Logical organization"
+
+# <section: best_practices>
+# @purpose: Define general Markdown usage guidelines
+best_practices:
+    general:
+        - "Consistent formatting"
+        - "Clear organization"
+        - "Regular validation"
+        - "Proper spacing"
+        - "Descriptive naming"
+
+    maintenance:
+        - "Regular link checks"
+        - "Update documentation"
+        - "Remove obsolete content"
+        - "Verify formatting"
+        - "Check accessibility"
+
+    tools:
+        - "Use Markdown linter"
+        - "Validate links"
+        - "Check formatting"
+        - "Verify accessibility"
+        - "Test rendering"

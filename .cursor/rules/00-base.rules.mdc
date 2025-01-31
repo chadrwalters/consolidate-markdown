@@ -1,0 +1,452 @@
+---
+description:
+globs:
+---
+
+# Base Rules
+
+## 1. File Organization
+
+### 1.1 Pattern Management
+- Hybrid pattern management system
+  - Global patterns in globs.yaml
+  - Local patterns in rule files
+  - Inheritance mechanism for reuse
+- Pattern precedence
+  - Local patterns override global
+  - Explicit exclusions take priority
+  - Inherited patterns as fallback
+- Pattern structure
+  - inherit: List of global patterns to include
+  - local: File-specific pattern definitions
+  - exclude: Local exclusion patterns
+
+---
+description:
+globs:
+---
+# Base Rules and Standards
+# Version: 1.0.0
+# Purpose: Defines core project rules, organization, and standards
+# @since: 1.0.0
+# @updated: 2025-01-31
+
+# =============================================
+# METADATA SECTIONS
+# =============================================
+
+# <section: metadata>
+# @purpose: Define file organization and management
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Established base rules"
+                - "Defined MDC processing"
+
+    dependencies: []  # Base rules have no dependencies
+# </section: metadata>
+
+# <section: file_organization>
+rule_file_numbering:
+    description: "Rule files use a numeric prefix system for organization and ordering"
+    format: "XX-domain-purpose.rules.mdc"
+
+    ranges:
+        "00-09: Core Rules":
+            description: "Fundamental project-wide rules and standards"
+            examples:
+                - "00-base.rules.mdc: Core rules and organization"
+                - "01-project-structure.rules.mdc: Project layout standards"
+
+        "10-19: Python Rules":
+            description: "Python-specific development standards"
+            examples:
+                - "10-python-style.rules.mdc: Python coding style"
+                - "11-python-typing.rules.mdc: Type hints and validation"
+                - "12-python-testing.rules.mdc: Testing standards"
+
+        "20-29: Documentation Rules":
+            description: "Documentation and markdown standards"
+            examples:
+                - "20-markdown-style.rules.mdc: Markdown formatting"
+                - "21-markdown-docs.rules.mdc: Documentation requirements"
+
+        "30-39: Version Control":
+            description: "Git workflow and collaboration standards"
+            examples:
+                - "30-git-workflow.rules.mdc: Git processes"
+                - "31-git-pr.rules.mdc: Pull request standards"
+
+        "40-49: Error Handling":
+            description: "Error handling and logging standards"
+            examples:
+                - "40-error-handling.rules.mdc: Error management"
+                - "41-logging.rules.mdc: Logging standards"
+
+        "50-59: Operation Modes":
+            description: "PLAN/ACT mode definitions and transitions"
+            examples:
+                - "50-operation-modes.rules.mdc: Mode definitions"
+                - "51-mode-transitions.rules.mdc: Mode switching rules"
+
+        "60-69: AI/ML Rules":
+            description: "AI and ML processing standards"
+            examples:
+                - "60-vision-model.rules.mdc: Vision processing rules"
+                - "61-ai-prompts.rules.mdc: AI prompt standards"
+
+        "70-79: Command Rules":
+            description: "Command triggers and automation"
+            examples:
+                - "70-command-triggers.rules.mdc: Command definitions"
+                - "71-automation.rules.mdc: Automation standards"
+
+    extension_ranges:
+        "80-89": "Reserved for future core extensions"
+        "90-99": "Reserved for project-specific rules"
+# </section: file_organization>
+
+# <section: cross_references>
+rule_references:
+    format: "@rule(XX-domain-purpose:section)"
+    examples:
+        - "@rule(10-python-style:naming_conventions)"
+        - "@rule(30-git-workflow:commit_messages)"
+
+    requirements:
+        - "Always use full file prefix when referencing"
+        - "Include specific section after colon"
+        - "Keep references up to date when moving rules"
+# </section: cross_references>
+
+# <section: mdc_processing>
+mdc_hints:
+    section_markers:
+        format: |
+            # <section: {name}>
+            content
+            # </section: {name}>
+        purpose: "Enable AI to identify and process specific rule sections"
+
+    rule_metadata:
+        required:
+            - "Version number at file start"
+            - "Purpose statement"
+            - "Section markers"
+        optional:
+            - "Dependencies on other rules"
+            - "Change history"
+            - "Examples"
+
+    processing_directives:
+        - "@requires: List dependencies on other rules"
+        - "@example: Provide illustrative examples"
+        - "@since: Version when rule was added"
+        - "@updated: Last modification date"
+# </section: mdc_processing>
+
+# <section: file_management>
+file_requirements:
+    naming:
+        pattern: "{XX}-{domain}-{purpose}.rules.mdc"
+        rules:
+            - "XX: Two-digit number from defined ranges"
+            - "domain: Primary area (python, git, etc.)"
+            - "purpose: Specific focus (style, testing, etc.)"
+            - "All lowercase with hyphens"
+            - "Must end in .rules.mdc"
+
+    structure:
+        required_sections:
+            - "File header with version and purpose"
+            - "Section markers for content organization"
+            - "Clear rule definitions"
+            - "Examples where appropriate"
+
+    maintenance:
+        - "Update version number when changing rules"
+        - "Document significant changes"
+        - "Keep cross-references current"
+        - "Test rules after modifications"
+# </section: file_management>
+
+# <section: validation>
+rule_validation:
+    requirements:
+        - "All rules must be clear and actionable"
+        - "Examples must be accurate and current"
+        - "Cross-references must be valid"
+        - "MDC hints must be properly formatted"
+
+    testing:
+        - "Verify rule clarity with examples"
+        - "Check cross-reference validity"
+        - "Validate MDC processing hints"
+        - "Test rule applications"
+# </section: validation>
+
+# =============================================
+# CORE RULES
+# =============================================
+
+# <section: project_structure>
+# @purpose: Define project organization and directory structure
+# @example: |
+#   src/
+#     my_package/
+#       __init__.py
+#       core.py
+#   tests/
+#     unit/
+#       test_core.py
+project_structure:
+    required_directories:
+        src:
+            purpose: "Main source code directory"
+            rules:
+                - "All production code must be in src/"
+                - "Follow package naming conventions"
+                - "Keep modules focused and small"
+
+        tests:
+            purpose: "Test code directory"
+            rules:
+                - "Mirror src/ directory structure"
+                - "Separate unit and integration tests"
+                - "Include fixtures in tests/fixtures/"
+
+        docs:
+            purpose: "Project documentation"
+            rules:
+                - "Keep documentation up to date"
+                - "Use consistent formatting"
+                - "Include examples and diagrams"
+
+        .cursor:
+            purpose: "Cursor IDE configuration"
+            rules:
+                - "All rules in .cursor/rules/"
+                - "Keep rules flat (no subdirectories)"
+                - "Follow rule naming standards"
+
+    system_directories:
+        .cm:
+            purpose: "Working directory for temporary files"
+            contents:
+                - "logs/: Log files"
+                - "temp/: Temporary processing files"
+                - "cache/: Cache data"
+            rules:
+                - "Clean up old files regularly"
+                - "Don't commit contents"
+                - "Use for transient data only"
+# </section: project_structure>
+
+# <section: code_standards>
+# @purpose: Define universal code quality standards
+# @requires: project_structure
+code_standards:
+    general_principles:
+        - "Write clear, maintainable code"
+        - "Follow language-specific best practices"
+        - "Keep functions and classes focused"
+        - "Document public interfaces"
+        - "Write tests for new code"
+
+    naming_conventions:
+        files:
+            - "Use lowercase with underscores"
+            - "Be descriptive and clear"
+            - "Indicate file purpose"
+            - "Follow language conventions"
+
+        directories:
+            - "Use lowercase with hyphens"
+            - "Be descriptive and clear"
+            - "Group related files"
+            - "Avoid generic names"
+
+    documentation:
+        requirements:
+            - "Document all public interfaces"
+            - "Include usage examples"
+            - "Explain complex logic"
+            - "Keep docs up to date"
+
+        style:
+            - "Use clear, concise language"
+            - "Include code examples"
+            - "Follow markdown standards"
+            - "Update when code changes"
+# </section: code_standards>
+
+# <section: development_workflow>
+# @purpose: Define development process and standards
+# @requires: code_standards
+development_workflow:
+    general_process:
+        1: "Work in feature branches"
+        2: "Write tests first"
+        3: "Document changes"
+        4: "Review code"
+        5: "Update documentation"
+
+    code_review:
+        requirements:
+            - "All code must be reviewed"
+            - "Address review comments"
+            - "Tests must pass"
+            - "Documentation updated"
+
+        standards:
+            - "Be constructive"
+            - "Focus on code, not person"
+            - "Suggest improvements"
+            - "Check for security issues"
+
+    quality_standards:
+        - "Maintain test coverage"
+        - "Follow style guides"
+        - "Address technical debt"
+        - "Keep dependencies updated"
+# </section: development_workflow>
+
+# <section: security>
+# @purpose: Define security requirements and practices
+# @requires: code_standards
+security:
+    general_rules:
+        - "Never commit secrets or credentials"
+        - "Use environment variables for sensitive data"
+        - "Follow security best practices"
+        - "Regular security updates"
+
+    code_security:
+        - "Validate all inputs"
+        - "Sanitize output"
+        - "Use secure dependencies"
+        - "Follow OWASP guidelines"
+
+    data_handling:
+        - "Encrypt sensitive data"
+        - "Secure API endpoints"
+        - "Log security events"
+        - "Regular security audits"
+    ai_security:
+        - "Validate AI model outputs"
+        - "Sanitize AI inputs"
+        - "Monitor AI resource usage"
+        - "Regular AI security audits"
+# </section: security>
+
+# <section: error_handling>
+# @purpose: Define error handling and logging standards
+# @requires: code_standards
+error_handling:
+    principles:
+        - "Fail fast and explicitly"
+        - "Provide clear error messages"
+        - "Log errors appropriately"
+        - "Recover gracefully when possible"
+
+    logging:
+        - "Use appropriate log levels"
+        - "Include relevant context"
+        - "Don't log sensitive data"
+        - "Rotate logs regularly"
+
+    debugging:
+        - "Include stack traces"
+        - "Log relevant variables"
+        - "Add debugging context"
+        - "Clean up debug logs"
+    ai_errors:
+        - "Handle AI model failures gracefully"
+        - "Provide fallbacks for AI features"
+        - "Log AI-specific errors appropriately"
+# </section: error_handling>
+
+# <section: performance>
+# @purpose: Define performance standards and optimization rules
+# @requires: code_standards
+performance:
+    guidelines:
+        - "Profile before optimizing"
+        - "Focus on bottlenecks"
+        - "Consider memory usage"
+        - "Test with realistic data"
+
+    optimization:
+        - "Optimize critical paths"
+        - "Cache when appropriate"
+        - "Use efficient algorithms"
+        - "Monitor performance"
+    ai_performance:
+        - "Monitor AI model response times"
+        - "Cache AI results when appropriate"
+        - "Implement AI request throttling"
+# </section: performance>
+
+# <section: dependency_management>
+# @purpose: Define dependency handling standards
+# @requires: security
+dependency_management:
+    general_rules:
+        - "Use explicit version pins"
+        - "Regular dependency updates"
+        - "Security audit of dependencies"
+        - "Document all dependencies"
+
+    version_control:
+        - "Lock files must be committed"
+        - "Update dependencies atomically"
+        - "Test after dependency updates"
+
+    security:
+        - "Regular vulnerability scanning"
+        - "Audit dependency permissions"
+        - "Monitor dependency activity"
+# </section: dependency_management>
+
+# <section: mode_base_rules>
+# @purpose: Define base rules for operation modes
+mode_base_rules:
+    plan_mode:
+        allowed:
+            - "Documentation updates"
+            - "Test execution"
+            - "Code analysis"
+        restricted:
+            - "No direct code changes"
+            - "No system modifications"
+
+    act_mode:
+        allowed:
+            - "Code modifications"
+            - "System changes"
+            - "Configuration updates"
+        restricted:
+            - "No architectural changes"
+            - "No requirement changes"
+
+# <section: command_base_rules>
+# @purpose: Define base rules for command handling
+command_base_rules:
+    execution:
+        - "Validate commands before execution"
+        - "Log all command executions"
+        - "Handle command failures gracefully"
+
+    security:
+        - "No arbitrary command execution"
+        - "Validate command sources"
+        - "Restrict command permissions"
+
+    documentation:
+        - "Document command purpose"
+        - "Include usage examples"
+        - "Specify required permissions"
+# </section: command_base_rules>

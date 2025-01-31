@@ -1,0 +1,80 @@
+# Shared Pattern Definitions
+# Purpose: Define reusable glob patterns for different file types and operations
+# Note: These patterns can be inherited and overridden by individual rule files
+
+# Version: 1.0.0
+# Status: Active
+
+python:
+  source:
+    - "src/**/*.py"
+    - "scripts/**/*.py"
+  tests:
+    - "tests/**/*.py"
+    - "tests/unit/**/*.py"
+    - "tests/integration/**/*.py"
+  exclude:
+    - "**/__pycache__/**"
+    - "**/.pytest_cache/**"
+    - "**/venv/**"
+    - "**/env/**"
+    - "**/.env/**"
+
+markdown:
+  documentation:
+    - "docs/**/*.md"
+    - "**/*.md"
+    - "!tests/**/*.md" # Exclude test fixtures
+  rules:
+    - ".cursor/rules/**/*.rules.mdc"
+  exclude:
+    - "**/node_modules/**"
+    - "**/build/**"
+    - "**/dist/**"
+    - "**/venv/**"
+
+config:
+  all:
+    - "**/*.toml"
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "**/*.json"
+  exclude:
+    - "**/node_modules/**"
+    - "**/.git/**"
+    - "**/build/**"
+    - "**/dist/**"
+
+# Common operation patterns
+operations:
+  test_files:
+    - "tests/**/*test*.py"
+    - "tests/**/*_test.py"
+    - "tests/**/test_*.py"
+  documentation:
+    - "docs/**/*.md"
+    - "README.md"
+    - "CONTRIBUTING.md"
+    - "CHANGELOG.md"
+  config:
+    - "pyproject.toml"
+    - "setup.cfg"
+    - "setup.py"
+    - "requirements.txt"
+    - "requirements/*.txt"
+
+# Content search patterns
+content:
+  todos:
+    - "**/*.py:# TODO:"
+    - "**/*.md:TODO:"
+    - "**/*.rules.mdc:TODO:"
+  fixmes:
+    - "**/*.py:# FIXME:"
+    - "**/*.md:FIXME:"
+    - "**/*.rules.mdc:FIXME:"
+# Usage:
+# 1. Import shared patterns using the 'inherit' key in rule files
+# 2. Override or extend with local patterns as needed
+# 3. Add file-specific exclusions in rule files
+# 4. Reference patterns using dot notation (e.g., python.source)

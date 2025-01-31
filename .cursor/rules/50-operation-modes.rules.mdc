@@ -1,0 +1,258 @@
+---
+description:
+globs:
+---
+---
+title: Operation Modes Rules
+version: 1.0.0
+date: 2025-01-31
+status: Active
+dependencies:
+  - 00-base.rules.mdc
+  - 40-error-handling.rules.mdc
+  - 41-logging.rules.mdc
+patterns:
+  inherit:
+    - python.source
+  local:
+    modes:
+      - "src/**/modes.py"
+      - "src/**/operations.py"
+    exclude:
+      - "src/legacy/**/*.py"
+      - "src/deprecated/**/*.py"
+---
+
+# Operation Modes Rules
+# Version: 1.0.0
+# Purpose: Define operation modes and transition rules
+# @since: 1.0.0
+# @updated: 2025-01-31
+# @requires: @rule(40-error-handling.rules.mdc:error_procedures)
+
+# <section: metadata>
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Defined operation modes"
+                - "Added transition rules"
+                - "Established safety controls"
+
+    dependencies:
+        - "@rule(00-base.rules.mdc:code_standards)"
+        - "@rule(40-error-handling.rules.mdc:error_procedures)"
+        - "@rule(41-logging.rules.mdc:log_levels)"
+# </section: metadata>
+
+# <section: mode_definitions>
+# @purpose: Define operation modes and their characteristics
+mode_definitions:
+    plan_mode:
+        description: "Analysis and planning mode without system modifications"
+        characteristics:
+            - "Read-only operations"
+            - "Impact analysis"
+            - "Resource estimation"
+            - "Safety validation"
+            - "Plan generation"
+        restrictions:
+            - "No file system changes"
+            - "No state modifications"
+            - "No external API calls"
+            - "No resource allocation"
+            - "No command execution"
+
+    act_mode:
+        description: "Execution mode for system modifications"
+        characteristics:
+            - "Write operations"
+            - "State changes"
+            - "Resource management"
+            - "Command execution"
+            - "External interactions"
+        requirements:
+            - "Explicit authorization"
+            - "Safety checks"
+            - "Resource validation"
+            - "State tracking"
+            - "Rollback capability"
+
+# <section: transition_rules>
+# @purpose: Define mode transition requirements and processes
+transition_rules:
+    requirements:
+        - "Explicit user confirmation"
+        - "Valid authorization"
+        - "Clean system state"
+        - "Resource availability"
+        - "Safety validation"
+
+    process:
+        pre_transition:
+            - "State validation"
+            - "Resource check"
+            - "Safety assessment"
+            - "User confirmation"
+            - "Mode compatibility"
+
+        execution:
+            - "State preservation"
+            - "Mode switch"
+            - "Resource reallocation"
+            - "Permission updates"
+            - "Logging transition"
+
+        post_transition:
+            - "State verification"
+            - "Resource validation"
+            - "Operation confirmation"
+            - "User notification"
+            - "Log completion"
+
+# <section: restrictions>
+# @purpose: Define mode-specific restrictions and controls
+restrictions:
+    plan_mode:
+        filesystem:
+            - "Read-only access"
+            - "No file creation"
+            - "No modifications"
+            - "No deletions"
+            - "Path validation"
+
+        operations:
+            - "Analysis only"
+            - "Resource estimation"
+            - "Impact assessment"
+            - "Plan validation"
+            - "Safety checks"
+
+    act_mode:
+        filesystem:
+            - "Workspace limits"
+            - "Permission checks"
+            - "Change tracking"
+            - "Backup creation"
+            - "State preservation"
+
+        operations:
+            - "Authorization required"
+            - "Resource limits"
+            - "Operation logging"
+            - "State tracking"
+            - "Rollback points"
+
+# <section: override_procedures>
+# @purpose: Define emergency override protocols
+override_procedures:
+    authorization:
+        - "Admin credentials"
+        - "Emergency protocol"
+        - "Time limitation"
+        - "Scope restriction"
+        - "Full logging"
+
+    process:
+        - "Override request"
+        - "Risk assessment"
+        - "Authorization check"
+        - "Mode transition"
+        - "Enhanced monitoring"
+
+    limitations:
+        - "Time-bound access"
+        - "Restricted operations"
+        - "Mandatory logging"
+        - "Review requirement"
+        - "Auto-expiration"
+
+# <section: workflows>
+# @purpose: Define mode-specific operational workflows
+workflows:
+    plan_mode:
+        analysis:
+            - "Resource scanning"
+            - "Impact assessment"
+            - "Dependency check"
+            - "Risk evaluation"
+            - "Plan generation"
+
+        validation:
+            - "Safety checks"
+            - "Resource validation"
+            - "Permission verification"
+            - "State assessment"
+            - "Plan review"
+
+    act_mode:
+        execution:
+            - "Pre-execution check"
+            - "Resource allocation"
+            - "Operation execution"
+            - "State tracking"
+            - "Result validation"
+
+        monitoring:
+            - "Resource usage"
+            - "Operation progress"
+            - "State changes"
+            - "Error detection"
+            - "Performance metrics"
+
+# <section: safety_controls>
+# @purpose: Define operational safety measures
+safety_controls:
+    validation:
+        - "Permission checks"
+        - "Resource limits"
+        - "State validation"
+        - "Operation safety"
+        - "Impact assessment"
+
+    monitoring:
+        - "Resource usage"
+        - "Operation status"
+        - "Error detection"
+        - "Performance metrics"
+        - "Security events"
+
+    protection:
+        - "Resource isolation"
+        - "State preservation"
+        - "Error prevention"
+        - "Data protection"
+        - "Access control"
+
+# <section: best_practices>
+# @purpose: Define operational best practices
+best_practices:
+    general:
+        - "Clear documentation"
+        - "User communication"
+        - "Safety first"
+        - "Resource efficiency"
+        - "Error prevention"
+
+    mode_specific:
+        plan:
+            - "Thorough analysis"
+            - "Complete validation"
+            - "Clear documentation"
+            - "Risk assessment"
+            - "User feedback"
+        act:
+            - "Careful execution"
+            - "Continuous monitoring"
+            - "State tracking"
+            - "Error handling"
+            - "Result verification"
+
+    maintenance:
+        - "Regular review"
+        - "Process updates"
+        - "Documentation"
+        - "Training"
+        - "Improvement"

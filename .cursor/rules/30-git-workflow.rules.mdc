@@ -1,0 +1,228 @@
+---
+description:
+globs:
+---
+---
+title: Git Workflow Rules
+version: 1.0.0
+date: 2025-01-31
+status: Active
+dependencies:
+  - 00-base.rules.mdc
+patterns:
+  inherit:
+    - config.all
+  local:
+    git_config:
+      - ".git/**/*"
+      - ".gitignore"
+      - ".gitattributes"
+    exclude:
+      - ".git/objects/**"
+      - ".git/logs/**"
+---
+
+# Git Workflow Rules
+# Version: 1.0.0
+# Purpose: Define version control standards and processes
+# @since: 1.0.0
+# @updated: 2025-01-31
+# @requires: @rule(00-base.rules.mdc:version_control)
+
+# <section: metadata>
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Established workflow standards"
+                - "Added branch management"
+                - "Defined PR process"
+
+    dependencies:
+        - "@rule(00-base.rules.mdc:version_control)"
+# </section: metadata>
+
+# <section: commit_standards>
+# @purpose: Define commit message and content standards
+commit_standards:
+    message_format:
+        structure: |
+            <type>(<scope>): <subject>
+
+            <body>
+
+            <footer>
+
+        types:
+            - "feat: New feature"
+            - "fix: Bug fix"
+            - "docs: Documentation"
+            - "style: Formatting"
+            - "refactor: Code restructure"
+            - "test: Testing"
+            - "chore: Maintenance"
+
+        rules:
+            - "Subject line ≤ 50 characters"
+            - "Capitalize subject line"
+            - "No period in subject"
+            - "Imperative mood"
+            - "Body wrapped at 72 characters"
+            - "Explain what and why"
+
+    content_rules:
+        - "Atomic commits"
+        - "Related changes only"
+        - "Complete functionality"
+        - "Proper testing"
+        - "Documentation updates"
+
+# <section: branch_management>
+# @purpose: Define branch organization and workflow
+branch_management:
+    main_branches:
+        - "main: Production code"
+        - "develop: Development code"
+        - "release/*: Release preparation"
+        - "hotfix/*: Emergency fixes"
+
+    feature_branches:
+        naming: "feature/<issue-id>-<description>"
+        rules:
+            - "Branch from develop"
+            - "Merge to develop"
+            - "Delete after merge"
+            - "Keep up to date"
+            - "Regular commits"
+
+    release_branches:
+        naming: "release/v<major>.<minor>.<patch>"
+        rules:
+            - "Branch from develop"
+            - "Merge to main and develop"
+            - "Only bug fixes"
+            - "Version bumps"
+            - "Documentation updates"
+
+    hotfix_branches:
+        naming: "hotfix/v<major>.<minor>.<patch>-<description>"
+        rules:
+            - "Branch from main"
+            - "Merge to main and develop"
+            - "Critical fixes only"
+            - "Immediate deployment"
+            - "Full testing required"
+
+# <section: pr_process>
+# @purpose: Define pull request requirements and workflow
+pr_process:
+    requirements:
+        - "Complete feature/fix"
+        - "Passing tests"
+        - "Updated documentation"
+        - "Code review approval"
+        - "CI/CD success"
+
+    template: |
+        ## Description
+        Brief description of changes
+
+        ## Type of Change
+        - [ ] Bug fix
+        - [ ] New feature
+        - [ ] Breaking change
+        - [ ] Documentation update
+
+        ## Testing
+        - [ ] Unit tests added/updated
+        - [ ] Integration tests added/updated
+        - [ ] Manual testing completed
+
+        ## Documentation
+        - [ ] Documentation updated
+        - [ ] Comments added/updated
+        - [ ] CHANGELOG.md updated
+
+    review_checklist:
+        - "Code quality"
+        - "Test coverage"
+        - "Documentation"
+        - "Performance impact"
+        - "Security implications"
+
+# <section: release_procedures>
+# @purpose: Define release management process
+release_procedures:
+    versioning:
+        format: "Semantic Versioning (MAJOR.MINOR.PATCH)"
+        rules:
+            - "MAJOR: Breaking changes"
+            - "MINOR: New features"
+            - "PATCH: Bug fixes"
+            - "Pre-release: alpha/beta/rc"
+            - "Build metadata allowed"
+
+    process:
+        preparation:
+            - "Create release branch"
+            - "Version bump"
+            - "Update CHANGELOG"
+            - "Update documentation"
+            - "Final testing"
+
+        execution:
+            - "Merge to main"
+            - "Tag release"
+            - "Deploy to production"
+            - "Merge back to develop"
+            - "Clean up branches"
+
+# <section: hotfix_protocols>
+# @purpose: Define emergency fix procedures
+hotfix_protocols:
+    criteria:
+        - "Production blocking issue"
+        - "Security vulnerability"
+        - "Data integrity risk"
+        - "Critical functionality"
+        - "Customer impact"
+
+    process:
+        - "Create hotfix branch"
+        - "Implement fix"
+        - "Emergency testing"
+        - "Expedited review"
+        - "Deploy to production"
+
+    documentation:
+        - "Incident report"
+        - "Fix documentation"
+        - "Update CHANGELOG"
+        - "Customer communication"
+        - "Post-mortem analysis"
+
+# <section: best_practices>
+# @purpose: Define version control best practices
+best_practices:
+    general:
+        - "Regular commits"
+        - "Clear messages"
+        - "Branch management"
+        - "Code review"
+        - "Clean history"
+
+    security:
+        - "No secrets in repo"
+        - "GPG signed commits"
+        - "Protected branches"
+        - "Access control"
+        - "Security scanning"
+
+    maintenance:
+        - "Regular cleanup"
+        - "Branch pruning"
+        - "Tag organization"
+        - "Size management"
+        - "Performance optimization"

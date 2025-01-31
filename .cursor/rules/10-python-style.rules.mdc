@@ -1,0 +1,93 @@
+---
+description:
+globs:
+---
+---
+title: Python Style Rules
+version: 1.0.0
+date: 2025-01-31
+status: Active
+dependencies:
+  - 00-base.rules.mdc
+patterns:
+  inherit:
+    - python.source
+    - python.tests
+  local:
+    source:
+      - "src/custom/**/*.py"
+      - "src/extensions/**/*.py"
+    exclude:
+      - "src/legacy/**/*.py"
+      - "src/deprecated/**/*.py"
+    test_files:
+      - "tests/custom/**/*_test.py"
+      - "tests/extensions/**/*_test.py"
+---
+
+# Python Style Rules
+# Version: 1.0.0
+# Purpose: Define Python coding style and formatting standards
+# @since: 1.0.0
+# @updated: 2025-01-31
+# @requires: @rule(00-base.rules.mdc:code_standards)
+
+# <section: metadata>
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Extracted from consolidated.rules"
+                - "Added UV-specific rules"
+                - "Enhanced formatter settings"
+
+    dependencies:
+        - "@rule(00-base.rules.mdc:code_standards)"
+        - "@rule(00-base.rules.mdc:project_structure)"
+# </section: metadata>
+
+# <section: language_requirements>
+# @purpose: Define core Python language requirements and features
+language_requirements:
+    python_version:
+        minimum: "3.12"
+        features:
+            - "Type annotations (PEP 484)"
+            - "Pattern matching (PEP 634)"
+            - "Data classes (PEP 557)"
+            - "F-strings (PEP 498)"
+            - "Async/await (PEP 492)"
+
+    required_practices:
+        - "Type hints for all function parameters and return types"
+        - "Dataclasses for data structures"
+        - "Pathlib for file operations (no os.path)"
+        - "F-strings for string formatting"
+        - "Context managers for resource handling"
+        - "Async functions where appropriate"
+
+    prohibited_practices:
+        - "No os.path (use pathlib)"
+        - "No string.format() or % formatting"
+        - "No bare except clauses"
+        - "No mutable default arguments"
+        - "No global variables"
+# </section: language_requirements>
+
+# <section: code_formatting>
+# @purpose: Define code formatting standards and tool configurations
+code_formatting:
+    black:
+        version: "24.2.0"
+        settings:
+            line_length: 88
+            target_version: "py312"
+            include: "src/**/*.py,tests/**/*.py"
+        configuration: |
+            # pyproject.toml
+            [tool.black]
+            line-length = 88
+            target-version = ["py312"]
+            include = 'src/.*\.py$|tests/.*\.py$'

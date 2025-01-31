@@ -1,0 +1,250 @@
+---
+description:
+globs:
+---
+---
+title: Command Triggers Rules
+version: 1.0.0
+date: 2025-01-31
+status: Active
+dependencies:
+  - 00-base.rules.mdc
+  - 40-error-handling.rules.mdc
+  - 41-logging.rules.mdc
+  - 50-operation-modes.rules.mdc
+patterns:
+  inherit:
+    - python.source
+  local:
+    triggers:
+      - "src/**/triggers/**/*.py"
+      - "src/**/commands/**/*.py"
+    exclude:
+      - "src/**/deprecated/**/*.py"
+      - "src/**/legacy/**/*.py"
+---
+
+# Command Triggers Rules
+# Version: 1.0.0
+# Purpose: Define command trigger patterns and automation rules
+# @since: 1.0.0
+# @updated: 2025-01-31
+# @requires: @rule(50-operation-modes.rules.mdc:mode_definitions)
+
+# <section: metadata>
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Defined trigger patterns"
+                - "Added command formats"
+                - "Established automation rules"
+
+    dependencies:
+        - "@rule(00-base.rules.mdc:code_standards)"
+        - "@rule(40-error-handling.rules.mdc:error_procedures)"
+        - "@rule(41-logging.rules.mdc:log_levels)"
+        - "@rule(50-operation-modes.rules.mdc:mode_definitions)"
+# </section: metadata>
+
+# <section: trigger_patterns>
+# @purpose: Define trigger patterns and activation rules
+trigger_patterns:
+    pattern_definition:
+        - "Regular expression based patterns"
+        - "Natural language triggers"
+        - "Context-aware activation"
+        - "Mode-specific patterns"
+        - "Priority-based execution"
+
+    pattern_categories:
+        file_operations:
+            - "Creation triggers"
+            - "Modification triggers"
+            - "Deletion triggers"
+            - "Move/rename triggers"
+        system_operations:
+            - "Resource monitoring"
+            - "Performance triggers"
+            - "Health check triggers"
+        user_interactions:
+            - "Command input"
+            - "Selection events"
+            - "Navigation events"
+            - "Focus changes"
+
+# <section: command_formats>
+# @purpose: Define command structure and formatting
+command_formats:
+    command_structure:
+        - "Command prefix requirements"
+        - "Parameter formatting"
+        - "Option specifications"
+        - "Flag definitions"
+        - "Escape sequences"
+        - "Variable substitution"
+
+    command_types:
+        file_system:
+            - "Path manipulation"
+            - "Content operations"
+            - "Permission changes"
+            - "Attribute updates"
+        process:
+            - "Execution control"
+            - "Resource allocation"
+            - "Priority management"
+            - "State transitions"
+        system:
+            - "Configuration updates"
+            - "Service management"
+            - "Security operations"
+            - "Maintenance tasks"
+
+# <section: automation_rules>
+# @purpose: Define automation execution rules
+automation_rules:
+    execution_flow:
+        - "Pre-execution validation"
+        - "Permission checking"
+        - "Resource verification"
+        - "State validation"
+        - "Context evaluation"
+        - "Post-execution cleanup"
+
+    constraints:
+        - "Resource limits"
+        - "Time constraints"
+        - "Concurrency limits"
+        - "Dependency checks"
+        - "State requirements"
+        - "Mode restrictions"
+
+    chain_execution:
+        - "Sequential execution"
+        - "Parallel processing"
+        - "Dependency resolution"
+        - "Error propagation"
+        - "State management"
+        - "Result aggregation"
+
+# <section: security>
+# @purpose: Define command security requirements
+security:
+    authorization:
+        - "Permission levels"
+        - "Role requirements"
+        - "Context validation"
+        - "Token verification"
+        - "Session management"
+        - "Access logging"
+
+    validation:
+        - "Input sanitization"
+        - "Parameter validation"
+        - "Path verification"
+        - "Resource access checks"
+        - "State validation"
+        - "Output verification"
+
+    controls:
+        - "Rate limiting"
+        - "Resource isolation"
+        - "Audit logging"
+        - "Error masking"
+        - "Version control"
+        - "Secure defaults"
+
+# <section: error_handling>
+# @purpose: Define command error handling
+error_handling:
+    categories:
+        - "Syntax errors"
+        - "Permission errors"
+        - "Resource errors"
+        - "State errors"
+        - "Timeout errors"
+        - "System errors"
+
+    recovery:
+        - "Error detection"
+        - "State preservation"
+        - "Rollback procedures"
+        - "Retry strategies"
+        - "Fallback options"
+        - "Error reporting"
+
+    prevention:
+        - "Input validation"
+        - "State verification"
+        - "Resource checking"
+        - "Dependency validation"
+        - "Context validation"
+        - "Type checking"
+
+# <section: performance>
+# @purpose: Define command performance requirements
+performance:
+    optimization:
+        - "Command batching"
+        - "Resource pooling"
+        - "Cache utilization"
+        - "Parallel processing"
+        - "Load balancing"
+        - "Priority scheduling"
+
+    resource_management:
+        - "Memory allocation"
+        - "CPU utilization"
+        - "I/O optimization"
+        - "Network usage"
+        - "Storage management"
+        - "Cache management"
+
+# <section: monitoring>
+# @purpose: Define command monitoring requirements
+monitoring:
+    execution:
+        - "Performance metrics"
+        - "Resource usage"
+        - "Error rates"
+        - "Success rates"
+        - "Response times"
+        - "Queue lengths"
+
+    audit:
+        - "Command logging"
+        - "Result tracking"
+        - "Error recording"
+        - "State changes"
+        - "Resource usage"
+        - "Security events"
+
+# <section: best_practices>
+# @purpose: Define command trigger best practices
+best_practices:
+    development:
+        - "Pattern design"
+        - "Command structure"
+        - "Error handling"
+        - "Security implementation"
+        - "Performance optimization"
+        - "Documentation"
+
+    operation:
+        - "Monitoring setup"
+        - "Resource management"
+        - "Error response"
+        - "Security maintenance"
+        - "Performance tuning"
+        - "Regular updates"
+
+    maintenance:
+        - "Pattern updates"
+        - "Command versioning"
+        - "Security patches"
+        - "Performance optimization"
+        - "Documentation updates"
+        - "Compliance checks"
