@@ -1065,7 +1065,8 @@ class ChatGPTProcessor(SourceProcessor):
         """Get conversations from the conversations.json file.
 
         Returns:
-            List[Dict[str, Any]]: List of conversation dictionaries
+            List[Dict[str, Any]]: List of conversation dictionaries, optionally limited
+                                by self.item_limit if set.
         """
         conversations_file = self.source_config.src_dir / "conversations.json"
         if not conversations_file.exists():
@@ -1080,7 +1081,19 @@ class ChatGPTProcessor(SourceProcessor):
                     raise ValueError(
                         "Invalid conversations.json format - expected a list of conversations"
                     )
+
+                # Sort conversations by create_time in descending order (newest first)
+                data.sort(key=lambda x: x.get("create_time", ""), reverse=True)
+
+                # Apply limit if set
+                if hasattr(self, "item_limit") and self.item_limit is not None:
+                    logger.debug(
+                        f"Limiting to {self.item_limit} most recent conversations"
+                    )
+                    data = data[: self.item_limit]
+
                 return data
+
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in conversations file: {str(e)}")
         except Exception as e:

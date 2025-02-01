@@ -2,10 +2,21 @@
 
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from .config import Config
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_log_file(log_file: Path) -> None:
+    """Ensure the log file exists.
+
+    Args:
+        log_file: Path to the log file
+    """
+    if not log_file.exists():
+        log_file.touch()
 
 
 def setup_logging(config: Config) -> None:
@@ -29,6 +40,8 @@ def setup_logging(config: Config) -> None:
 
     # Configure file logging
     log_file = log_dir / "consolidate_markdown.log"
+    ensure_log_file(log_file)
+
     file_formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )

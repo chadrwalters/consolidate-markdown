@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -73,16 +74,45 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def ensure_cm_directory(config_path: Path) -> None:
-    """Ensure the .cm directory exists.
+def delete_existing(config_path: Path, config) -> None:
+    """Delete existing output files and .cm directory.
 
     Args:
-        config_path: Path to the config file, used to determine workspace root.
+        config_path: Path to the config file, used to determine workspace root
+        config: The loaded configuration
     """
-    workspace_root = config_path.parent
-    cm_dir = workspace_root / ".cm"
+    # Delete .cm directory if it exists
+    cm_dir = config.global_config.cm_dir
+    if cm_dir.exists():
+        print(
+            f"Deleting .cm directory: {cm_dir}"
+        )  # Using print since logging isn't set up yet
+        shutil.rmtree(cm_dir)
+
+    # Delete output directories if they exist
+    for source in config.sources:
+        dest_dir = source.dest_dir
+        if dest_dir.exists():
+            print(
+                f"Deleting output directory: {dest_dir}"
+            )  # Using print since logging isn't set up yet
+            shutil.rmtree(dest_dir)
+
+
+def ensure_directories(config) -> None:
+    """Ensure all required directories exist.
+
+    Args:
+        config: The loaded configuration
+    """
+    # Create .cm and logs directories
+    cm_dir = config.global_config.cm_dir
     log_dir = cm_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create output directories
+    for source in config.sources:
+        source.dest_dir.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> int:
@@ -104,11 +134,18 @@ def main() -> int:
     if args.force:
         config.global_config.force_generation = True
 
-    # Set up logging
+    # Handle deletions first if requested
+    if args.delete:
+        delete_existing(args.config, config)
+
+    # Ensure all required directories exist
+    ensure_directories(config)
+
+    # Set up logging (now that directories are guaranteed to exist)
     setup_logging(config)
 
-    # Create and run the processor
-    runner = Runner(config, delete_existing=args.delete)
+    # Create runner and process files
+    runner = Runner(config)  # No need for delete_existing anymore
     if args.processor:
         runner.selected_processor = args.processor
     if args.limit:
@@ -116,15 +153,11 @@ def main() -> int:
 
     try:
         result = runner.run()
-        print(str(result))
-        if result.errors:
-            return 1
+        logger.info("Completed consolidation")
+        print(result)
         return 0
-    except KeyboardInterrupt:
-        logger.info("Processing cancelled by user")
-        return 130
     except Exception as e:
-        logger.error(f"Processing failed: {str(e)}")
+        logger.error(f"Error during consolidation: {e}", exc_info=True)
         return 1
 
 
