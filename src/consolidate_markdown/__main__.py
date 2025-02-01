@@ -8,6 +8,7 @@ from pathlib import Path
 
 from consolidate_markdown.config import load_config
 from consolidate_markdown.log_setup import setup_logging
+from consolidate_markdown.output import print_deletion_message, print_summary
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 from consolidate_markdown.runner import Runner
@@ -50,102 +51,58 @@ def parse_args() -> argparse.Namespace:
         help="Delete existing output files before processing",
     )
     parser.add_argument(
-        "--processor",
-        type=str,
-        choices=list(Runner.PROCESSORS.keys()),
-        help="Run only the specified processor type",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Limit processing to the last N items per source",
-    )
-    parser.add_argument(
         "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="INFO",
         help="Set the logging level",
     )
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging (same as --log-level DEBUG)",
+        "--processor",
+        choices=list(Runner.PROCESSORS.keys()),
+        help="Only run a specific processor",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Limit the number of items to process per source",
     )
     return parser.parse_args()
 
 
-def delete_existing(config_path: Path, config) -> None:
-    """Delete existing output files and .cm directory.
-
-    Args:
-        config_path: Path to the config file, used to determine workspace root
-        config: The loaded configuration
-    """
-    # Delete .cm directory if it exists
-    cm_dir = config.global_config.cm_dir
-    if cm_dir.exists():
-        print(
-            f"Deleting .cm directory: {cm_dir}"
-        )  # Using print since logging isn't set up yet
-        shutil.rmtree(cm_dir)
-
-    # Delete output directories if they exist
-    for source in config.sources:
-        dest_dir = source.dest_dir
-        if dest_dir.exists():
-            print(
-                f"Deleting output directory: {dest_dir}"
-            )  # Using print since logging isn't set up yet
-            shutil.rmtree(dest_dir)
-
-
-def ensure_directories(config) -> None:
-    """Ensure all required directories exist.
-
-    Args:
-        config: The loaded configuration
-    """
-    # Create .cm and logs directories
-    cm_dir = config.global_config.cm_dir
-    log_dir = cm_dir / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create output directories
-    for source in config.sources:
-        source.dest_dir.mkdir(parents=True, exist_ok=True)
-
-
-def main() -> int:
-    """Main entry point.
-
-    Returns:
-        int: Exit code (0 for success, non-zero for failure)
-    """
+def main() -> None:
+    """Main entry point."""
     args = parse_args()
-    config = load_config(args.config)
 
-    # Apply command line overrides
-    if args.log_level:
-        config.global_config.log_level = args.log_level
-    if args.debug:
-        config.global_config.log_level = "DEBUG"
-    if args.no_image:
-        config.global_config.no_image = True
-    if args.force:
-        config.global_config.force_generation = True
+    # Load configuration
+    try:
+        config = load_config(args.config)
+    except Exception as e:
+        logger.error(f"Failed to load config: {str(e)}")
+        sys.exit(1)
 
-    # Handle deletions first if requested
-    if args.delete:
-        delete_existing(args.config, config)
+    # Update config with command line arguments
+    config.global_config.no_image = args.no_image
+    config.global_config.force_generation = args.force
+    config.global_config.log_level = getattr(logging, args.log_level)
 
-    # Ensure all required directories exist
-    ensure_directories(config)
-
-    # Set up logging (now that directories are guaranteed to exist)
+    # Set up logging
     setup_logging(config)
 
-    # Create runner and process files
-    runner = Runner(config)  # No need for delete_existing anymore
+    # Delete existing files if requested
+    if args.delete:
+        # Delete .cm directory
+        if config.global_config.cm_dir.exists():
+            print_deletion_message(str(config.global_config.cm_dir))
+            shutil.rmtree(config.global_config.cm_dir)
+
+        # Delete output directories
+        for source in config.sources:
+            if source.dest_dir.exists():
+                print_deletion_message(str(source.dest_dir))
+                shutil.rmtree(source.dest_dir)
+
+    # Create and run the processor
+    runner = Runner(config)
     if args.processor:
         runner.selected_processor = args.processor
     if args.limit:
@@ -153,13 +110,11 @@ def main() -> int:
 
     try:
         result = runner.run()
-        logger.info("Completed consolidation")
-        print(result)
-        return 0
+        print_summary(result)
     except Exception as e:
-        logger.error(f"Error during consolidation: {e}", exc_info=True)
-        return 1
+        logger.error(f"Processing failed: {str(e)}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

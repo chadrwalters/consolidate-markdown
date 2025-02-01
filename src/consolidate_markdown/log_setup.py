@@ -4,6 +4,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from rich.logging import RichHandler
+
 from .config import Config
 
 logger = logging.getLogger(__name__)
@@ -49,10 +51,15 @@ def setup_logging(config: Config) -> None:
     file_handler.setFormatter(file_formatter)
     root_logger.addHandler(file_handler)
 
-    # Configure console logging
-    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(console_formatter)
+    # Configure Rich console logging
+    console_handler = RichHandler(
+        rich_tracebacks=True,
+        markup=True,
+        show_path=False,
+        level=config.global_config.log_level,
+        show_time=False,  # Time is already in the message
+        enable_link_path=False,  # Don't show file links
+    )
     root_logger.addHandler(console_handler)
 
     logger.debug("Logging configured successfully")

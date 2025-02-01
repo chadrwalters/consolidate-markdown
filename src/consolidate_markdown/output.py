@@ -4,7 +4,16 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from .processors.result import ProcessingResult
+
 logger = logging.getLogger(__name__)
+
+# Global console instance for consistent styling
+console = Console()
 
 
 class OutputError(Exception):
@@ -158,3 +167,138 @@ class OutputGenerator:
         lines.append("</details>")
 
         return "\n".join(lines)
+
+
+def format_count(count: int) -> str:
+    """Format a count for display.
+
+    Args:
+        count: The number to format
+
+    Returns:
+        Formatted string with thousands separator
+    """
+    return f"{count:,}"
+
+
+def print_summary(result: ProcessingResult) -> None:
+    """Print a formatted summary of processing results.
+
+    Args:
+        result: The processing results to display
+    """
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Metric")
+    table.add_column("Count", justify="right")
+
+    # Core metrics
+    table.add_row("Total Processed", format_count(result.processed))
+    table.add_row("Generated", format_count(result.regenerated))
+    table.add_row("From Cache", format_count(result.from_cache))
+    table.add_row("Skipped", format_count(result.skipped))
+
+    # Add separator
+    table.add_section()
+
+    # Document metrics
+    table.add_row(
+        "Documents Processed",
+        format_count(result.documents_processed),
+    )
+    table.add_row(
+        "Documents Generated",
+        format_count(result.documents_generated),
+    )
+    table.add_row(
+        "Documents From Cache",
+        format_count(result.documents_from_cache),
+    )
+    table.add_row(
+        "Documents Skipped",
+        format_count(result.documents_skipped),
+    )
+
+    # Add separator
+    table.add_section()
+
+    # Image metrics
+    table.add_row(
+        "Images Processed",
+        format_count(result.images_processed),
+    )
+    table.add_row(
+        "Images Generated",
+        format_count(result.images_generated),
+    )
+    table.add_row(
+        "Images From Cache",
+        format_count(result.images_from_cache),
+    )
+    table.add_row(
+        "Images Skipped",
+        format_count(result.images_skipped),
+    )
+
+    # Add separator
+    table.add_section()
+
+    # GPT metrics
+    table.add_row(
+        "GPT Cache Hits",
+        format_count(result.gpt_cache_hits),
+    )
+    table.add_row(
+        "GPT New Analyses",
+        format_count(result.gpt_new_analyses),
+    )
+    table.add_row(
+        "GPT Analyses Skipped",
+        format_count(result.gpt_skipped),
+    )
+
+    # Create panel with table
+    panel = Panel(
+        table,
+        title="[bold green]Consolidation Summary[/bold green]",
+        expand=False,
+    )
+
+    # Print the summary
+    console.print(panel)
+
+    # If there are errors, print them in a separate panel
+    if result.errors:
+        error_table = Table(show_header=True, header_style="bold red")
+        error_table.add_column("Error Messages")
+
+        for error in result.errors:
+            error_table.add_row(f"[red]{error}[/red]")
+
+        error_panel = Panel(
+            error_table,
+            title="[bold red]Processing Errors[/bold red]",
+            expand=False,
+        )
+        console.print(error_panel)
+
+
+def print_deletion_message(path: str) -> None:
+    """Print a formatted deletion message.
+
+    Args:
+        path: The path being deleted
+    """
+    console.print(f"[bold red]Deleting: {path}[/bold red]")
+
+
+def print_processing_message(message: str, debug: bool = False) -> None:
+    """Print a formatted processing message.
+
+    Args:
+        message: The message to print
+        debug: Whether this is a debug message
+    """
+    if debug:
+        console.print(f"[blue]DEBUG:[/blue] {message}")
+    else:
+        console.print(f"[green]INFO:[/green] {message}")
