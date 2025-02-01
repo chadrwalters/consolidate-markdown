@@ -167,3 +167,199 @@ def print_summary(result: ProcessingResult):
 - Consider fallback formatting for non-color terminals
 - No changes needed to CLI interface
 - Existing log levels (--log-level) remain unchanged
+
+## 10. Testing Strategy
+
+### Test Files to Create/Modify
+
+1. `tests/unit/test_log_setup.py`
+   ```python
+   def test_rich_handler_configuration():
+       """Test RichHandler is properly configured with correct settings."""
+
+   def test_log_level_propagation():
+       """Test log levels are correctly propagated to Rich handler."""
+
+   def test_color_scheme():
+       """Test color scheme is applied correctly for different log levels."""
+
+   def test_fallback_formatting():
+       """Test fallback behavior when color support is not available."""
+
+   def test_file_handler_persistence():
+       """Ensure file logging still works alongside Rich console output."""
+   ```
+
+2. `tests/unit/test_runner.py`
+   ```python
+   def test_progress_bar_creation():
+       """Test TQDM progress bars are created with correct settings."""
+
+   def test_progress_bar_updates():
+       """Test progress bars update correctly during processing."""
+
+   def test_parallel_progress_tracking():
+       """Test progress tracking works in parallel processing mode."""
+
+   def test_nested_progress_bars():
+       """Test nested progress bars (source + conversation) work correctly."""
+   ```
+
+3. `tests/unit/test_summary.py`
+   ```python
+   def test_summary_table_creation():
+       """Test Rich table is created with correct columns and styling."""
+
+   def test_summary_metrics():
+       """Test all ProcessingResult metrics are included in summary."""
+
+   def test_summary_formatting():
+       """Test summary table formatting and style consistency."""
+
+   def test_error_display():
+       """Test error messages are properly formatted in summary."""
+   ```
+
+4. `tests/integration/test_console_output.py`
+   ```python
+   def test_end_to_end_output():
+       """Test complete console output from start to finish."""
+
+   def test_debug_mode_output():
+       """Test additional output appears in debug mode."""
+
+   def test_info_mode_output():
+       """Test limited output appears in info mode."""
+
+   def test_error_handling_display():
+       """Test error scenarios are displayed correctly."""
+   ```
+
+### Testing Utilities
+
+1. Create Mock Console
+   ```python
+   class MockConsole:
+       """Mock Rich console for testing output without actual terminal."""
+       def __init__(self, force_terminal: bool = True, color_system: str = "truecolor"):
+           self.captured = []
+           self.force_terminal = force_terminal
+           self.color_system = color_system
+
+       def print(self, *args, **kwargs):
+           """Capture print calls for verification."""
+           self.captured.append((args, kwargs))
+   ```
+
+2. Create Progress Capture
+   ```python
+   class ProgressCapture:
+       """Capture TQDM progress updates for testing."""
+       def __init__(self):
+           self.updates = []
+           self.desc = None
+           self.total = None
+
+       def update(self, n=1):
+           """Record progress updates."""
+           self.updates.append(n)
+   ```
+
+### Test Categories
+
+1. **Unit Tests**
+   - Rich handler configuration
+   - Progress bar creation and updates
+   - Summary table generation
+   - Color scheme application
+   - Metric tracking accuracy
+   - Error message formatting
+
+2. **Integration Tests**
+   - Complete processing output
+   - Log level effects
+   - Terminal capability handling
+   - Error scenario display
+   - Progress bar nesting
+
+3. **Visual Tests**
+   - Color scheme consistency
+   - Table alignment and borders
+   - Progress bar appearance
+   - Error highlighting
+   - Debug vs Info mode differences
+
+### Test Fixtures
+
+1. **Console Configurations**
+   ```python
+   @pytest.fixture
+   def mock_console():
+       """Provide a mock console for output testing."""
+       return MockConsole()
+
+   @pytest.fixture
+   def no_color_console():
+       """Provide a console without color support."""
+       return MockConsole(color_system=None)
+   ```
+
+2. **Sample Data**
+   ```python
+   @pytest.fixture
+   def sample_processing_result():
+       """Provide a ProcessingResult with known values for testing."""
+       result = ProcessingResult()
+       result.processed = 10
+       result.from_cache = 5
+       # ... set other metrics ...
+       return result
+   ```
+
+### Test Environment Variables
+
+```python
+@pytest.fixture(autouse=True)
+def test_env():
+    """Set up test environment variables."""
+    with mock.patch.dict(os.environ, {
+        "TERM": "xterm-256color",
+        "NO_COLOR": "",  # Test with and without color
+        "FORCE_COLOR": "",  # Test forced color modes
+    }):
+        yield
+```
+
+### Test Execution
+
+1. **Standard Tests**
+   ```bash
+   uv run python -m pytest tests/unit/test_log_setup.py tests/unit/test_runner.py tests/unit/test_summary.py
+   ```
+
+2. **Visual Tests**
+   ```bash
+   uv run python -m pytest tests/integration/test_console_output.py --capture=no
+   ```
+
+3. **Coverage Check**
+   ```bash
+   uv run python -m pytest --cov=consolidate_markdown.log_setup --cov=consolidate_markdown.runner
+   ```
+
+### Test Documentation
+
+Each test file should include:
+- Purpose of test suite
+- Test coverage targets
+- Required fixtures
+- Example outputs
+- Common failure scenarios
+
+### Continuous Integration
+
+Update GitHub Actions workflow to:
+- Run all tests including visual tests
+- Verify color output in different terminal types
+- Check coverage requirements are met
+- Test in both TTY and non-TTY environments
