@@ -113,6 +113,31 @@ command_formats:
                 - "-act filesystem"
                 - "-act implementation"
 
+    processing_limits:
+        limit:
+            syntax: "--limit <count>"
+            description: "Limit number of items processed"
+            default: "5"
+            options:
+                count: "Maximum number of items to process"
+            examples:
+                - "--limit 5"
+                - "--limit 10"
+            required: true
+            exceptions:
+                - "When explicitly overridden by user"
+
+        processor:
+            syntax: "--processor <name>"
+            description: "Limit processing to specific processor"
+            options:
+                name: "Name of processor to use"
+            examples:
+                - "--processor bear"
+                - "--processor chatgpt"
+                - "--processor claude"
+                - "--processor xbookmarks"
+
     command_structure:
         - "Command prefix requirements"
         - "Parameter formatting"
@@ -120,6 +145,14 @@ command_formats:
         - "Flag definitions"
         - "Escape sequences"
         - "Variable substitution"
+
+    command_restrictions:
+        prohibited_patterns:
+            - "Never use '| cat' or pipe to cat"
+            - "Use direct command output instead"
+            - "For git commands, use -P or --no-pager options"
+            - "For less/more, use alternative output methods"
+            - "For head/tail, use direct line number options"
 
     command_types:
         file_system:
