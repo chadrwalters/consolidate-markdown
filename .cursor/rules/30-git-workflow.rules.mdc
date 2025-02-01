@@ -48,12 +48,23 @@ metadata:
 # @purpose: Define commit message and content standards
 commit_standards:
     message_format:
-        structure: |
+        template: |
+            # Must use .gitmessage template for all commits
+            # Template location: .gitmessage
+            # Usage: git commit (will use template automatically)
+
             <type>(<scope>): <subject>
 
             <body>
 
             <footer>
+
+        validation:
+            - "Must use .gitmessage template"
+            - "No direct -m flag without template format"
+            - "Validate against template before commit"
+            - "Require scope for all commits"
+            - "Require description for feature commits"
 
         types:
             - "feat: New feature"
