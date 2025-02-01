@@ -174,192 +174,142 @@ def print_summary(result: ProcessingResult):
 
 1. `tests/unit/test_log_setup.py`
    ```python
-   def test_rich_handler_configuration():
-       """Test RichHandler is properly configured with correct settings."""
+   def test_setup_logging_creates_directory():
+       """Test that setup_logging creates the log directory if it doesn't exist."""
 
-   def test_log_level_propagation():
-       """Test log levels are correctly propagated to Rich handler."""
+   def test_setup_logging_handles_existing_directory():
+       """Test that setup_logging works with an existing log directory."""
 
-   def test_color_scheme():
-       """Test color scheme is applied correctly for different log levels."""
+   def test_logging_writes_successfully():
+       """Test that logging actually writes to the file without errors."""
 
-   def test_fallback_formatting():
-       """Test fallback behavior when color support is not available."""
+   def test_log_levels():
+       """Test different log levels are handled correctly."""
 
-   def test_file_handler_persistence():
-       """Ensure file logging still works alongside Rich console output."""
+   def test_handlers_setup():
+       """Test that both handlers are configured correctly."""
+
+   def test_third_party_logger_levels():
+       """Test that third-party loggers are set to WARNING."""
    ```
 
-2. `tests/unit/test_runner.py`
-   ```python
-   def test_progress_bar_creation():
-       """Test TQDM progress bars are created with correct settings."""
-
-   def test_progress_bar_updates():
-       """Test progress bars update correctly during processing."""
-
-   def test_parallel_progress_tracking():
-       """Test progress tracking works in parallel processing mode."""
-
-   def test_nested_progress_bars():
-       """Test nested progress bars (source + conversation) work correctly."""
-   ```
-
-3. `tests/unit/test_summary.py`
+2. `tests/unit/test_summary.py`
    ```python
    def test_summary_table_creation():
-       """Test Rich table is created with correct columns and styling."""
+       """Test creation of summary table."""
 
-   def test_summary_metrics():
-       """Test all ProcessingResult metrics are included in summary."""
+   def test_processor_columns():
+       """Test processor columns in summary table."""
 
-   def test_summary_formatting():
-       """Test summary table formatting and style consistency."""
+   def test_metric_rows():
+       """Test metric rows in summary table."""
 
    def test_error_display():
-       """Test error messages are properly formatted in summary."""
-   ```
+       """Test error display in summary."""
 
-4. `tests/integration/test_console_output.py`
-   ```python
-   def test_end_to_end_output():
-       """Test complete console output from start to finish."""
+   def test_processor_specific_errors():
+       """Test processor-specific error display."""
 
-   def test_debug_mode_output():
-       """Test additional output appears in debug mode."""
+   def test_zero_stats_display():
+       """Test display of empty/zero statistics."""
 
-   def test_info_mode_output():
-       """Test limited output appears in info mode."""
+   def test_separator_rows():
+       """Test separator rows in summary table."""
 
-   def test_error_handling_display():
-       """Test error scenarios are displayed correctly."""
+   def test_no_errors_message():
+       """Test display when no errors are present."""
    ```
 
 ### Testing Utilities
 
-1. Create Mock Console
+1. Mock Console
    ```python
-   class MockConsole:
-       """Mock Rich console for testing output without actual terminal."""
-       def __init__(self, force_terminal: bool = True, color_system: str = "truecolor"):
-           self.captured = []
-           self.force_terminal = force_terminal
-           self.color_system = color_system
-
-       def print(self, *args, **kwargs):
-           """Capture print calls for verification."""
-           self.captured.append((args, kwargs))
+   @pytest.fixture
+   def mock_console():
+       """Create a mock console for testing."""
+       console = Mock(spec=Console)
+       console.size = (80, 24)
+       console.options = Mock()
+       console.is_terminal = True
+       # Create a print method that preserves Rich objects
+       print_mock = Mock()
+       print_mock.side_effect = lambda *args, **kwargs: None
+       console.print = print_mock
+       return console
    ```
 
-2. Create Progress Capture
+2. Mock Handlers
    ```python
-   class ProgressCapture:
-       """Capture TQDM progress updates for testing."""
-       def __init__(self):
-           self.updates = []
-           self.desc = None
-           self.total = None
+   @pytest.fixture
+   def mock_handlers():
+       """Create mock handlers for testing."""
+       with patch("consolidate_markdown.log_setup.ProgressAwareHandler") as progress_mock, \
+            patch("consolidate_markdown.log_setup.RotatingFileHandler") as file_mock, \
+            patch("consolidate_markdown.log_setup.console") as console_mock, \
+            patch("logging.getLogger") as get_logger_mock:
+           # Create mock progress handler
+           progress_handler = MagicMock(spec=ProgressAwareHandler)
+           progress_handler.level = logging.DEBUG
+           progress_mock.return_value = progress_handler
 
-       def update(self, n=1):
-           """Record progress updates."""
-           self.updates.append(n)
+           # Create mock file handler
+           file_handler = MagicMock(spec=RotatingFileHandler)
+           file_handler.level = logging.DEBUG
+           file_mock.return_value = file_handler
+
+           # Set up console mock
+           console_mock.size = (80, 24)
+           console_mock.options = Mock()
+           console_mock.is_terminal = True
+
+           # Set up root logger mock
+           root_logger_mock = MagicMock()
+           root_logger_mock.handlers = []
+           root_logger_mock.addHandler = MagicMock(side_effect=lambda h: root_logger_mock.handlers.append(h))
+           get_logger_mock.return_value = root_logger_mock
+
+           yield progress_mock, file_mock, root_logger_mock
    ```
 
 ### Test Categories
 
-1. **Unit Tests**
-   - Rich handler configuration
-   - Progress bar creation and updates
-   - Summary table generation
-   - Color scheme application
-   - Metric tracking accuracy
-   - Error message formatting
+1. **Log Setup Tests**
+   - Directory creation and handling
+   - Log file creation and writing
+   - Log level configuration
+   - Handler setup and configuration
+   - Third-party logger configuration
 
-2. **Integration Tests**
-   - Complete processing output
-   - Log level effects
-   - Terminal capability handling
-   - Error scenario display
-   - Progress bar nesting
-
-3. **Visual Tests**
-   - Color scheme consistency
-   - Table alignment and borders
-   - Progress bar appearance
-   - Error highlighting
-   - Debug vs Info mode differences
-
-### Test Fixtures
-
-1. **Console Configurations**
-   ```python
-   @pytest.fixture
-   def mock_console():
-       """Provide a mock console for output testing."""
-       return MockConsole()
-
-   @pytest.fixture
-   def no_color_console():
-       """Provide a console without color support."""
-       return MockConsole(color_system=None)
-   ```
-
-2. **Sample Data**
-   ```python
-   @pytest.fixture
-   def sample_processing_result():
-       """Provide a ProcessingResult with known values for testing."""
-       result = ProcessingResult()
-       result.processed = 10
-       result.from_cache = 5
-       # ... set other metrics ...
-       return result
-   ```
-
-### Test Environment Variables
-
-```python
-@pytest.fixture(autouse=True)
-def test_env():
-    """Set up test environment variables."""
-    with mock.patch.dict(os.environ, {
-        "TERM": "xterm-256color",
-        "NO_COLOR": "",  # Test with and without color
-        "FORCE_COLOR": "",  # Test forced color modes
-    }):
-        yield
-```
+2. **Summary Tests**
+   - Table creation and formatting
+   - Column and row content
+   - Error display and formatting
+   - Zero statistics handling
+   - Separator row placement
 
 ### Test Execution
 
-1. **Standard Tests**
-   ```bash
-   uv run python -m pytest tests/unit/test_log_setup.py tests/unit/test_runner.py tests/unit/test_summary.py
-   ```
+```bash
+# Run log setup and summary tests
+uv run pytest tests/unit/test_log_setup.py tests/unit/test_summary.py -v
 
-2. **Visual Tests**
-   ```bash
-   uv run python -m pytest tests/integration/test_console_output.py --capture=no
-   ```
-
-3. **Coverage Check**
-   ```bash
-   uv run python -m pytest --cov=consolidate_markdown.log_setup --cov=consolidate_markdown.runner
-   ```
+# Run with coverage
+uv run pytest --cov=consolidate_markdown.log_setup --cov=consolidate_markdown.output tests/unit/
+```
 
 ### Test Documentation
 
-Each test file should include:
+Each test file includes:
 - Purpose of test suite
-- Test coverage targets
 - Required fixtures
-- Example outputs
-- Common failure scenarios
+- Test cases for different scenarios
+- Mocking strategies for external dependencies
+- Assertions for expected behavior
 
 ### Continuous Integration
 
-Update GitHub Actions workflow to:
-- Run all tests including visual tests
-- Verify color output in different terminal types
-- Check coverage requirements are met
-- Test in both TTY and non-TTY environments
+The GitHub Actions workflow:
+- Runs all unit tests
+- Verifies test coverage
+- Checks code formatting
+- Validates documentation

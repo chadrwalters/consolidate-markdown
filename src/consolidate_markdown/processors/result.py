@@ -1,6 +1,62 @@
 """Processing result tracking."""
 
-from typing import List
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
+
+@dataclass
+class ProcessorStats:
+    """Statistics for a single processor."""
+
+    processed: int = 0
+    from_cache: int = 0
+    regenerated: int = 0
+    skipped: int = 0
+    documents_processed: int = 0
+    documents_generated: int = 0
+    documents_from_cache: int = 0
+    documents_skipped: int = 0
+    images_processed: int = 0
+    images_generated: int = 0
+    images_from_cache: int = 0
+    images_skipped: int = 0
+    gpt_cache_hits: int = 0
+    gpt_new_analyses: int = 0
+    gpt_skipped: int = 0
+    errors: List[str] = field(default_factory=list)
+    processor_type: Optional[str] = None
+
+    def merge(self, other: "ProcessorStats") -> None:
+        """Merge another processor's stats into this one."""
+        # If all items in either result are from cache, set regenerated to 0
+        if (self.from_cache > 0 and self.from_cache == self.processed) or (
+            other.from_cache > 0 and other.from_cache == other.processed
+        ):
+            self.regenerated = 0
+        # If this result has no items yet, copy the regenerated count
+        elif self.processed == 0:
+            self.regenerated = other.regenerated
+        # Otherwise, only add regenerated if the other result has no cached items
+        elif other.from_cache == 0:
+            self.regenerated += other.regenerated
+
+        self.processed += other.processed
+        self.from_cache += other.from_cache
+        self.skipped += other.skipped
+        self.documents_processed += other.documents_processed
+        self.documents_generated += other.documents_generated
+        self.documents_from_cache += other.documents_from_cache
+        self.documents_skipped += other.documents_skipped
+        self.images_processed += other.images_processed
+        self.images_generated += other.images_generated
+        self.images_from_cache += other.images_from_cache
+        self.images_skipped += other.images_skipped
+        self.gpt_cache_hits += other.gpt_cache_hits
+        self.gpt_new_analyses += other.gpt_new_analyses
+        self.gpt_skipped += other.gpt_skipped
+        self.errors.extend(other.errors)
+        if other.processor_type:
+            self.processor_type = other.processor_type
 
 
 class ProcessingResult:
@@ -24,16 +80,54 @@ class ProcessingResult:
         self.gpt_new_analyses = 0
         self.gpt_skipped = 0
         self.errors: List[str] = []
+        self.processor_stats: Dict[str, ProcessorStats] = {}
 
-    def add_error(self, error: str):
-        """Add an error message."""
+    def get_processor_stats(self, processor_type: str) -> ProcessorStats:
+        """Get or create stats for a processor type.
+
+        Args:
+            processor_type: The type of processor
+
+        Returns:
+            The processor's stats
+        """
+        if processor_type not in self.processor_stats:
+            stats = ProcessorStats()
+            stats.processor_type = processor_type
+            self.processor_stats[processor_type] = stats
+        return self.processor_stats[processor_type]
+
+    def add_error(self, error: str, processor_type: Optional[str] = None):
+        """Add an error message.
+
+        Args:
+            error: The error message
+            processor_type: Optional processor type to associate with the error
+        """
         self.errors.append(error)
+        if processor_type:
+            self.get_processor_stats(processor_type).errors.append(error)
 
     def merge(self, other: "ProcessingResult"):
-        """Merge another result into this one."""
+        """Merge another result into this one.
+
+        Args:
+            other: The result to merge
+        """
+        # If all items in either result are from cache, set regenerated to 0
+        if (self.from_cache > 0 and self.from_cache == self.processed) or (
+            other.from_cache > 0 and other.from_cache == other.processed
+        ):
+            self.regenerated = 0
+        # If this result has no items yet, copy the regenerated count
+        elif self.processed == 0:
+            self.regenerated = other.regenerated
+        # Otherwise, only add regenerated if the other result has no cached items
+        elif other.from_cache == 0:
+            self.regenerated += other.regenerated
+
         self.processed += other.processed
         self.from_cache += other.from_cache
-        self.regenerated += other.regenerated
         self.skipped += other.skipped
         self.documents_processed += other.documents_processed
         self.documents_generated += other.documents_generated
@@ -48,19 +142,146 @@ class ProcessingResult:
         self.gpt_skipped += other.gpt_skipped
         self.errors.extend(other.errors)
 
-    def add_from_cache(self):
-        """Record a note loaded from cache."""
+        # Merge processor stats
+        for proc_type, stats in other.processor_stats.items():
+            if proc_type in self.processor_stats:
+                self.processor_stats[proc_type].merge(stats)
+            else:
+                self.processor_stats[proc_type] = stats
+
+    def add_from_cache(self, processor_type: str):
+        """Record a note loaded from cache.
+
+        Args:
+            processor_type: The type of processor that processed the note
+        """
         self.processed += 1
         self.from_cache += 1
+        self.regenerated = 0  # Reset regenerated counter for cached items
+        stats = self.get_processor_stats(processor_type)
+        stats.processed += 1
+        stats.from_cache += 1
+        stats.regenerated = 0  # Reset regenerated counter in processor stats too
 
-    def add_generated(self):
-        """Record a generated note."""
+    def add_generated(self, processor_type: str):
+        """Record a generated note.
+
+        Args:
+            processor_type: The type of processor that generated the note
+        """
         self.processed += 1
-        self.regenerated += 1
+        self.regenerated += 1  # Increment instead of setting to 1
+        stats = self.get_processor_stats(processor_type)
+        stats.processed += 1
+        stats.regenerated += 1  # Increment in processor stats too
 
-    def add_skipped(self):
-        """Record a skipped note."""
+    def add_skipped(self, processor_type: str):
+        """Record a skipped note.
+
+        Args:
+            processor_type: The type of processor that skipped the note
+        """
         self.skipped += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.skipped += 1
+
+    def add_document_generated(self, processor_type: str):
+        """Record a generated document.
+
+        Args:
+            processor_type: The type of processor that generated the document
+        """
+        self.documents_processed += 1
+        self.documents_generated += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.documents_processed += 1
+        stats.documents_generated += 1
+
+    def add_document_from_cache(self, processor_type: str):
+        """Record a document loaded from cache.
+
+        Args:
+            processor_type: The type of processor that loaded the document
+        """
+        self.documents_processed += 1
+        self.documents_from_cache += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.documents_processed += 1
+        stats.documents_from_cache += 1
+
+    def add_document_skipped(self, processor_type: str):
+        """Record a skipped document.
+
+        Args:
+            processor_type: The type of processor that skipped the document
+        """
+        self.documents_skipped += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.documents_skipped += 1
+
+    def add_image_generated(self, processor_type: str):
+        """Record a generated image.
+
+        Args:
+            processor_type: The type of processor that generated the image
+        """
+        self.images_processed += 1
+        self.images_generated += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.images_processed += 1
+        stats.images_generated += 1
+
+    def add_image_from_cache(self, processor_type: str):
+        """Record an image loaded from cache.
+
+        Args:
+            processor_type: The type of processor that loaded the image
+        """
+        self.images_processed += 1
+        self.images_from_cache += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.images_processed += 1
+        stats.images_from_cache += 1
+
+    def add_image_skipped(self, processor_type: str):
+        """Record a skipped image.
+
+        Args:
+            processor_type: The type of processor that skipped the image
+        """
+        self.images_skipped += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.images_skipped += 1
+
+    def add_gpt_generated(self, processor_type: str):
+        """Record a generated GPT analysis.
+
+        Args:
+            processor_type: The type of processor that generated the analysis
+        """
+        self.gpt_new_analyses += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.gpt_new_analyses += 1
+
+    def add_gpt_from_cache(self, processor_type: str):
+        """Record a GPT analysis loaded from cache.
+
+        Args:
+            processor_type: The type of processor that loaded the analysis
+        """
+        self.gpt_cache_hits += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.gpt_cache_hits += 1
+
+    def add_gpt_skipped(self, processor_type: str):
+        """Record a skipped GPT analysis.
+
+        Args:
+            processor_type: The type of processor that skipped the analysis
+        """
+        self.gpt_skipped += 1
+        stats = self.get_processor_stats(processor_type)
+        stats.gpt_skipped += 1
 
     def __str__(self) -> str:
         """Return string representation."""

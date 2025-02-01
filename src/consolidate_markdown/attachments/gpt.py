@@ -71,8 +71,16 @@ class GPTProcessor:
 
         return None, False
 
-    def describe_image(self, image_path: Path, result: ProcessingResult) -> str:
-        """Get GPT description of image."""
+    def describe_image(
+        self, image_path: Path, result: ProcessingResult, processor_type: str
+    ) -> str:
+        """Get GPT description of image.
+
+        Args:
+            image_path: Path to the image file
+            result: The processing result to update
+            processor_type: The type of processor requesting the analysis
+        """
         # Generate cache key from image content
         image_hash = quick_hash(str(image_path.read_bytes()))
 
@@ -81,7 +89,7 @@ class GPTProcessor:
             cached = self.cache_manager.get_gpt_cache(image_hash)
             if cached:
                 logger.debug(f"Cache hit for GPT analysis: {image_hash}")
-                result.gpt_cache_hits += 1
+                result.add_gpt_from_cache(processor_type)
                 return str(cached)
 
         logger.debug(f"Cache miss for GPT analysis: {image_hash}")
@@ -114,7 +122,7 @@ class GPTProcessor:
                 max_tokens=300,
             )
             description = str(response.choices[0].message.content)
-            result.gpt_new_analyses += 1
+            result.add_gpt_generated(processor_type)
 
             # Cache the result
             if self.cache_manager:
@@ -124,10 +132,18 @@ class GPTProcessor:
 
         except Exception as e:
             logger.error(f"GPT API error: {str(e)}")
-            result.gpt_skipped += 1
+            result.add_gpt_skipped(processor_type)
             return "[Error analyzing image]"
 
-    def get_placeholder(self, image_path: Path, result: ProcessingResult) -> str:
-        """Return a placeholder when GPT analysis is skipped."""
-        result.gpt_skipped += 1
+    def get_placeholder(
+        self, image_path: Path, result: ProcessingResult, processor_type: str
+    ) -> str:
+        """Return a placeholder when GPT analysis is skipped.
+
+        Args:
+            image_path: Path to the image file
+            result: The processing result to update
+            processor_type: The type of processor requesting the analysis
+        """
+        result.add_gpt_skipped(processor_type)
         return f"[GPT image analysis skipped for {image_path.name}]"

@@ -27,6 +27,10 @@ class MockProcessor(SourceProcessor):
 
     def _process_impl(self, config: Config) -> ProcessingResult:
         """Mock process implementation."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info("Processing mock source")
         self.process_called = True
         result = ProcessingResult()
         result.processed = 1

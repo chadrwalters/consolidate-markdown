@@ -125,6 +125,20 @@ test_requirements:
         - "Performance tests for key operations"
         - "Security tests for sensitive features"
 
+    bug_reproduction:
+        - "Create test case first to reproduce any reported bug"
+        - "Test must fail initially to demonstrate the bug"
+        - "Skip only if test case requires complex integration not yet built"
+        - "Document skipped test cases as TODOs"
+        - "Include original bug report or issue reference"
+
+    source_directories:
+        - "Use real source directories from config for testing"
+        - "Always use --limit flag to prevent context overflow"
+        - "Add --processor flag when testing specific processor"
+        - "Document test data requirements in fixtures"
+        - "Maintain minimal test datasets in fixtures"
+
     test_structure:
         - "Arrange: Setup test conditions"
         - "Act: Execute test operation"

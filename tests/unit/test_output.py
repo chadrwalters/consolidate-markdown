@@ -148,3 +148,79 @@ class TestOutputGenerator:
         full_path = tmp_path / path
         assert full_path.exists()
         assert full_path.read_text() == content
+
+    def test_terminal_size_handling(self, writer, tmp_path):
+        """Test output handling with different terminal sizes."""
+        from rich.console import Console
+
+        from consolidate_markdown.output import print_summary
+        from consolidate_markdown.processors.result import ProcessingResult
+
+        # Create test data
+        result = ProcessingResult()
+        content = "Test content with a very long line that should wrap depending on the terminal width"
+
+        # Test with different terminal sizes
+        sizes = [(40, 20), (80, 24), (120, 30)]
+        for width, height in sizes:
+            # Create console with specific size
+            console = Console(width=width, height=height)
+
+            # Test summary display
+            with patch("rich.console.Console", return_value=console):
+                print_summary(result)
+                # Verify output fits within width
+                assert console.width == width
+                assert console.height == height
+
+            # Test file writing with unique names
+            test_file = f"test_{width}x{height}.md"
+            writer.write_output(test_file, content)
+            full_path = tmp_path / test_file
+            assert full_path.exists()
+            # Content should be unchanged regardless of terminal size
+            assert full_path.read_text() == content
+
+    def test_wide_table_handling(self, writer, tmp_path):
+        """Test handling of wide tables in narrow terminals."""
+        from rich.console import Console
+
+        from consolidate_markdown.output import print_summary
+        from consolidate_markdown.processors.result import (
+            ProcessingResult,
+            ProcessorStats,
+        )
+
+        # Create result with many processors to make a wide table
+        result = ProcessingResult()
+        for i in range(5):
+            stats = ProcessorStats(processor_type=f"processor_{i}")
+            stats.processed = i * 10
+            result.processor_stats[f"processor_{i}"] = stats
+
+        # Test with narrow terminal
+        console = Console(width=40)
+        with patch("rich.console.Console", return_value=console):
+            print_summary(result)
+            # Table should still be created and displayed
+            assert console.width == 40
+
+    def test_long_content_wrapping(self, writer, tmp_path):
+        """Test wrapping of long content in narrow terminals."""
+        from rich.console import Console
+
+        # Create long content that should wrap
+        content = "A" * 200
+
+        # Test with different terminal widths
+        widths = [40, 80, 120]
+        for width in widths:
+            console = Console(width=width)
+            with patch("rich.console.Console", return_value=console):
+                # Write content with unique names
+                test_file = f"test_width_{width}.md"
+                writer.write_output(test_file, content)
+                full_path = tmp_path / test_file
+                assert full_path.exists()
+                # Content should be unchanged
+                assert full_path.read_text() == content

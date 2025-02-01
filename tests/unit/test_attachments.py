@@ -98,7 +98,7 @@ def test_gpt_image_analysis_with_cache(mock_openai, tmp_path):
     result = ProcessingResult()
 
     # First analysis - should generate new
-    description1 = processor.describe_image(source_file, result)
+    description1 = processor.describe_image(source_file, result, "test")
     assert "test image description" in description1.lower()
     assert result.gpt_new_analyses == 1
     assert result.gpt_cache_hits == 0
@@ -107,7 +107,7 @@ def test_gpt_image_analysis_with_cache(mock_openai, tmp_path):
     # Second analysis - should use cache
     mock_client.chat.completions.create.reset_mock()
     result2 = ProcessingResult()
-    description2 = processor.describe_image(source_file, result2)
+    description2 = processor.describe_image(source_file, result2, "test")
     assert description2 == description1
     assert result2.gpt_new_analyses == 0
     assert result2.gpt_cache_hits == 1
@@ -125,7 +125,7 @@ def test_gpt_disabled(tmp_path):
         "dummy-key", CacheManager(cm_dir)
     )  # Using dummy key disables GPT
     result = ProcessingResult()
-    description = processor.get_placeholder(source_file, result)
+    description = processor.get_placeholder(source_file, result, "test")
 
     assert "[GPT image analysis skipped for test.jpg]" in description
     assert result.gpt_new_analyses == 0
@@ -147,7 +147,7 @@ def test_gpt_error_handling(mock_openai, tmp_path):
 
     processor = GPTProcessor("test_key", CacheManager(cm_dir))
     result = ProcessingResult()
-    description = processor.describe_image(source_file, result)
+    description = processor.describe_image(source_file, result, "test")
 
     assert "[Error analyzing image]" in description
     assert result.gpt_new_analyses == 0

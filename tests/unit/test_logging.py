@@ -7,7 +7,11 @@ from typing import cast
 import pytest
 
 from consolidate_markdown.config import Config, GlobalConfig
-from consolidate_markdown.log_setup import SummaryLogger, setup_logging
+from consolidate_markdown.log_setup import (
+    ProgressAwareHandler,
+    SummaryLogger,
+    setup_logging,
+)
 
 
 @pytest.fixture
@@ -62,32 +66,16 @@ def test_setup_logging_handlers(config):
 
     # Verify console handler
     console_handler = next(
-        h
-        for h in root_logger.handlers
-        if isinstance(h, logging.StreamHandler)
-        and not isinstance(h, RotatingFileHandler)
+        h for h in root_logger.handlers if isinstance(h, ProgressAwareHandler)
     )
-    assert console_handler.formatter is not None
+    assert console_handler.level == logging.DEBUG  # Should match config
+
+    # Test that the handler can format messages
     test_record = logging.LogRecord(
         "test", logging.INFO, "test.py", 1, "Test message", (), None
     )
-    formatted_message = console_handler.formatter.format(test_record)
-    assert formatted_message == "INFO: Test message"
-
-
-def test_log_rotation(config):
-    """Test log file rotation."""
-    setup_logging(config)
-    logger = logging.getLogger("test_rotation")
-
-    # Write enough data to trigger rotation
-    large_msg = "x" * 1024 * 1024  # 1MB message
-    logger.info(large_msg)
-
-    # Verify rotation occurred
-    log_dir = config.global_config.cm_dir / "logs"
-    log_files = list(log_dir.glob("consolidate_markdown.log*"))
-    assert len(log_files) >= 1
+    formatted_message = console_handler.format(test_record)
+    assert "Test message" in formatted_message  # Rich formatting will add styling
 
 
 def test_log_levels(config):

@@ -1,84 +1,120 @@
-# Claude Attachment Handling Improvements
+# Rich Progress Implementation Plan
+# Status: In Progress
+# Date: 2024-02-01
 
-## Problem
-Claude exports provide only metadata and extracted text from attachments, unlike other processors that can access the actual files. We need to make this limitation clear in both code and documentation.
+## 1. Remove TQDM Dependency
+- [x] Delete TQDM imports from runner.py
+- [x] Delete TQDM imports from processors
+- [x] Remove TQDM from pyproject.toml dependencies
+- [x] Remove TQDM from requirements files
 
-## Changes Required
+## 2. Rich Progress Bar Implementation
+- [x] Add Rich imports to runner.py:
+  ```python
+  from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+  ```
+- [x] Replace source processing loop with Rich progress:
+  ```python
+  with Progress(
+      SpinnerColumn(),
+      TextColumn("[progress.description]{task.description}"),
+      BarColumn(),
+      TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+      TimeElapsedColumn(),
+      expand=True,
+      transient=False,  # Keep progress bars visible
+  ) as progress:
+      source_task = progress.add_task("[cyan]Processing Sources...", total=len(sources))
+  ```
+- [x] Add inner progress bars for processor operations
+  - Added progress tracking to base processor
+  - Added attachment counting in Bear processor
+  - Added nested progress bars for attachments
+  - Added progress updates for cached items
+- [x] Test progress display with various source types
+  - Implemented color-coded status messages
+  - Added progress tracking for cached items
+  - Added proper error state indication
 
-### 1. Code Updates
-#### src/consolidate_markdown/processors/claude.py
-- [x] Update `_format_text_attachment` method
-  - Added clear metadata display (file type, size)
-  - Include warning about extracted content limitations
-  - Improve markdown formatting to indicate extracted nature
-  - Added handling for empty attachments with metadata preservation
+## 3. RichHandler Logging Integration
+- [x] Verify RichHandler setup in log_setup.py
+- [x] Test logging interleaving with progress bars
+  - Added ProgressAwareHandler class
+  - Added global progress tracking
+  - Added console sharing between progress and logging
+- [x] Verify log levels display correctly
+  - Added proper log level handling
+  - Added third-party logger configuration
+  - Added file logging with rotation
 
-- [x] Update `_process_attachment` method
-  - Add documentation about Claude limitations
-  - Enhance logging for clarity
-  - Handle binary vs text attachments appropriately
+## 4. Summary Output Implementation
+- [x] Create metric rows definition
+- [x] Implement print_detailed_summary function with Rich Table
+- [x] Add error reporting section
+- [x] Add per-processor statistics tracking
+  - Added ProcessorStats dataclass
+  - Added per-processor error tracking
+  - Added stats merging support
+  - Added unassociated error handling
+- [x] Test summary display with sample data
+  - Added color-coded error sections
+  - Added proper error categorization
+  - Added clear error attribution
 
-- [x] Add helper methods
-  - `_format_file_size` for consistent size display
-  - `_get_attachment_icon` for file type indicators
+## 5. Integration in main.py
+- [x] Remove TQDM references
+- [x] Import and call print_detailed_summary
+- [x] Test full execution flow
+  - Added progress-aware logging setup
+  - Added proper cleanup in finally block
+  - Added error handling for processor failures
 
-### 2. Documentation
-#### New: docs/claude-attachments.md
-- [x] Create comprehensive guide
-  - Explained Claude export limitations
-  - Documented attachment handling differences
-  - Provided examples of extracted content
-  - Added examples of empty attachment handling
-  - Included comparison with other processors
+## 6. Testing
+- [ ] Unit tests for progress display
+- [ ] Unit tests for summary generation
+- [ ] Integration tests for full workflow
+- [ ] Test error handling and display
+- [ ] Test with various terminal sizes
+- [ ] Test with different log levels
 
-#### Update: docs/README.md
-- [x] Add section on processor differences
-- [x] Document Claude-specific limitations
-- [x] Include example outputs for both content and empty attachments
+## 7. Documentation
+- [ ] Update docstrings
+- [ ] Update README with new output examples
+- [ ] Document Rich-specific configuration options
+- [ ] Add troubleshooting section for common issues
 
-### 3. Testing
-#### tests/unit/test_claude_processor.py
-- [x] Add test cases for:
-  - Different attachment types (PDF, DOCX, TXT)
-  - Metadata formatting
-  - Warning messages
-  - Markdown output format
-  - Empty attachment handling
+## 8. Final Verification
+- [ ] Run full test suite
+- [ ] Verify output formatting
+- [ ] Check error handling
+- [ ] Validate progress display
+- [ ] Test with different terminal types
+- [ ] Performance comparison with TQDM version
 
-### 4. Example Output Format
-```markdown
-<!-- CLAUDE EXPORT: Extracted content from example.pdf -->
-<details>
-<summary>📄 example.pdf (1.2MB PDF) - Extracted Content</summary>
+## Next Steps
+1. Complete testing suite
+2. Update documentation
+3. Final verification
+4. Performance testing
 
-Original File Information:
-- Type: PDF
-- Size: 1.2MB
-- Extracted: 2024-01-30
-
-Extracted Content:
-```text
-[Content extracted by Claude]
-```
-
-</details>
-```
-
-### 5. Error Handling
-- [x] Add clear error messages for missing metadata
-- [x] Implement graceful handling for empty attachments
-- [x] Add metadata preservation for empty attachments
-- [x] Improve logging for attachment processing
-
-### 6. Implementation Order
-1. ✓ Update core attachment formatting code
-2. ✓ Add helper methods for consistent formatting
-3. ✓ Implement empty attachment handling
-4. ✓ Update documentation
-5. ✓ Add comprehensive test coverage
-
-### 7. Notes
-- Empty attachments now show metadata with clear status indication
-- All changes maintain backward compatibility
-- Documentation updated to reflect new behavior
-- Test coverage includes both content and empty cases
+## Notes
+- All progress reporting now uses Rich
+- Consistent styling across all output
+- Clear error visibility in summary
+- Improved user experience with unified display
+- Progress bars now show:
+  - Main source processing progress
+  - Per-note progress within each source
+  - Attachment processing progress
+  - Color-coded status messages
+  - Cache hit/miss status
+- Logging improvements:
+  - Progress-aware logging
+  - Proper log level handling
+  - Rotating file logs
+  - Third-party logger configuration
+- Statistics tracking:
+  - Per-processor statistics
+  - Detailed error attribution
+  - Unassociated error handling
+  - Proper stats merging

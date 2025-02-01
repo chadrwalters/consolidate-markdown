@@ -1,0 +1,114 @@
+---
+description: Rules for pre-commit handling and validation
+globs:
+---
+---
+title: Pre-commit Handling Rules
+version: 1.0.0
+date: 2025-01-31
+status: Active
+dependencies:
+  - 00-base.rules.mdc
+  - 30-git-workflow.rules.mdc
+patterns:
+  inherit:
+    - config.all
+  local:
+    pre_commit:
+      - ".pre-commit-config.yaml"
+      - ".git/hooks/pre-commit"
+---
+
+# Pre-commit Handling Rules
+# Version: 1.0.0
+# Purpose: Define pre-commit check standards and processes
+# @since: 1.0.0
+# @updated: 2025-01-31
+# @requires: @rule(30-git-workflow.rules.mdc:commit_standards)
+
+# <section: metadata>
+metadata:
+    version_history:
+        1.0.0:
+            date: "2025-01-31"
+            changes:
+                - "Initial version"
+                - "Established pre-commit standards"
+                - "Defined check sequence"
+                - "Added validation rules"
+
+    dependencies:
+        - "@rule(00-base.rules.mdc:version_control)"
+        - "@rule(30-git-workflow.rules.mdc:commit_standards)"
+# </section: metadata>
+
+# <section: check_sequence>
+# @purpose: Define the sequence of pre-commit checks
+check_sequence:
+    initial_check:
+        - "Run pre-commit run --all-files"
+        - "Record any modifications made"
+        - "Note failing checks"
+
+    verification:
+        - "If modifications made, rerun all checks"
+        - "Continue until clean pass achieved"
+        - "Maximum 3 iterations to prevent loops"
+
+    additional_checks:
+        - "Run git status to check state"
+        - "Verify all files are staged"
+        - "Check for untracked files"
+
+    completion_criteria:
+        - "All pre-commit hooks pass"
+        - "No unstaged changes"
+        - "Clean working directory"
+        - "Clear branch status"
+
+# <section: validation_rules>
+# @purpose: Define validation requirements
+validation_rules:
+    formatting:
+        - "Black formatting passes"
+        - "isort import sorting passes"
+        - "No trailing whitespace"
+        - "Proper line endings"
+
+    linting:
+        - "Ruff linting passes"
+        - "MyPy type checking passes"
+        - "No large files added"
+
+    git_checks:
+        - "No merge conflicts"
+        - "Clean branch status"
+        - "No untracked files in tracked directories"
+
+# <section: error_handling>
+# @purpose: Define error handling procedures
+error_handling:
+    retry_policy:
+        - "Maximum 3 retry attempts"
+        - "Clear error messaging"
+        - "Specific fix suggestions"
+
+    failure_actions:
+        - "Report all failing checks"
+        - "Suggest manual intervention steps"
+        - "Preserve original changes"
+
+# <section: automation>
+# @purpose: Define automation behavior
+automation:
+    prohibited_actions:
+        - "No automatic commits"
+        - "No force pushing"
+        - "No branch switching"
+        - "No stash operations"
+        - "No interactive commands"
+
+    required_approvals:
+        - "User confirmation for fixes"
+        - "Manual review of changes"
+        - "Explicit push approval"

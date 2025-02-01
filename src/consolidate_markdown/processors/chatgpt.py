@@ -7,7 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..attachments.gpt import GPTProcessor
+from rich.progress import Progress, TaskID
+
 from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager
 from ..config import Config, SourceConfig
@@ -66,7 +67,7 @@ class ChatGPTProcessor(SourceProcessor):
             except Exception as e:
                 error_msg = f"Error processing conversation: {str(e)}"
                 logger.error(error_msg)
-                result.errors.append(error_msg)
+                result.add_error(error_msg, self._processor_type)
 
         return result
 
@@ -79,7 +80,7 @@ class ChatGPTProcessor(SourceProcessor):
                 logger.warning(
                     f"Skipping invalid conversation type: {type(conversation)}"
                 )
-                result.skipped += 1
+                result.add_skipped(self._processor_type)
                 return
 
             # Extract conversation metadata
@@ -96,7 +97,7 @@ class ChatGPTProcessor(SourceProcessor):
 
             # Check if we need to regenerate
             if not config.global_config.force_generation and output_file.exists():
-                result.from_cache += 1
+                result.add_from_cache(self._processor_type)
                 return
 
             # Convert to markdown
@@ -104,29 +105,31 @@ class ChatGPTProcessor(SourceProcessor):
                 markdown = self._convert_to_markdown(conversation, config, result)
                 if not markdown:
                     logger.warning(f"{context} - Skipping conversation with no content")
-                    result.skipped += 1
+                    result.add_skipped(self._processor_type)
                     return
 
                 # Write output file
                 output_file.parent.mkdir(parents=True, exist_ok=True)
                 output_file.write_text(markdown, encoding="utf-8")
                 logger.debug(f"Wrote conversation to: {output_file}")
-                result.regenerated += 1
-                result.processed += 1
+                result.add_generated(self._processor_type)
             except (TypeError, AttributeError) as e:
                 logger.error(
                     f"{context} - Error converting conversation to markdown: {str(e)}"
                 )
-                result.errors.append(
-                    f"Error converting conversation to markdown: {str(e)}"
+                result.add_error(
+                    f"Error converting conversation to markdown: {str(e)}",
+                    self._processor_type,
                 )
-                result.skipped += 1
+                result.add_skipped(self._processor_type)
                 return
 
         except Exception as e:
             logger.error(f"Error processing conversation: {str(e)}")
-            result.errors.append(f"Error processing conversation: {str(e)}")
-            result.skipped += 1
+            result.add_error(
+                f"Error processing conversation: {str(e)}", self._processor_type
+            )
+            result.add_skipped(self._processor_type)
             return
 
     def _convert_to_markdown(
@@ -783,192 +786,55 @@ class ChatGPTProcessor(SourceProcessor):
         config: Config,
         result: ProcessingResult,
         alt_text: Optional[str] = None,
-        is_image: bool = False,
+        is_image: bool = True,
+        progress: Optional[Progress] = None,
+        task_id: Optional[TaskID] = None,
     ) -> Optional[str]:
-        """Process an attachment file and return its markdown representation."""
+        """Process a single attachment and return its markdown representation."""
         try:
-            # Process attachment
+            if not attachment_path.exists():
+                logger.warning(f"Attachment not found: {attachment_path}")
+                if progress and task_id is not None:
+                    progress.advance(task_id)
+                return None
+
+            # Process the file
             temp_path, metadata = attachment_processor.process_file(
-                attachment_path, config.global_config.force_generation, result
+                attachment_path,
+                force=config.global_config.force_generation,
+                result=result,
             )
 
             # Copy processed file to output directory
             output_path = output_dir / attachment_path.name
+            if temp_path.suffix != attachment_path.suffix:
+                # If the extension changed (e.g. svg -> jpg), update the output path
+                output_path = output_path.with_suffix(temp_path.suffix)
             shutil.copy2(temp_path, output_path)
 
-            # Get relative path for markdown
-            rel_path = Path("attachments") / attachment_path.name
-
-            # Handle different attachment types
+            # Format based on type
             if metadata.is_image:
-                result.images_processed += 1
-                # Get image description if enabled
-                description = alt_text or ""
-                if not config.global_config.no_image and not description:
-                    try:
-                        gpt = GPTProcessor(
-                            config.global_config.openai_key or "dummy-key",
-                            self.cache_manager,
-                        )
-                        description = gpt.describe_image(temp_path, result)
-                    except Exception as e:
-                        logger.error(f"GPT processing failed for {temp_path}: {str(e)}")
-                        description = f"[Error analyzing image: {str(e)}]"
-
-                # Format image markdown with metadata
-                size_kb = metadata.size_bytes / 1024
-                dimensions = metadata.dimensions or (0, 0)
-
-                # Format timestamps
-                created = (
-                    datetime.fromtimestamp(metadata.created_time).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if metadata.created_time
-                    else "Unknown"
-                )
-                modified = (
-                    datetime.fromtimestamp(metadata.modified_time).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if metadata.modified_time
-                    else "Unknown"
-                )
-
-                # Add error message if present
-                error_note = f"\n\n**Note:** {metadata.error}" if metadata.error else ""
-
-                return f"""
-<!-- EMBEDDED IMAGE: {attachment_path.name} -->
-<details>
-<summary>🖼️ {attachment_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.1f}KB)</summary>
-
-**Type:** {metadata.mime_type or "Unknown"}
-**Size:** {size_kb:.1f}KB
-**Dimensions:** {dimensions[0]}x{dimensions[1]}px
-**Created:** {created}
-**Modified:** {modified}
-**Hash:** {metadata.file_hash or "Not available"}{error_note}
-
-{description}
-
-![{attachment_path.name}]({rel_path})
-
-</details>
-"""
+                result.add_image_generated(self._processor_type)
+                formatted = self._format_image(output_path, metadata, config, result)
             else:
-                # Handle other file types
-                result.documents_processed += 1
-                size_kb = metadata.size_bytes / 1024
-                ext = attachment_path.suffix.lower()
-
-                # Format timestamps
-                created = (
-                    datetime.fromtimestamp(metadata.created_time).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if metadata.created_time
-                    else "Unknown"
-                )
-                modified = (
-                    datetime.fromtimestamp(metadata.modified_time).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    if metadata.modified_time
-                    else "Unknown"
+                result.add_document_generated(self._processor_type)
+                formatted = self._format_document(
+                    output_path, metadata, alt_text, result
                 )
 
-                # Add error message if present
-                error_note = f"\n\n**Note:** {metadata.error}" if metadata.error else ""
-
-                # Special handling for different file types
-                if ext == ".zip":
-                    return f"""
-<!-- EMBEDDED ARCHIVE: {attachment_path.name} -->
-<details>
-<summary>📦 {attachment_path.name} ({size_kb:.1f}KB)</summary>
-
-**Type:** {metadata.mime_type or "Unknown"}
-**Size:** {size_kb:.1f}KB
-**Created:** {created}
-**Modified:** {modified}
-**Hash:** {metadata.file_hash or "Not available"}{error_note}
-
-[Download Archive]({rel_path})
-
-</details>
-"""
-                elif ext == ".pdf":
-                    return f"""
-<!-- EMBEDDED PDF: {attachment_path.name} -->
-<details>
-<summary>📄 {attachment_path.name} ({size_kb:.1f}KB)</summary>
-
-**Type:** {metadata.mime_type or "Unknown"}
-**Size:** {size_kb:.1f}KB
-**Created:** {created}
-**Modified:** {modified}
-**Hash:** {metadata.file_hash or "Not available"}{error_note}
-
-[View PDF]({rel_path})
-
-{metadata.markdown_content or ""}
-
-</details>
-"""
-                elif metadata.markdown_content:
-                    return f"""
-<!-- EMBEDDED DOCUMENT: {attachment_path.name} -->
-<details>
-<summary>📄 {attachment_path.name} ({size_kb:.1f}KB)</summary>
-
-**Type:** {metadata.mime_type or "Unknown"}
-**Size:** {size_kb:.1f}KB
-**Created:** {created}
-**Modified:** {modified}
-**Hash:** {metadata.file_hash or "Not available"}{error_note}
-
-{metadata.markdown_content}
-
-[Download Original]({rel_path})
-
-</details>
-"""
-                else:
-                    # Generic file handling
-                    icon = "📄"  # Default icon
-                    if ext in {".mp3", ".wav", ".m4a", ".ogg"}:
-                        icon = "🎵"
-                    elif ext in {".mp4", ".mov", ".avi", ".mkv"}:
-                        icon = "🎬"
-                    elif ext in {".doc", ".docx"}:
-                        icon = "📝"
-                    elif ext in {".xls", ".xlsx"}:
-                        icon = "📊"
-                    elif ext in {".ppt", ".pptx"}:
-                        icon = "📽️"
-                    elif ext in {".zip", ".rar", ".7z", ".tar", ".gz"}:
-                        icon = "📦"
-
-                    return f"""
-<!-- EMBEDDED FILE: {attachment_path.name} -->
-<details>
-<summary>{icon} {attachment_path.name} ({size_kb:.1f}KB)</summary>
-
-**Type:** {metadata.mime_type or "Unknown"}
-**Size:** {size_kb:.1f}KB
-**Created:** {created}
-**Modified:** {modified}
-**Hash:** {metadata.file_hash or "Not available"}{error_note}
-
-[Download File]({rel_path})
-
-</details>
-"""
+            if progress and task_id is not None:
+                progress.advance(task_id)
+            return formatted
 
         except Exception as e:
             logger.error(f"Error processing attachment {attachment_path}: {str(e)}")
-            return f"[Error processing attachment {attachment_path.name}: {str(e)}]"
+            if is_image:
+                result.add_image_skipped(self._processor_type)
+            else:
+                result.add_document_skipped(self._processor_type)
+            if progress and task_id is not None:
+                progress.advance(task_id)
+            return None
 
     def cleanup(self) -> None:
         """Clean up temporary files."""

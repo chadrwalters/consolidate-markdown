@@ -48,7 +48,7 @@ class XBookmarksProcessor(SourceProcessor):
                     # Special case: don't count 'images' directory in skip count
                     if bookmark_dir.name != "images":
                         logger.warning(f"No index file found in {bookmark_dir.name}")
-                        result.skipped += 1
+                        result.add_skipped(self._processor_type)
                     else:
                         logger.debug(
                             f"Skipping special images directory: {bookmark_dir.name}"
@@ -77,7 +77,7 @@ class XBookmarksProcessor(SourceProcessor):
 
                 if not should_process and cached and "processed_content" in cached:
                     logger.debug(f"Using cached version of {bookmark_dir.name}")
-                    bookmark_result.add_from_cache()
+                    bookmark_result.add_from_cache(self._processor_type)
 
                     # Write cached content
                     output_file = (
@@ -98,58 +98,31 @@ class XBookmarksProcessor(SourceProcessor):
                 output_media_dir.mkdir(exist_ok=True)
 
                 # Process media files
-                media_content = ""
-                media_dir = bookmark_dir / "media"
-                if media_dir.exists() and media_dir.is_dir():
-                    media_files = [
-                        f
-                        for f in media_dir.iterdir()
-                        if f.is_file()
-                        and f.suffix.lower()
-                        in {".jpg", ".jpeg", ".png", ".gif", ".svg"}
-                    ]
-
-                    for media_file in media_files:
-                        attachment_content = self._process_attachment(
-                            media_file,
-                            output_media_dir,
-                            self.attachment_processor,
-                            config,
-                            bookmark_result,
-                        )
-                        if attachment_content:
-                            media_content += "\n\n" + attachment_content
-
-                # Process non-media attachments
-                skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif", ".svg"}
-                attachments = [
-                    f
-                    for f in bookmark_dir.iterdir()
-                    if f.is_file() and f.suffix.lower() not in skip_exts
-                ]
-
-                # Add media content to the main content
+                media_content = self._process_media(
+                    bookmark_dir,
+                    self.attachment_processor,
+                    config,
+                    bookmark_result,
+                )
                 if media_content:
                     content += "\n\n" + media_content
 
-                # Process each attachment
-                for attachment in attachments:
-                    attachment_content = self._process_attachment(
-                        attachment,
-                        output_media_dir,
-                        self.attachment_processor,
-                        config,
-                        bookmark_result,
-                        is_image=False,
-                    )
-                    if attachment_content:
-                        content += "\n\n" + attachment_content
+                # Process non-media attachments
+                attachment_content = self._process_attachments(
+                    content,
+                    bookmark_dir,
+                    self.attachment_processor,
+                    config,
+                    bookmark_result,
+                )
+                if attachment_content:
+                    content += "\n\n" + attachment_content
 
                 # Add to stats
                 if config.global_config.force_generation or not cached:
-                    bookmark_result.add_generated()
+                    bookmark_result.add_generated(self._processor_type)
                 else:
-                    bookmark_result.add_from_cache()
+                    bookmark_result.add_from_cache(self._processor_type)
 
                 # Write processed bookmark
                 output_file = self.source_config.dest_dir / f"{bookmark_dir.name}.md"
@@ -173,7 +146,7 @@ class XBookmarksProcessor(SourceProcessor):
             except Exception as e:
                 error_msg = f"Error processing {bookmark_dir.name}: {str(e)}"
                 logger.error(error_msg)
-                result.errors.append(error_msg)
+                result.add_error(error_msg, self._processor_type)
 
         logger.info(
             f"Completed X bookmarks source: {result.processed} processed "
@@ -207,6 +180,7 @@ class XBookmarksProcessor(SourceProcessor):
             if f.is_file() and f.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
         ]
 
+        media_content = ""
         for media_file in media_files:
             try:
                 temp_path, metadata = attachment_processor.process_file(
@@ -220,14 +194,15 @@ class XBookmarksProcessor(SourceProcessor):
                 shutil.copy2(temp_path, output_path)
 
                 if metadata.is_image:
-                    result.images_processed += 1
                     if config.global_config.force_generation:
-                        result.images_generated += 1
+                        result.add_image_generated(self._processor_type)
+                    else:
+                        result.add_image_from_cache(self._processor_type)
 
                     size_kb = metadata.size_bytes / 1024
                     dimensions = metadata.dimensions or (0, 0)
 
-                    content += f"""
+                    media_content += f"""
 <!-- EMBEDDED IMAGE: {media_file.name} -->
 <details>
 <summary>🖼️ {media_file.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
@@ -239,8 +214,9 @@ class XBookmarksProcessor(SourceProcessor):
 
             except Exception as e:
                 logger.error(f"Error processing media file {media_file}: {str(e)}")
+                result.add_image_skipped(self._processor_type)
 
-        return content
+        return content + media_content if media_content else content
 
     def _process_attachments(
         self,
@@ -252,7 +228,7 @@ class XBookmarksProcessor(SourceProcessor):
     ) -> str:
         """Process non-media attachments in the bookmark directory."""
         # Find all non-media files (excluding index and media files)
-        skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif"}
+        skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif", ".svg"}
         attachments = [
             f
             for f in bookmark_dir.iterdir()
@@ -260,6 +236,7 @@ class XBookmarksProcessor(SourceProcessor):
         ]
 
         # Process each attachment
+        attachment_content = ""
         for attachment in attachments:
             try:
                 temp_path, metadata = attachment_processor.process_file(
@@ -269,16 +246,18 @@ class XBookmarksProcessor(SourceProcessor):
                 )
 
                 if not metadata.is_image:
-                    result.documents_processed += 1
                     if config.global_config.force_generation:
-                        result.documents_generated += 1
+                        result.add_document_generated(self._processor_type)
+                    else:
+                        result.add_document_from_cache(self._processor_type)
+
                     size_kb = metadata.size_bytes / 1024
                     doc_content = (
                         metadata.markdown_content
                         or "[Document content will be converted in Phase 4]"
                     )
 
-                    content += f"""
+                    attachment_content += f"""
 
 <!-- EMBEDDED DOCUMENT: {attachment.name} -->
 <details>
@@ -291,5 +270,6 @@ class XBookmarksProcessor(SourceProcessor):
 
             except Exception as e:
                 logger.error(f"Error processing attachment {attachment}: {str(e)}")
+                result.add_document_skipped(self._processor_type)
 
-        return content
+        return content + attachment_content if attachment_content else content

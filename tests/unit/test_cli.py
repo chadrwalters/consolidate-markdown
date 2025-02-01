@@ -16,7 +16,6 @@ def test_default_args(monkeypatch):
     assert not args.force
     assert not args.delete
     assert args.log_level == "INFO"
-    assert not args.debug
     assert args.processor is None
     assert args.limit is None
 

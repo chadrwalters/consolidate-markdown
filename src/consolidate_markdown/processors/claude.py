@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+from rich.progress import Progress, TaskID
+
 from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager
 from ..config import Config, SourceConfig
@@ -290,7 +292,7 @@ class ClaudeProcessor(SourceProcessor):
         except json.JSONDecodeError as e:
             error_msg = f"Error parsing conversations.json: {str(e)}"
             logger.error(error_msg)
-            result.errors.append(error_msg)
+            result.add_error(error_msg, self._processor_type)
             return result
 
         # Track conversations for index
@@ -303,7 +305,7 @@ class ClaudeProcessor(SourceProcessor):
                     logger.warning(
                         f"Skipping invalid conversation type: {type(conversation)}"
                     )
-                    result.skipped += 1
+                    result.add_skipped(self._processor_type)
                     continue
 
                 # Validate conversation
@@ -311,7 +313,7 @@ class ClaudeProcessor(SourceProcessor):
                     logger.warning(
                         f"Skipping invalid conversation: {conversation.get('uuid', 'unknown')}"
                     )
-                    result.skipped += 1
+                    result.add_skipped(self._processor_type)
                     continue
 
                 # Extract conversation metadata
@@ -339,7 +341,7 @@ class ClaudeProcessor(SourceProcessor):
 
                 # Check if we need to regenerate
                 if not config.global_config.force_generation and output_file.exists():
-                    result.from_cache += 1
+                    result.add_from_cache(self._processor_type)
                     continue
 
                 # Convert to markdown
@@ -352,7 +354,7 @@ class ClaudeProcessor(SourceProcessor):
                         logger.warning(
                             f"{context} - Skipping conversation with no content"
                         )
-                        result.skipped += 1
+                        result.add_skipped(self._processor_type)
                         conversation_index.pop()  # Remove from index if conversion failed
                         continue
 
@@ -363,24 +365,24 @@ class ClaudeProcessor(SourceProcessor):
                     logger.debug(
                         f"{context} - Wrote {len(markdown)} bytes to: {output_file}"
                     )
-                    result.regenerated += 1
-                    result.processed += 1
+                    result.add_generated(self._processor_type)
                 except (TypeError, AttributeError) as e:
                     logger.error(
                         f"{context} - Error converting conversation to markdown: {str(e)}"
                     )
-                    result.errors.append(
-                        f"Error converting conversation to markdown: {str(e)}"
+                    result.add_error(
+                        f"Error converting conversation to markdown: {str(e)}",
+                        self._processor_type,
                     )
-                    result.skipped += 1
+                    result.add_skipped(self._processor_type)
                     conversation_index.pop()  # Remove from index if conversion failed
                     continue
 
             except Exception as e:
                 error_msg = f"Error processing conversation: {str(e)}"
                 logger.error(error_msg)
-                result.errors.append(error_msg)
-                result.skipped += 1
+                result.add_error(error_msg, self._processor_type)
+                result.add_skipped(self._processor_type)
                 if conversation_index:
                     conversation_index.pop()  # Remove from index if processing failed
 
@@ -855,15 +857,22 @@ Extracted Content:
         result: ProcessingResult,
         alt_text: Optional[str] = None,
         is_image: bool = True,
+        progress: Optional[Progress] = None,
+        task_id: Optional[TaskID] = None,
     ) -> Optional[str]:
-        """Process an attachment file and return its markdown representation."""
+        """Process a single attachment and return its markdown representation."""
         try:
-            logger.debug(
-                f"Processing attachment: {attachment_path} (is_image: {is_image})"
-            )
-            # Process attachment
+            if not attachment_path.exists():
+                logger.warning(f"Attachment not found: {attachment_path}")
+                if progress and task_id is not None:
+                    progress.advance(task_id)
+                return None
+
+            # Process the file
             temp_path, metadata = attachment_processor.process_file(
-                attachment_path, config.global_config.force_generation, result
+                attachment_path,
+                force=config.global_config.force_generation,
+                result=result,
             )
 
             # Copy processed file to output directory
@@ -872,26 +881,29 @@ Extracted Content:
                 # If the extension changed (e.g. svg -> jpg), update the output path
                 output_path = output_path.with_suffix(temp_path.suffix)
             shutil.copy2(temp_path, output_path)
-            logger.debug(f"Copied processed file to: {output_path}")
 
             # Format based on type
             if metadata.is_image:
-                result.images_processed += 1
-                result.images_generated += 1
-                logger.debug(f"Processed image: {output_path}")
-                return self._format_image(
-                    output_path, metadata, config, result, self.cache_manager
-                )
+                result.add_image_generated(self._processor_type)
+                formatted = self._format_image(output_path, metadata, config, result)
             else:
-                result.documents_processed += 1
-                result.documents_generated += 1
-                logger.debug(f"Processed document: {output_path}")
-                return self._format_document(output_path, metadata, alt_text, result)
+                result.add_document_generated(self._processor_type)
+                formatted = self._format_document(
+                    output_path, metadata, alt_text, result
+                )
+
+            if progress and task_id is not None:
+                progress.advance(task_id)
+            return formatted
 
         except Exception as e:
             logger.error(f"Error processing attachment {attachment_path}: {str(e)}")
             if is_image:
-                result.images_skipped += 1
+                result.add_image_skipped(self._processor_type)
+            else:
+                result.add_document_skipped(self._processor_type)
+            if progress and task_id is not None:
+                progress.advance(task_id)
             return None
 
     def _process_message_content(self, message: Dict[str, Any]) -> List[str]:

@@ -142,6 +142,28 @@ restrictions:
             - "State tracking"
             - "Rollback points"
 
+        processing_limits:
+            - "Default --limit of 5 items required"
+            - "Override only with explicit user command"
+            - "Use --processor when targeting specific processor"
+            - "Document any limit overrides in logs"
+            - "Monitor context window usage"
+
+        testing:
+            bug_fixes:
+                - "Reproduction test case required first"
+                - "Test must demonstrate bug before fix"
+                - "Skip only if integration too complex"
+                - "Document skipped test cases"
+                - "Include bug reference in test"
+
+            source_data:
+                - "Use real config directories"
+                - "Enforce --limit in tests"
+                - "Use --processor when applicable"
+                - "Maintain test fixtures"
+                - "Document data requirements"
+
 # <section: override_procedures>
 # @purpose: Define emergency override protocols
 override_procedures:

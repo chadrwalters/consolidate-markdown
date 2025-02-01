@@ -3,12 +3,58 @@
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Optional
 
+from rich.console import Console
 from rich.logging import RichHandler
+from rich.progress import Progress
 
 from .config import Config
 
 logger = logging.getLogger(__name__)
+
+# Global console instance for consistent styling
+console = Console()
+
+# Global progress instance for access by RichHandler
+current_progress: Optional[Progress] = None
+
+
+def set_progress(progress: Optional[Progress]) -> None:
+    """Set the current progress instance for logging integration.
+
+    Args:
+        progress: The progress instance to use, or None to clear
+    """
+    global current_progress
+    current_progress = progress
+
+
+class ProgressAwareHandler(RichHandler):
+    """RichHandler that's aware of progress bars."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.console = console
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record.
+
+        Args:
+            record: The log record to emit
+        """
+        try:
+            if current_progress:
+                # If we have an active progress, use its console
+                self.console = current_progress.console
+            else:
+                # Otherwise use the global console
+                self.console = console
+
+            # Call parent emit with our console
+            super().emit(record)
+        except Exception:
+            self.handleError(record)
 
 
 def ensure_log_file(log_file: Path) -> None:
@@ -22,7 +68,11 @@ def ensure_log_file(log_file: Path) -> None:
 
 
 def setup_logging(config: Config) -> None:
-    """Set up logging configuration."""
+    """Set up logging configuration.
+
+    Args:
+        config: The configuration to use
+    """
     # First, configure third-party loggers to prevent debug output
     logging.getLogger("openai").setLevel(logging.INFO)
     logging.getLogger("openai._base_client").setLevel(logging.INFO)
@@ -51,8 +101,9 @@ def setup_logging(config: Config) -> None:
     file_handler.setFormatter(file_formatter)
     root_logger.addHandler(file_handler)
 
-    # Configure Rich console logging
-    console_handler = RichHandler(
+    # Configure Rich console logging with progress awareness
+    console_handler = ProgressAwareHandler(
+        console=console,
         rich_tracebacks=True,
         markup=True,
         show_path=False,

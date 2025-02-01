@@ -3,9 +3,16 @@
 import logging
 from typing import Dict, Optional, Type
 
-from tqdm import tqdm
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from consolidate_markdown.config import Config
+from consolidate_markdown.log_setup import set_progress
 from consolidate_markdown.processors import PROCESSOR_TYPES
 from consolidate_markdown.processors.base import ProcessingResult, SourceProcessor
 
@@ -44,52 +51,87 @@ class Runner:
         # Reset summary for new run
         self.summary = ProcessingResult()
 
-        # Create progress bar for sources
-        sources = list(self.config.sources)  # Convert to list for tqdm
-        with tqdm(
-            sources,
-            desc="Processing Sources",
-            unit="src",
-            leave=True,  # Keep the progress bar after completion
-        ) as source_pbar:
-            for source in source_pbar:
-                # Skip if a specific processor is selected and this isn't it
-                if self.selected_processor and source.type != self.selected_processor:
-                    logger.debug(f"Skipping {source.type} processor (not selected)")
-                    continue
+        # Create progress display for sources
+        sources = list(self.config.sources)  # Convert to list for progress
+        logger.info(f"Starting consolidation with {len(sources)} source(s)")
 
-                # Update progress bar description
-                source_pbar.set_description(f"Processing {source.type}")
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            expand=True,
+            transient=False,  # Keep progress bars visible
+        ) as progress:
+            # Set up progress-aware logging
+            set_progress(progress)
+            try:
+                source_task = progress.add_task(
+                    "[cyan]Processing Sources...", total=len(sources)
+                )
 
-                try:
-                    # Get the processor class
-                    processor_class = self.PROCESSORS.get(source.type)
-                    if not processor_class:
-                        error_msg = f"No processor found for type: {source.type}"
-                        logger.error(error_msg)
-                        self.summary.errors.append(error_msg)
+                for source in sources:
+                    # Skip if a specific processor is selected and this isn't it
+                    if (
+                        self.selected_processor
+                        and source.type != self.selected_processor
+                    ):
+                        logger.debug(f"Skipping {source.type} processor (not selected)")
                         continue
 
-                    # Create and run the processor
-                    processor = processor_class(source)
-                    if self.processing_limit is not None:
-                        processor.item_limit = self.processing_limit
-
-                    # Validate and process
-                    processor.validate()
-                    result = processor.process(self.config)
-                    self.summary.merge(result)
-
-                    # Update progress bar with counts
-                    source_pbar.set_postfix(
-                        processed=result.processed,
-                        cached=result.from_cache,
-                        skipped=result.skipped,
+                    # Update progress description
+                    progress.update(
+                        source_task, description=f"[cyan]Processing {source.type}..."
                     )
 
-                except Exception as e:
-                    error_msg = f"Error processing {source.type}: {str(e)}"
-                    logger.error(error_msg)
-                    self.summary.errors.append(error_msg)
+                    try:
+                        # Get the processor class
+                        processor_class = self.PROCESSORS.get(source.type)
+                        if not processor_class:
+                            error_msg = f"No processor found for type: {source.type}"
+                            logger.error(error_msg)
+                            self.summary.errors.append(error_msg)
+                            progress.advance(source_task)
+                            continue
 
+                        # Create and run the processor
+                        processor = processor_class(source)
+                        if self.processing_limit is not None:
+                            processor.item_limit = self.processing_limit
+
+                        # Set up progress tracking for the processor
+                        processor.set_progress(progress, source_task)
+
+                        # Validate and process
+                        processor.validate()
+                        logger.info(f"Processing source: {source.type}")
+                        result = processor.process(self.config)
+                        self.summary.merge(result)
+
+                        # Update progress
+                        progress.update(
+                            source_task,
+                            advance=1,
+                            description=f"[green]Completed {source.type}",
+                        )
+                        logger.info(f"Completed source: {source.type}")
+
+                    except Exception as e:
+                        error_msg = f"Error processing {source.type}: {str(e)}"
+                        logger.error(error_msg)
+                        self.summary.errors.append(error_msg)
+                        progress.update(
+                            source_task,
+                            advance=1,
+                            description=f"[red]Failed {source.type}",
+                        )
+
+            finally:
+                # Clear progress-aware logging
+                set_progress(None)
+
+        logger.info(
+            f"Consolidation complete: {self.summary.processed} processed, {self.summary.errors} errors"
+        )
         return self.summary

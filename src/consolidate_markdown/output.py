@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -14,6 +15,36 @@ logger = logging.getLogger(__name__)
 
 # Global console instance for consistent styling
 console = Console()
+
+# Define ordered processors for consistent display
+ORDERED_PROCESSORS = ["chatgptexport", "bear", "xbookmarks", "claude"]
+
+# Define metric rows for summary table with grouping
+METRIC_ROWS = [
+    # Overall stats
+    ("Total Processed", lambda r: r.processed),
+    ("Generated", lambda r: r.regenerated),
+    ("From Cache", lambda r: r.from_cache),
+    ("Skipped", lambda r: r.skipped),
+    ("", lambda r: ""),  # Separator
+    # Document stats
+    ("Docs Processed", lambda r: r.documents_processed),
+    ("Docs Generated", lambda r: r.documents_generated),
+    ("Docs From Cache", lambda r: r.documents_from_cache),
+    ("Docs Skipped", lambda r: r.documents_skipped),
+    ("", lambda r: ""),  # Separator
+    # Image stats
+    ("Images Processed", lambda r: r.images_processed),
+    ("Images Generated", lambda r: r.images_generated),
+    ("Images From Cache", lambda r: r.images_from_cache),
+    ("Images Skipped", lambda r: r.images_skipped),
+    ("", lambda r: ""),  # Separator
+    # GPT stats
+    ("GPT Processed", lambda r: r.gpt_cache_hits + r.gpt_new_analyses),
+    ("GPT Generated", lambda r: r.gpt_new_analyses),
+    ("GPT From Cache", lambda r: r.gpt_cache_hits),
+    ("GPT Skipped", lambda r: r.gpt_skipped),
+]
 
 
 class OutputError(Exception):
@@ -187,99 +218,85 @@ def print_summary(result: ProcessingResult) -> None:
     Args:
         result: The processing results to display
     """
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Metric")
-    table.add_column("Count", justify="right")
+    # Create main summary table with double-line style for better separation
+    table = Table(show_header=True, header_style="bold cyan", box=box.DOUBLE)
+    table.add_column("Metric", justify="left", style="bold")
 
-    # Core metrics
-    table.add_row("Total Processed", format_count(result.processed))
-    table.add_row("Generated", format_count(result.regenerated))
-    table.add_row("From Cache", format_count(result.from_cache))
-    table.add_row("Skipped", format_count(result.skipped))
+    # Add processor columns
+    for proc in ORDERED_PROCESSORS:
+        display_name = (
+            "ChatGPT"
+            if proc == "chatgptexport"
+            else (
+                "Bear Notes"
+                if proc == "bear"
+                else (
+                    "X Bookmarks"
+                    if proc == "xbookmarks"
+                    else "Claude" if proc == "claude" else proc.title()
+                )
+            )
+        )
+        table.add_column(display_name, justify="right")
 
-    # Add separator
-    table.add_section()
+    # Add metric rows with style for separators
+    for label, extractor in METRIC_ROWS:
+        if not label:  # It's a separator row
+            table.add_row(*[""] * (len(ORDERED_PROCESSORS) + 1), style="dim")
+            continue
+        row = [label]
+        for proc in ORDERED_PROCESSORS:
+            # Get processor stats if available
+            proc_stats = result.processor_stats.get(proc)
+            value = extractor(proc_stats) if proc_stats else 0
+            # Format value with commas for thousands
+            row.append(format_count(value))
+        table.add_row(*row)
 
-    # Document metrics
-    table.add_row(
-        "Documents Processed",
-        format_count(result.documents_processed),
-    )
-    table.add_row(
-        "Documents Generated",
-        format_count(result.documents_generated),
-    )
-    table.add_row(
-        "Documents From Cache",
-        format_count(result.documents_from_cache),
-    )
-    table.add_row(
-        "Documents Skipped",
-        format_count(result.documents_skipped),
-    )
-
-    # Add separator
-    table.add_section()
-
-    # Image metrics
-    table.add_row(
-        "Images Processed",
-        format_count(result.images_processed),
-    )
-    table.add_row(
-        "Images Generated",
-        format_count(result.images_generated),
-    )
-    table.add_row(
-        "Images From Cache",
-        format_count(result.images_from_cache),
-    )
-    table.add_row(
-        "Images Skipped",
-        format_count(result.images_skipped),
-    )
-
-    # Add separator
-    table.add_section()
-
-    # GPT metrics
-    table.add_row(
-        "GPT Cache Hits",
-        format_count(result.gpt_cache_hits),
-    )
-    table.add_row(
-        "GPT New Analyses",
-        format_count(result.gpt_new_analyses),
-    )
-    table.add_row(
-        "GPT Analyses Skipped",
-        format_count(result.gpt_skipped),
-    )
-
-    # Create panel with table
-    panel = Panel(
+    # Create and display summary panel with padding
+    summary_panel = Panel(
         table,
         title="[bold green]Consolidation Summary[/bold green]",
         expand=False,
+        padding=(1, 2),  # Add padding inside panel
     )
+    console.print("\n")  # Add space before panel
+    console.print(summary_panel)
+    console.print("\n")  # Add space after panel
 
-    # Print the summary
-    console.print(panel)
+    # Display errors if any
+    error_lines = []
+    for proc in ORDERED_PROCESSORS:
+        proc_stats = result.processor_stats.get(proc)
+        if proc_stats and proc_stats.errors:
+            error_lines.append(f"[bold red]{proc.title()} Errors:[/bold red]")
+            for err in proc_stats.errors:
+                error_lines.append(f" • {err}")
+            error_lines.append("")
 
-    # If there are errors, print them in a separate panel
-    if result.errors:
-        error_table = Table(show_header=True, header_style="bold red")
-        error_table.add_column("Error Messages")
+    # Add any unassociated errors
+    unassociated_errors = [
+        err
+        for err in result.errors
+        if not any(err in stats.errors for stats in result.processor_stats.values())
+    ]
+    if unassociated_errors:
+        error_lines.append("[bold red]General Errors:[/bold red]")
+        for err in unassociated_errors:
+            error_lines.append(f" • {err}")
+        error_lines.append("")
 
-        for error in result.errors:
-            error_table.add_row(f"[red]{error}[/red]")
-
+    if error_lines:
         error_panel = Panel(
-            error_table,
-            title="[bold red]Processing Errors[/bold red]",
+            "\n".join(error_lines),
+            title="[bold red]Errors Detected[/bold red]",
+            border_style="red",
             expand=False,
+            padding=(1, 2),  # Add padding inside panel
         )
         console.print(error_panel)
+    else:
+        console.print("[bold green]No errors detected.[/bold green]")
 
 
 def print_deletion_message(path: str) -> None:
