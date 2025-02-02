@@ -32,7 +32,6 @@ ENV/
 .vscode/
 *.swp
 *.swo
-.cursor/rules/
 .Plan
 
 # Project specific

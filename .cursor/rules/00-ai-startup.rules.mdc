@@ -98,3 +98,28 @@ prohibited_actions:
 #   4. Enters PLAN mode
 #   5. Reports status and awaits direction
 # </section: examples>
+
+# <section: command_triggers>
+# @purpose: Define startup command patterns
+# @requires: @rule(70-command-triggers.rules.mdc:trigger_patterns)
+command_triggers:
+    startup:
+        pattern: "^-startup\\b"
+        description: "Trigger AI startup sequence"
+        examples:
+            - "-startup"
+        actions:
+            - "Execute rules_review"
+            - "Execute documentation_review"
+            - "Enter PLAN mode"
+            - "Execute code_review"
+            - "Report status"
+
+    alternative_triggers:
+        - "-init"  # Alternative command that also triggers startup
+        - "-plan"  # Automatically run startup before entering plan mode
+
+    command_chaining:
+        - "When -plan is used without prior startup, run startup first"
+        - "When -init or -startup is used, automatically enter PLAN mode after completion"
+# </section: command_triggers>
