@@ -43,21 +43,18 @@ class AttachmentHandlerMixin:
         description = ""
         if not config.global_config.no_image:
             try:
-                gpt = GPTProcessor(
-                    config.global_config.openai_key or "dummy-key",
-                    cache_manager,
-                )
+                gpt = GPTProcessor(config.global_config, cache_manager)
                 description = gpt.describe_image(
                     image_path, result, self._processor_type
                 )
             except Exception as e:
                 logger.error(f"GPT processing failed for {image_path}: {str(e)}")
-                gpt = GPTProcessor("dummy-key")
+                gpt = GPTProcessor(config.global_config, cache_manager)
                 description = gpt.get_placeholder(
                     image_path, result, self._processor_type
                 )
         else:
-            gpt = GPTProcessor("dummy-key")
+            gpt = GPTProcessor(config.global_config, cache_manager)
             description = gpt.get_placeholder(image_path, result, self._processor_type)
 
         # Add standard markdown image link and details section

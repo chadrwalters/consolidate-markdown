@@ -4,12 +4,13 @@ import base64
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletionUserMessageParam
 
 from ..cache import CacheManager, quick_hash
+from ..config import VALID_MODELS, GlobalConfig
 from ..processors.result import ProcessingResult
 
 logger = logging.getLogger(__name__)
@@ -22,21 +23,223 @@ class GPTError(Exception):
 
 
 class GPTProcessor:
-    """Process images using GPT-4 Vision."""
+    """Process images using GPT-4 Vision (OpenAI/OpenRouter)."""
 
     SUPPORTED_FORMATS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
-    def __init__(self, api_key: str, cache_manager: Optional[CacheManager] = None):
-        """Initialize with OpenAI API key."""
-        self.api_key = api_key
+    def __init__(
+        self, config: GlobalConfig, cache_manager: Optional[CacheManager] = None
+    ):
+        """Initialize with configuration object.
+
+        Args:
+            config: Global configuration containing API settings
+            cache_manager: Optional cache manager for GPT results
+        """
+        self.config = config
         self.cache_manager = cache_manager
+        self.provider = config.api_provider
+        self.current_model = config.models.default_model
 
         # Set OpenAI logging to INFO level before creating client
         logging.getLogger("openai").setLevel(logging.INFO)
         logging.getLogger("openai._base_client").setLevel(logging.INFO)
         logging.getLogger("httpx").setLevel(logging.INFO)
 
-        self.client = OpenAI(api_key=api_key)
+        # Initialize client based on provider
+        if self.provider == "openai":
+            if not config.openai_key:
+                raise GPTError("OpenAI API key is required when using OpenAI provider")
+            self.client = OpenAI(
+                api_key=config.openai_key,
+                base_url=config.openai_base_url,
+            )
+        elif self.provider == "openrouter":
+            if not config.openrouter_key:
+                raise GPTError(
+                    "OpenRouter API key is required when using OpenRouter provider"
+                )
+            self.client = OpenAI(
+                api_key=config.openrouter_key,
+                base_url=config.openrouter_base_url,
+            )
+        else:
+            raise GPTError(f"Unsupported API provider: {self.provider}")
+
+    def set_model(self, model_alias: Optional[str] = None) -> None:
+        """Set the current model to use.
+
+        Args:
+            model_alias: Optional alias of the model to use. If None, uses default model.
+
+        Raises:
+            GPTError: If the model alias is invalid or model is not supported by provider.
+        """
+        if model_alias is None:
+            self.current_model = self.config.models.default_model
+            return
+
+        # Check if this is a direct model name
+        if model_alias in VALID_MODELS.get(self.provider, []):
+            self.current_model = model_alias
+            return
+
+        # Look up model by alias
+        if model_alias in self.config.models.alternate_models:
+            model = self.config.models.alternate_models[model_alias]
+            if model in VALID_MODELS.get(self.provider, []):
+                self.current_model = model
+            else:
+                raise GPTError(
+                    f"Model '{model}' from alias '{model_alias}' is not supported by provider '{self.provider}'"
+                )
+        else:
+            raise GPTError(f"Invalid model alias: {model_alias}")
+
+    def analyze_image(
+        self,
+        image_path: Path,
+        model_alias: Optional[str] = None,
+        prompt: Optional[str] = None,
+    ) -> str:
+        """Analyze an image using the specified model.
+
+        Args:
+            image_path: Path to the image file
+            model_alias: Optional alias of the model to use. If None, uses current model.
+            prompt: Optional custom prompt for the analysis
+
+        Returns:
+            Analysis result as string
+
+        Raises:
+            GPTError: If there's an error processing the image
+        """
+        # Set model if specified
+        if model_alias is not None:
+            self.set_model(model_alias)
+
+        # Check if we have a cached result
+        if self.cache_manager:
+            cache_key = f"{image_path}:{self.current_model}"
+            cached = self.cache_manager.get_gpt_cache(cache_key)
+            if cached:
+                return cached
+
+        try:
+            # Prepare image data
+            with open(image_path, "rb") as f:
+                image_data = f.read()
+                image_b64 = base64.b64encode(image_data).decode("utf-8")
+
+            # Default prompt if none provided
+            if not prompt:
+                prompt = "Please describe this image in detail, including any text, objects, colors, and layout."
+
+            # Prepare API call based on provider
+            if self.provider == "openai":
+                response = self._call_openai_api(image_b64, prompt)
+            else:  # openrouter
+                response = self._call_openrouter_api(image_b64, prompt)
+
+            if response is None:
+                raise GPTError("API returned no response")
+
+            # Cache the result if we have a cache manager
+            if self.cache_manager:
+                self.cache_manager.update_gpt_cache(cache_key, response)
+
+            return response
+
+        except Exception as e:
+            raise GPTError(f"Error analyzing image with {self.current_model}: {str(e)}")
+
+    def _call_openai_api(self, image_b64: str, prompt: str) -> str:
+        """Call OpenAI API for image analysis.
+
+        Args:
+            image_b64: Base64 encoded image data
+            prompt: Analysis prompt
+
+        Returns:
+            Analysis result
+
+        Raises:
+            GPTError: If the API call fails
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_b64}"
+                                },
+                            },
+                        ],
+                    }
+                ],
+                max_tokens=500,
+            )
+            result = response.choices[0].message.content
+            if result is None:
+                raise GPTError("OpenAI API returned no content")
+            return result
+
+        except Exception as e:
+            raise GPTError(f"OpenAI API error: {str(e)}")
+
+    def _call_openrouter_api(self, image_b64: str, prompt: str) -> str:
+        """Call OpenRouter API for image analysis.
+
+        Args:
+            image_b64: Base64 encoded image data
+            prompt: Analysis prompt
+
+        Returns:
+            Analysis result
+
+        Raises:
+            GPTError: If the API call fails
+        """
+        try:
+            # Create message content
+            messages: List[ChatCompletionUserMessageParam] = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                        },
+                    ],
+                }
+            ]
+
+            # For OpenRouter, we pass the model directly in the model parameter
+            # The API will handle routing to the correct model
+            response = self.client.chat.completions.create(
+                model=f"openrouter/{self.current_model}",
+                messages=messages,
+                max_tokens=500,
+            )
+            result = response.choices[0].message.content
+            if result is None:
+                raise GPTError(
+                    f"OpenRouter API returned no content for model {self.current_model}"
+                )
+            return result
+
+        except Exception as e:
+            raise GPTError(
+                f"OpenRouter API error with model {self.current_model}: {str(e)}"
+            )
 
     def _convert_to_supported_format(
         self, image_path: Path
@@ -72,7 +275,10 @@ class GPTProcessor:
         return None, False
 
     def describe_image(
-        self, image_path: Path, result: ProcessingResult, processor_type: str
+        self,
+        image_path: Path,
+        result: ProcessingResult,
+        processor_type: str,
     ) -> str:
         """Get GPT description of image.
 
@@ -113,7 +319,9 @@ class GPTProcessor:
         ]
 
         # Log request without base64 data for debugging
-        logger.debug("Sending GPT request for image analysis (base64 data omitted)")
+        logger.debug(
+            f"Sending GPT request to {self.provider} for image analysis (base64 data omitted)"
+        )
 
         try:
             response = self.client.chat.completions.create(
@@ -131,14 +339,17 @@ class GPTProcessor:
             return description
 
         except Exception as e:
-            logger.error(f"GPT API error: {str(e)}")
+            logger.error(f"GPT API error ({self.provider}): {str(e)}")
             result.add_gpt_skipped(processor_type)
             return "[Error analyzing image]"
 
     def get_placeholder(
-        self, image_path: Path, result: ProcessingResult, processor_type: str
+        self,
+        image_path: Path,
+        result: ProcessingResult,
+        processor_type: str,
     ) -> str:
-        """Return a placeholder when GPT analysis is skipped.
+        """Get a placeholder description for an image.
 
         Args:
             image_path: Path to the image file
@@ -146,4 +357,4 @@ class GPTProcessor:
             processor_type: The type of processor requesting the analysis
         """
         result.add_gpt_skipped(processor_type)
-        return f"[GPT image analysis skipped for {image_path.name}]"
+        return "[Image description will be generated in Phase 4]"
