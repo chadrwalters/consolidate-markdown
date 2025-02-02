@@ -472,3 +472,157 @@ Solution:
 - Verify attachment paths in conversations.json
 - Ensure attachments were included in export
 ```
+
+```
+
+## Model-Specific Issues
+
+### Model Selection and Configuration
+
+1. **Invalid Model Error**
+   - **Problem**: Error about invalid model selection
+   - **Solution**:
+     * Verify model name matches exactly (including provider prefix)
+     * Check if model is supported by your API provider
+     * Ensure proper configuration in TOML file
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "gpt-4o"  # Correct
+     # NOT: default_model = "gpt4" or "gpt-4"
+     ```
+
+2. **Model Not Available**
+   - **Problem**: Selected model is not accessible
+   - **Solution**:
+     * Verify API provider configuration
+     * Check if model is still supported
+     * Try alternate model from same provider
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "google/gemini-pro-vision-1.0"
+     alternate_model_backup = "gpt-4o"  # Fallback option
+     ```
+
+### Performance Issues
+
+1. **Slow Response Times**
+   - **Problem**: Model responses are taking too long
+   - **Solution**:
+     * Switch to faster models (Yi Vision or BLIP)
+     * Enable caching for repeated analyses
+     * Check network connectivity
+     * Verify image size and format
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "yi/yi-vision-01"  # Faster model
+     ```
+
+2. **Poor Analysis Quality**
+   - **Problem**: Model responses lack detail or accuracy
+   - **Solution**:
+     * Use more capable models (GPT-4 Vision or Gemini Pro)
+     * Verify image quality
+     * Check if task matches model strengths
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "gpt-4o"  # More capable model
+     ```
+
+### Technical Content Analysis
+
+1. **Code Recognition Issues**
+   - **Problem**: Poor code analysis or syntax recognition
+   - **Solution**:
+     * Use Gemini Pro Vision for code analysis
+     * Ensure code is clearly visible in image
+     * Consider image preprocessing
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "google/gemini-pro-vision-1.0"  # Best for code
+     ```
+
+2. **UI Element Detection Problems**
+   - **Problem**: Missing or incorrect UI element identification
+   - **Solution**:
+     * Use GPT-4 Vision or Gemini Pro for UI analysis
+     * Ensure clear screenshots
+     * Consider window/element contrast
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "gpt-4o"  # Best for UI details
+     ```
+
+### Caching and Performance
+
+1. **Cache Misses**
+   - **Problem**: Repeated analyses not using cache
+   - **Solution**:
+     * Verify cache directory permissions
+     * Check cache key generation
+     * Ensure consistent image paths
+   - **Example Fix**:
+     ```bash
+     # Clear cache and retry
+     rm -rf .cm/cache/*
+     ```
+
+2. **Resource Usage**
+   - **Problem**: High resource usage during analysis
+   - **Solution**:
+     * Use more efficient models for bulk processing
+     * Enable caching
+     * Consider batch processing
+   - **Example Fix**:
+     ```toml
+     [models]
+     default_model = "deepinfra/blip"  # More efficient
+     ```
+
+### Common Error Messages
+
+1. **"Model not supported by provider"**
+   ```
+   Error: Model 'custom_model' is not supported by provider 'openrouter'
+   ```
+   - **Solution**: Use only supported models from VALID_MODELS list
+
+2. **"Invalid model alias"**
+   ```
+   Error: Invalid model alias: unknown_model
+   ```
+   - **Solution**: Check model alias configuration in TOML file
+
+3. **"API returned no content"**
+   ```
+   Error: OpenRouter API returned no content for model google/gemini-pro-vision-1.0
+   ```
+   - **Solution**:
+     * Verify API key and permissions
+     * Check model availability
+     * Try alternate model
+
+### Best Practices
+
+1. **Model Selection**
+   - Start with GPT-4 Vision for unknown use cases
+   - Use Gemini Pro Vision for technical content
+   - Consider Yi Vision for batch processing
+   - Always configure a backup model
+
+2. **Configuration**
+   - Use environment variables for flexibility
+   - Keep model aliases descriptive
+   - Document model choices in configuration
+   - Test alternate models for your use case
+
+3. **Performance**
+   - Enable caching for repeated analyses
+   - Use appropriate models for batch processing
+   - Monitor and log model performance
+   - Consider cost vs. performance tradeoffs

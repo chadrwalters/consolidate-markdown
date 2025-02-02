@@ -195,15 +195,43 @@ GPT-4o analysis text here...
 - Primarily tested on macOS. Conversions for certain formats (e.g., .heic) rely on OS-specific tools.
 - Other OSes should work with fallback logic but may have limited support.
 
-### 7.2 OpenAI GPT-4o
-- A valid OpenAI key must be provided for image analysis.
-- If no_image=true, skip GPT calls and insert placeholders.
+### 7.2 Image Analysis API Support
+- Support for multiple API providers:
+  1. OpenAI GPT-4 Vision (default)
+     - Requires valid OpenAI API key
+     - Uses GPT-4 Vision model
+     - Configurable base URL
+  2. OpenRouter
+     - Alternative provider support
+     - Requires valid OpenRouter API key
+     - Configurable base URL
+- Provider selection through configuration
+- Environment variable support for all API settings
+- Graceful fallback for missing API keys
+- Skip image analysis with no_image=true
 
-### 7.3 No GPT Caching in v1
+### 7.3 API Configuration
+Example configuration with OpenAI:
+```toml
+[global]
+api_provider = "openai"
+openai_key = "${OPENAI_API_KEY}"
+openai_base_url = "https://api.openai.com/v1"
+```
+
+Example configuration with OpenRouter:
+```toml
+[global]
+api_provider = "openrouter"
+openrouter_key = "${OPENROUTER_API_KEY}"
+openrouter_base_url = "https://openrouter.ai/api/v1"
+```
+
+### 7.4 No GPT Caching in v1
 - GPT is called every time a new image is processed, or when --force is used.
 - Timestamp-based skipping may apply to final .md checks, but no separate GPT result cache is stored.
 
-### 7.4 Spaces & Special Characters
+### 7.5 Spaces & Special Characters
 - All directory handling must accommodate spaces or special characters through robust path handling.
 
 ## 8. End-of-Run Summary

@@ -1,9 +1,31 @@
 [global]
-cm_dir = ".cm"                   # Working directory for temporary files
-log_level = "INFO"               # DEBUG, INFO, WARNING, ERROR
-force_generation = false         # Force reprocessing all files
-no_image = false                 # Set to true to skip GPT image analysis
-openai_key = "${OPENAI_API_KEY}" # OpenAI API key from environment
+cm_dir = ".cm"           # Working directory for temporary files
+log_level = "INFO"       # DEBUG, INFO, WARNING, ERROR
+force_generation = false # Force reprocessing all files
+no_image = false         # Set to true to skip GPT image analysis
+
+# API Provider Configuration
+api_provider = "openai" # API provider to use: "openai" or "openrouter"
+
+# OpenAI Configuration (when api_provider = "openai")
+openai_key = "${OPENAI_API_KEY}"              # OpenAI API key from environment
+openai_base_url = "https://api.openai.com/v1" # OpenAI API base URL
+
+# OpenRouter Configuration (when api_provider = "openrouter")
+openrouter_key = "${OPENROUTER_API_KEY}"             # OpenRouter API key from environment
+openrouter_base_url = "https://openrouter.ai/api/v1" # OpenRouter API base URL
+
+# Model Configuration
+[models]
+default_model = "google/gemini-pro-vision-1.0"  # Default model as of 2024-02-01
+
+# Alternate models (when using OpenRouter)
+# Model names are prefixed with 'openrouter/' automatically
+# Configure as needed:
+# alternate_model_gpt4 = "gpt-4o"
+# alternate_model_yi = "yi/yi-vision-01"
+# alternate_model_blip = "deepinfra/blip"
+# alternate_model_llama = "meta/llama-3.2-90b-vision-instruct"
 
 [[sources]]
 type = "bear"

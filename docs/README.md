@@ -30,6 +30,44 @@ This documentation covers the consolidate-markdown project, a tool for processin
    - Force regeneration options
    - Performance considerations
 
+6. [Testing](testing.md)
+   - Unit tests and integration tests
+   - Live API testing configuration
+   - Test fixtures and data
+   - Running tests locally
+
+## API Providers
+
+The tool supports two providers for image analysis:
+
+### OpenAI (Default)
+- Uses GPT-4 Vision API directly from OpenAI
+- Configure in `config.toml`:
+  ```toml
+  [global]
+  api_provider = "openai"
+  openai_key = "sk-..."  # Your OpenAI API key
+  ```
+- Or use environment variables:
+  ```bash
+  export OPENAI_API_KEY="your-key"
+  ```
+
+### OpenRouter
+- Alternative provider that can be more cost-effective
+- Configure in `config.toml`:
+  ```toml
+  [global]
+  api_provider = "openrouter"
+  openrouter_key = "sk-..."  # Your OpenRouter API key
+  ```
+- Or use environment variables:
+  ```bash
+  export OPENROUTER_API_KEY="your-key"
+  ```
+
+You can easily switch between providers by changing the `api_provider` setting. Both providers use GPT-4 Vision for image analysis, but OpenRouter may offer different pricing options. See the [Configuration Guide](configuration.md) for detailed setup instructions.
+
 ## Processor Differences
 
 ### ⚠️ Important: Attachment Handling
@@ -97,12 +135,33 @@ Extracted Content:
    uv pip install -r requirements.txt
    ```
 
-2. Configure sources in `consolidate_config.toml`
+2. Set up your API key (choose one):
+   ```bash
+   # Option 1: OpenAI (default)
+   export OPENAI_API_KEY="your-openai-key"
 
-3. Run the tool:
+   # Option 2: OpenRouter (alternative)
+   export OPENROUTER_API_KEY="your-openrouter-key"
+   ```
+
+3. Configure sources in `consolidate_config.toml`:
+   ```toml
+   [global]
+   # Choose your API provider
+   api_provider = "openai"  # or "openrouter"
+
+   [[sources]]
+   type = "bear"  # or "claude", "xbookmarks", "chatgptexport"
+   srcDir = "~/path/to/source"
+   destDir = "./output/destination"
+   ```
+
+4. Run the tool:
    ```bash
    uv run python -m consolidate_markdown --config ./consolidate_config.toml
    ```
+
+See the [Configuration Guide](configuration.md) for detailed setup options and [API Providers](#api-providers) section above for more details on choosing between OpenAI and OpenRouter.
 
 ## Additional Resources
 

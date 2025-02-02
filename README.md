@@ -76,6 +76,17 @@ consolidate-markdown --config config.toml --force
 - [Configuration Guide](docs/configuration.md)
 - [Architecture Overview](docs/architecture.md)
 
+## Model Performance
+
+The tool supports multiple vision models through OpenRouter, each with different strengths and performance characteristics. Our latest model analysis (February 2024) shows:
+
+- **GPT-4 Vision**: Best overall performance for both technical and UI content
+- **Google Gemini Pro Vision**: Strong technical understanding, excellent value
+- **Yi Vision**: Good balance of capabilities and speed
+- **DeepInfra BLIP**: Reliable for basic tasks, competitive speed
+
+For detailed performance analysis, benchmarks, and recommendations, see our [Model Performance Analysis](docs/model_performance.md).
+
 ## Contributing
 
 1. Fork the repository

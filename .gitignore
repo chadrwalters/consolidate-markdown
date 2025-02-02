@@ -49,3 +49,7 @@ htmlcov/
 .ruff_cache/
 conversations.json
 users.json
+
+# DS_Store
+.DS_Store
+**/.DS_Store
