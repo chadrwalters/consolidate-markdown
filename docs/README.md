@@ -109,3 +109,13 @@ Extracted Content:
 - [Configuration Template](../config.template.toml)
 - [Test Fixtures](../tests/fixtures/README.md)
 - [Source Code](../src/consolidate_markdown/)
+
+## AI Development Guidelines
+
+The project uses AI assistance through Cursor IDE. All AI interactions follow a standardized startup procedure defined in `.cursor/rules/00-ai-startup.rules.mdc`. This ensures consistent and thorough project understanding before any development work begins.
+
+Key aspects of AI interaction:
+- Standardized startup sequence
+- Rule-based development guidelines
+- Documentation-first approach
+- Plan-driven development
