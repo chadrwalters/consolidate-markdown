@@ -1,22 +1,14 @@
 ---
 description: Rules for pre-commit handling and validation
 globs:
----
----
-title: Pre-commit Handling Rules
-version: 1.0.0
-date: 2025-01-31
-status: Active
-dependencies:
-  - 00-base.rules.mdc
-  - 30-git-workflow.rules.mdc
-patterns:
   inherit:
-    - config.all
+    - python.source
   local:
     pre_commit:
       - ".pre-commit-config.yaml"
       - ".git/hooks/pre-commit"
+    exclude:
+      - ".git/hooks/pre-commit.sample"
 ---
 
 # Pre-commit Handling Rules
