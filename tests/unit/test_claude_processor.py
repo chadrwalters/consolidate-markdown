@@ -1,6 +1,7 @@
 """Unit tests for the Claude processor."""
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Generator, List
@@ -52,10 +53,7 @@ def source_config(tmp_path: Path) -> Generator[SourceConfig, None, None]:
 
     # Create required files with test-specific names
     conversations_file = src_dir / "conversations.json"
-    users_file = src_dir / "users.json"
-
     conversations_file.write_text("[]")
-    users_file.write_text("{}")
 
     # Use pytest's built-in yield fixture for cleanup
     yield SourceConfig(type="claude", src_dir=src_dir, dest_dir=dest_dir)
@@ -64,12 +62,10 @@ def source_config(tmp_path: Path) -> Generator[SourceConfig, None, None]:
     try:
         if conversations_file.exists():
             conversations_file.unlink()
-        if users_file.exists():
-            users_file.unlink()
         if src_dir.exists():
             src_dir.rmdir()
         if dest_dir.exists():
-            dest_dir.rmdir()
+            shutil.rmtree(dest_dir)
     except Exception:
         pass  # Best effort cleanup
 
@@ -444,9 +440,14 @@ def test_artifact_relationship_mapping(
 
 
 def test_artifact_id_generation(
-    source_config: SourceConfig, global_config: GlobalConfig
+    source_config: SourceConfig,
+    global_config: GlobalConfig,
+    caplog: pytest.LogCaptureFixture,
 ):
     """Test consistent generation of artifact IDs."""
+    # Configure debug logging
+    caplog.set_level(logging.DEBUG)
+
     # Test that same content gets same ID
     conversation1 = {
         "uuid": "conv-1",
@@ -470,6 +471,8 @@ def test_artifact_id_generation(
     # Process first conversation
     conversations_file = source_config.src_dir / "conversations.json"
     conversations_file.write_text(json.dumps([conversation1]))
+    cache_file = processor1.cache_manager.cache_dir / "conversations.json"
+    cache_file.write_text(json.dumps([conversation1]))
     processor1.process(config)
 
     # Get first artifact ID
@@ -478,6 +481,8 @@ def test_artifact_id_generation(
     artifact_id1 = next(
         line[2:14] for line in index_content.split("\n") if line.startswith("- ")
     )
+    print("\nArtifact 1 content:")
+    print((artifacts_dir / f"{artifact_id1}.md").read_text())
 
     # Clean up and process second conversation with same content
     shutil.rmtree(artifacts_dir)
@@ -499,6 +504,8 @@ def test_artifact_id_generation(
 
     processor2 = ClaudeProcessor(source_config)
     conversations_file.write_text(json.dumps([conversation2]))
+    cache_file = processor2.cache_manager.cache_dir / "conversations.json"
+    cache_file.write_text(json.dumps([conversation2]))
     processor2.process(config)
 
     # Get second artifact ID
@@ -506,6 +513,8 @@ def test_artifact_id_generation(
     artifact_id2 = next(
         line[2:14] for line in index_content.split("\n") if line.startswith("- ")
     )
+    print("\nArtifact 2 content:")
+    print((artifacts_dir / f"{artifact_id2}.md").read_text())
 
     # IDs should match for same content
     assert artifact_id1 == artifact_id2
@@ -532,6 +541,8 @@ def test_artifact_id_generation(
 
     processor3 = ClaudeProcessor(source_config)
     conversations_file.write_text(json.dumps([conversation3]))
+    cache_file = processor3.cache_manager.cache_dir / "conversations.json"
+    cache_file.write_text(json.dumps([conversation3]))
     processor3.process(config)
 
     # Get third artifact ID
@@ -539,6 +550,8 @@ def test_artifact_id_generation(
     artifact_id3 = next(
         line[2:14] for line in index_content.split("\n") if line.startswith("- ")
     )
+    print("\nArtifact 3 content:")
+    print((artifacts_dir / f"{artifact_id3}.md").read_text())
 
     # ID should be different for different content
     assert artifact_id1 != artifact_id3

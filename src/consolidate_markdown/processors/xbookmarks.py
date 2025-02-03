@@ -78,6 +78,9 @@ class XBookmarksProcessor(SourceProcessor):
                 if not should_process and cached and "processed_content" in cached:
                     logger.debug(f"Using cached version of {bookmark_dir.name}")
                     bookmark_result.add_from_cache(self._processor_type)
+                    bookmark_result.processed += (
+                        1  # Increment processed count for cached content
+                    )
 
                     # Write cached content
                     output_file = (
@@ -123,6 +126,9 @@ class XBookmarksProcessor(SourceProcessor):
                     bookmark_result.add_generated(self._processor_type)
                 else:
                     bookmark_result.add_from_cache(self._processor_type)
+                bookmark_result.processed += (
+                    1  # Increment processed count for newly generated content
+                )
 
                 # Write processed bookmark
                 output_file = self.source_config.dest_dir / f"{bookmark_dir.name}.md"

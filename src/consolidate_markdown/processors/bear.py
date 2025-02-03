@@ -176,6 +176,7 @@ class BearProcessor(SourceProcessor):
         if not should_process and cached and "processed_content" in cached:
             logger.debug(f"Using cached version of {note_file.name}")
             result.add_from_cache(self._processor_type)
+            result.processed += 1  # Increment processed count for cached content
 
             # Write cached content
             output_file = self.source_config.dest_dir / note_file.name
@@ -212,6 +213,7 @@ class BearProcessor(SourceProcessor):
 
         # Add to result stats
         result.add_generated(self._processor_type)
+        result.processed += 1  # Increment processed count for newly generated content
 
     def _process_attachments(
         self,

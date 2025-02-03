@@ -81,6 +81,7 @@ class ProcessingResult:
         self.gpt_skipped = 0
         self.errors: List[str] = []
         self.processor_stats: Dict[str, ProcessorStats] = {}
+        self.last_action: str = ""
 
     def get_processor_stats(self, processor_type: str) -> ProcessorStats:
         """Get or create stats for a processor type.
@@ -155,13 +156,13 @@ class ProcessingResult:
         Args:
             processor_type: The type of processor that processed the note
         """
-        self.processed += 1
         self.from_cache += 1
         self.regenerated = 0  # Reset regenerated counter for cached items
         stats = self.get_processor_stats(processor_type)
         stats.processed += 1
         stats.from_cache += 1
         stats.regenerated = 0  # Reset regenerated counter in processor stats too
+        self.last_action = "from_cache"
 
     def add_generated(self, processor_type: str):
         """Record a generated note.
@@ -169,11 +170,11 @@ class ProcessingResult:
         Args:
             processor_type: The type of processor that generated the note
         """
-        self.processed += 1
         self.regenerated += 1  # Increment instead of setting to 1
         stats = self.get_processor_stats(processor_type)
         stats.processed += 1
         stats.regenerated += 1  # Increment in processor stats too
+        self.last_action = "generated"
 
     def add_skipped(self, processor_type: str):
         """Record a skipped note.
@@ -184,6 +185,7 @@ class ProcessingResult:
         self.skipped += 1
         stats = self.get_processor_stats(processor_type)
         stats.skipped += 1
+        self.last_action = "skipped"
 
     def add_document_generated(self, processor_type: str):
         """Record a generated document.

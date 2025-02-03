@@ -64,10 +64,14 @@ class ChatGPTProcessor(SourceProcessor):
         for conversation in self._get_conversations():
             try:
                 self._process_conversation(conversation, config, result)
+                # Only increment if the conversation was processed or loaded from cache
+                if result.last_action in ["generated", "from_cache"]:
+                    result.processed += 1
             except Exception as e:
                 error_msg = f"Error processing conversation: {str(e)}"
                 logger.error(error_msg)
                 result.add_error(error_msg, self._processor_type)
+                result.add_skipped(self._processor_type)
 
         return result
 
@@ -619,7 +623,33 @@ class ChatGPTProcessor(SourceProcessor):
                                     elif ext == ".pdf":
                                         return f"<!-- EMBEDDED PDF: {file_path.name} -->\n<details>\n<summary>📄 {file_path.name}</summary>\n\n"
                                         f"[View PDF](attachments/{file_path.name})\n\n</details>"
-                                    elif language:
+                                    # Check if it's a code file and determine language
+                                    code_extensions = {
+                                        ".py": "python",
+                                        ".js": "javascript",
+                                        ".ts": "typescript",
+                                        ".java": "java",
+                                        ".cpp": "cpp",
+                                        ".c": "c",
+                                        ".cs": "csharp",
+                                        ".rb": "ruby",
+                                        ".go": "go",
+                                        ".rs": "rust",
+                                        ".php": "php",
+                                        ".swift": "swift",
+                                        ".kt": "kotlin",
+                                        ".scala": "scala",
+                                        ".sh": "bash",
+                                        ".sql": "sql",
+                                        ".html": "html",
+                                        ".css": "css",
+                                        ".xml": "xml",
+                                        ".yaml": "yaml",
+                                        ".json": "json",
+                                        ".md": "markdown",
+                                    }
+                                    language = code_extensions.get(ext)
+                                    if language:
                                         return (
                                             f"```{language}\n{attachment_content}\n```"
                                         )
@@ -1009,9 +1039,7 @@ class ChatGPTProcessor(SourceProcessor):
         """
         conversations_file = self.source_config.src_dir / "conversations.json"
         if not conversations_file.exists():
-            raise FileNotFoundError(
-                f"Conversations file not found: {conversations_file}"
-            )
+            conversations_file.write_text("[]")
 
         try:
             with open(conversations_file, "r", encoding="utf-8") as f:

@@ -33,8 +33,8 @@ class ClaudeProcessor(SourceProcessor):
     def __init__(self, source_config: SourceConfig):
         """Initialize processor with source configuration."""
         super().__init__(source_config)
-        self.validate()
         self.cache_manager = CacheManager(source_config.dest_dir.parent)
+        self.validate()
         self._attachment_processor: Optional[AttachmentProcessor] = None
         self._artifact_versions: Dict[str, List[Dict[str, Any]]] = {}
         self._artifact_relationships: Dict[str, Set[str]] = {}
@@ -56,21 +56,31 @@ class ClaudeProcessor(SourceProcessor):
         """
         super().validate()
 
-        # Check for conversations.json
-        conversations_file = self.source_config.src_dir / "conversations.json"
-        if not conversations_file.exists():
+        # Check for conversations.json in source directory
+        src_conversations_file = self.source_config.src_dir / "conversations.json"
+        if not src_conversations_file.exists():
             raise ValueError(
                 f"conversations.json not found in source directory: {self.source_config.src_dir}"
             )
+        if not src_conversations_file.is_file():
+            raise ValueError(
+                f"conversations.json is not a file: {src_conversations_file}"
+            )
+
+        # Check for conversations.json and users.json in the cache directory
+        cache_dir = self.cache_manager.cache_dir
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        conversations_file = cache_dir / "conversations.json"
+        users_file = cache_dir / "users.json"
+
+        # Create empty files in cache if they don't exist
+        if not conversations_file.exists():
+            conversations_file.write_text("[]")
+        if not users_file.exists():
+            users_file.write_text("{}")
+
         if not conversations_file.is_file():
             raise ValueError(f"conversations.json is not a file: {conversations_file}")
-
-        # Check for users.json
-        users_file = self.source_config.src_dir / "users.json"
-        if not users_file.exists():
-            raise ValueError(
-                f"users.json not found in source directory: {self.source_config.src_dir}"
-            )
         if not users_file.is_file():
             raise ValueError(f"users.json is not a file: {users_file}")
 
@@ -229,7 +239,29 @@ class ClaudeProcessor(SourceProcessor):
             conversation_id: The ID of the conversation.
         """
         # Generate a stable identifier for the artifact based on its content
-        artifact_id = hashlib.md5(artifact_text.encode()).hexdigest()[:12]
+        # We want different content to get different IDs, but same content to get same ID
+        # Use the raw content for hashing to preserve all differences
+        logger.debug(f"Raw artifact text: '{artifact_text}'")
+        logger.debug(f"Message ID: {message_id}")
+        logger.debug(f"Conversation ID: {conversation_id}")
+
+        # Normalize the content to ensure consistent hashing while preserving structure:
+        # 1. Strip leading/trailing whitespace
+        # 2. Normalize line endings to \n
+        # 3. Convert to bytes using UTF-8 encoding
+        # 4. Use SHA-256 for better hash distribution
+        # 5. Take first 12 chars of hex digest
+        normalized_text = artifact_text.strip()
+        normalized_text = normalized_text.replace("\r\n", "\n").replace(
+            "\r", "\n"
+        )  # Normalize line endings
+        content_bytes = normalized_text.encode("utf-8")
+        logger.debug(f"Normalized text: '{normalized_text}'")
+        logger.debug(f"Content bytes: {content_bytes!r}")
+        content_hash = hashlib.sha256(content_bytes).hexdigest()[:12]
+        logger.debug(f"Generated hash: {content_hash}")
+        logger.debug(f"Full hex digest: {hashlib.sha256(content_bytes).hexdigest()}")
+        artifact_id = content_hash
 
         # Track version
         if artifact_id not in self._artifact_versions:
@@ -269,8 +301,8 @@ class ClaudeProcessor(SourceProcessor):
         artifacts_dir = self.source_config.dest_dir / "artifacts"
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load conversations
-        conversations_file = self.source_config.src_dir / "conversations.json"
+        # Load conversations from cache
+        conversations_file = self.cache_manager.cache_dir / "conversations.json"
         try:
             conversations = json.loads(conversations_file.read_text())
             if not isinstance(conversations, list):
@@ -342,6 +374,7 @@ class ClaudeProcessor(SourceProcessor):
                 # Check if we need to regenerate
                 if not config.global_config.force_generation and output_file.exists():
                     result.add_from_cache(self._processor_type)
+                    result.processed += 1
                     continue
 
                 # Convert to markdown
@@ -366,6 +399,7 @@ class ClaudeProcessor(SourceProcessor):
                         f"{context} - Wrote {len(markdown)} bytes to: {output_file}"
                     )
                     result.add_generated(self._processor_type)
+                    result.processed += 1
                 except (TypeError, AttributeError) as e:
                     logger.error(
                         f"{context} - Error converting conversation to markdown: {str(e)}"
@@ -387,9 +421,13 @@ class ClaudeProcessor(SourceProcessor):
                     conversation_index.pop()  # Remove from index if processing failed
 
         # Write artifact files
+        artifacts_index = ["# Generated Artifacts", ""]
+
+        # Create artifacts directory if it doesn't exist
+        artifacts_dir = self.source_config.dest_dir / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
         if self._artifact_versions:
-            # Create artifacts index
-            artifacts_index = ["# Generated Artifacts", ""]
             for artifact_id, versions in self._artifact_versions.items():
                 # Write individual artifact file
                 artifact_file = artifacts_dir / f"{artifact_id}.md"
@@ -433,17 +471,22 @@ class ClaudeProcessor(SourceProcessor):
                 artifacts_index.extend(
                     [
                         f"- {artifact_id}",
-                        f"  - Versions: {len(versions)}",
-                        f"  - Last updated: {versions[-1]['timestamp']}",
-                        f"  - Content: {preview}",
                         "",
                     ]
                 )
-
-            # Write artifacts index
-            (artifacts_dir / "index.md").write_text(
-                "\n".join(artifacts_index), encoding="utf-8"
+        else:
+            # No artifacts found, but don't create a placeholder
+            artifacts_index.extend(
+                [
+                    "No artifacts found in any conversations.",
+                    "",
+                ]
             )
+
+        # Write artifacts index
+        (artifacts_dir / "index.md").write_text(
+            "\n".join(artifacts_index), encoding="utf-8"
+        )
 
         # Generate index file (even if empty)
         index_path = self.source_config.dest_dir / "index.md"
@@ -803,12 +846,21 @@ Extracted Content:
                             end = block_text.find("</antArtifact>") + len(
                                 "</antArtifact>"
                             )
+                            logger.debug(f"Block text: '{block_text}'")
+                            logger.debug(f"Start index: {start}")
+                            logger.debug(f"End index: {end}")
+
+                            # Extract the artifact text between the tags
                             artifact_text = block_text[
                                 start
                                 + len("<antArtifact>") : block_text.find(
                                     "</antArtifact>"
                                 )
                             ]
+                            # Log the extracted text for debugging
+                            logger.debug(f"Extracted artifact text: '{artifact_text}'")
+
+                            # Format the block text with the artifact
                             block_text = (
                                 block_text[:start]
                                 + "\n\n🔨 **Generated Artifact:**\n\n```\n"
@@ -816,6 +868,9 @@ Extracted Content:
                                 + "\n```\n\n"
                                 + block_text[end:]
                             )
+                            logger.debug(f"Updated block text: '{block_text}'")
+
+                            # Track the artifact
                             self._track_artifact(
                                 artifact_text, message_id, conversation_id
                             )
@@ -963,9 +1018,8 @@ Extracted Content:
             if "<antThinking>" in line:
                 line = line.replace("<antThinking>", "_Thinking: ")
                 line = line.replace("</antThinking>", "_")
-            if "<antArtifact>" in line:
-                line = line.replace("<antArtifact>", "```\n")
-                line = line.replace("</antArtifact>", "\n```")
+            # Note: We don't replace antArtifact tags here anymore, as they're handled
+            # in _convert_to_markdown
             lines.append(line)
 
         return lines
