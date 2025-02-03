@@ -4,9 +4,11 @@ on:
   push:
     paths:
       - ".cursor/rules/**"
+      - "src/validation/**"
   pull_request:
     paths:
       - ".cursor/rules/**"
+      - "src/validation/**"
 
 jobs:
   validate:
@@ -25,13 +27,13 @@ jobs:
           pip install pyyaml
 
       - name: Validate rule structure
-        run: python -m src.validation.rules
+        run: python -m src.validation.rules .cursor/rules/*.md
 
       - name: Check rule conflicts
-        run: python -m src.validation.conflicts
+        run: python -m src.validation.conflicts .cursor/rules/*.md
 
       - name: Generate summaries
-        run: python -m src.validation.summary
+        run: python -m src.validation.summary .cursor/rules/*.md
 
       - name: Upload validation report
         uses: actions/upload-artifact@v4
