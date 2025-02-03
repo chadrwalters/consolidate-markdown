@@ -6,7 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
-from consolidate_markdown.processors.base import ProcessingResult, SourceProcessor
+from consolidate_markdown.processors.base import (ProcessingResult,
+                                                  SourceProcessor)
 from consolidate_markdown.runner import Runner
 
 

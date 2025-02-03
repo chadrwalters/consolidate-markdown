@@ -1,80 +1,184 @@
-# Shared Pattern Definitions
-# Purpose: Define reusable glob patterns for different file types and operations
-# Note: These patterns can be inherited and overridden by individual rule files
-
+# Global Pattern Definitions
 # Version: 1.0.0
-# Status: Active
+# Last Updated: 2024-02-02
+# Purpose: Define standardized glob patterns for rule application and file matching
 
-python:
+---
+version: 1.0.0
+last_updated: 2024-02-02
+status: Active
+
+# Rule Categories and Pattern Mappings
+categories:
+  core:
+    name: "Core System Rules"
+    patterns:
+      - "src/**/*.py"
+      - "src/**/__init__.py"
+      - "src/**/core/**/*.py"
+    rules:
+      - "00-startup.md"
+      - "00-template.md"
+      - "01-validation.md"
+      - "02-base.md"
+    description: "Core system functionality and initialization rules"
+    priority: 1
+
+  python:
+    name: "Python Language Rules"
+    patterns:
+      - "src/**/*.py"
+      - "tests/**/*.py"
+      - "scripts/**/*.py"
+    rules:
+      - "10-python-style.md"
+      - "11-python-typing.md"
+      - "12-python-testing.md"
+    description: "Python language standards and best practices"
+    priority: 2
+    excludes:
+      - "**/deprecated/**/*.py"
+      - "**/legacy/**/*.py"
+
+  markdown:
+    name: "Documentation Rules"
+    patterns:
+      - "**/*.md"
+      - "docs/**/*.md"
+      - "README.md"
+      - "CONTRIBUTING.md"
+    rules:
+      - "20-markdown-style.md"
+      - "21-markdown-docs.md"
+    description: "Documentation standards and formatting rules"
+    priority: 2
+
+  workflow:
+    name: "Process Rules"
+    patterns:
+      - ".git/**/*"
+      - ".github/**/*"
+      - ".gitlab-ci.yml"
+      - "pre-commit-config.yaml"
+    rules:
+      - "30-git-workflow.md"
+      - "31-pre-commit.md"
+    description: "Version control and workflow processes"
+    priority: 3
+
+  operations:
+    name: "Operation Rules"
+    patterns:
+      - "src/**/*.py"
+      - "src/**/operations/**/*.py"
+      - "src/**/handlers/**/*.py"
+    rules:
+      - "40-error-handling.md"
+      - "41-logging.md"
+      - "50-operation-modes.md"
+    description: "Operational behavior and system management"
+    priority: 3
+    excludes:
+      - "**/tests/**/*.py"
+
+  integrations:
+    name: "Integration Rules"
+    patterns:
+      - "src/**/integrations/**/*.py"
+      - "src/**/connectors/**/*.py"
+      - "src/**/adapters/**/*.py"
+    rules:
+      - "70-command-triggers.md"
+    description: "External integrations and service connections"
+    priority: 4
+
+# Automatic Rule Attachment Configuration
+auto_attach:
+  file_open:
+    - match: "**/*.py"
+      load: ["core", "python", "operations"]
+      priority: 1
+    - match: "**/*.md"
+      load: ["markdown"]
+      priority: 2
+    - match: ".git/**/*"
+      load: ["workflow"]
+      priority: 3
+    - match: "src/**/integrations/**/*.py"
+      load: ["integrations"]
+      priority: 4
+
+  git_operation:
+    - match: "*"
+      load: ["workflow"]
+      priority: 1
+
+# Common File Pattern Groups
+patterns:
   source:
-    - "src/**/*.py"
-    - "scripts/**/*.py"
+    python:
+      patterns:
+        - "src/**/*.py"
+        - "scripts/**/*.py"
+      excludes:
+        - "**/tests/**/*.py"
+        - "**/deprecated/**/*.py"
+
   tests:
-    - "tests/**/*.py"
-    - "tests/unit/**/*.py"
-    - "tests/integration/**/*.py"
-  exclude:
-    - "**/__pycache__/**"
-    - "**/.pytest_cache/**"
-    - "**/venv/**"
-    - "**/env/**"
-    - "**/.env/**"
+    python:
+      - "tests/**/*test*.py"
+      - "tests/**/*_test.py"
+      - "tests/**/test_*.py"
+      - "src/**/tests/**/*.py"
 
-markdown:
   documentation:
-    - "docs/**/*.md"
-    - "**/*.md"
-    - "!tests/**/*.md" # Exclude test fixtures
-  rules:
-    - ".cursor/rules/**/*.rules.mdc"
-  exclude:
-    - "**/node_modules/**"
-    - "**/build/**"
-    - "**/dist/**"
-    - "**/venv/**"
+    markdown:
+      - "**/README.md"
+      - "**/CONTRIBUTING.md"
+      - "**/CHANGELOG.md"
+      - ".github/**/*.md"
+      - "docs/**/*.md"
 
-config:
-  all:
-    - "**/*.toml"
-    - "**/*.yaml"
-    - "**/*.yml"
-    - "**/*.json"
-  exclude:
-    - "**/node_modules/**"
-    - "**/.git/**"
-    - "**/build/**"
-    - "**/dist/**"
+  configuration:
+    python:
+      - "pyproject.toml"
+      - "setup.cfg"
+      - "setup.py"
+      - "requirements.txt"
+      - "requirements/*.txt"
+    git:
+      - ".gitignore"
+      - ".gitattributes"
+      - ".github/**/*.yml"
+    ci:
+      - ".gitlab-ci.yml"
+      - ".github/workflows/*.yml"
 
-# Common operation patterns
-operations:
-  test_files:
-    - "tests/**/*test*.py"
-    - "tests/**/*_test.py"
-    - "tests/**/test_*.py"
-  documentation:
-    - "docs/**/*.md"
-    - "README.md"
-    - "CONTRIBUTING.md"
-    - "CHANGELOG.md"
-  config:
-    - "pyproject.toml"
-    - "setup.cfg"
-    - "setup.py"
-    - "requirements.txt"
-    - "requirements/*.txt"
-
-# Content search patterns
-content:
-  todos:
+# Content Search Patterns
+content_patterns:
+  review_required:
     - "**/*.py:# TODO:"
     - "**/*.md:TODO:"
-    - "**/*.rules.mdc:TODO:"
-  fixmes:
     - "**/*.py:# FIXME:"
     - "**/*.md:FIXME:"
-    - "**/*.rules.mdc:FIXME:"
-# Usage:
-# 1. Import shared patterns using the 'inherit' key in rule files
-# 2. Override or extend with local patterns as needed
-# 3. Add file-specific exclusions in rule files
-# 4. Reference patterns using dot notation (e.g., python.source)
+    - "**/*.py:# REVIEW:"
+    - "**/*.md:REVIEW:"
+
+  deprecated:
+    - "**/*.py:# DEPRECATED:"
+    - "**/*.md:DEPRECATED:"
+    - "**/*.py:# TODO(deprecated):"
+    - "**/*.md:TODO(deprecated):"
+
+  security:
+    - "**/*.py:# SECURITY:"
+    - "**/*.md:SECURITY:"
+    - "**/*.py:# WARNING:"
+    - "**/*.md:WARNING:"
+# Usage Instructions:
+# 1. Import patterns using the 'inherit' key in rule frontmatter
+# 2. Override or extend patterns using local globs
+# 3. Use excludes to filter out specific paths
+# 4. Reference using dot notation (e.g., patterns.source.python)
+# 5. Combine patterns using arrays of pattern groups
+# 6. Priority determines rule application order (lower number = higher priority)

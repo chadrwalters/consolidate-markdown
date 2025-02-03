@@ -3,10 +3,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from consolidate_markdown.attachments.gpt import GPTProcessor
-from consolidate_markdown.attachments.processor import (
-    AttachmentMetadata,
-    AttachmentProcessor,
-)
+from consolidate_markdown.attachments.processor import (AttachmentMetadata,
+                                                        AttachmentProcessor)
 from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import GlobalConfig
 from consolidate_markdown.processors.base import ProcessingResult

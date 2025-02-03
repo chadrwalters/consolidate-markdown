@@ -54,3 +54,8 @@ users.json
 # DS_Store
 .DS_Store
 **/.DS_Store
+
+# Rule summaries
+.cursor/rules/**/*.summary.json
+.cursor/rules/**/*.summary.md
+.cursor/rules/summaries/

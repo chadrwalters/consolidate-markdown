@@ -3,7 +3,7 @@
 import json
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, Generator, List
 
 import pytest
 
@@ -43,18 +43,35 @@ def sample_conversation() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def source_config(tmp_path: Path) -> SourceConfig:
+def source_config(tmp_path: Path) -> Generator[SourceConfig, None, None]:
     """Create a test source configuration."""
-    src_dir = tmp_path / "src"
-    dest_dir = tmp_path / "dest"
+    src_dir = tmp_path / "claude_test_src"
+    dest_dir = tmp_path / "claude_test_dest"
     src_dir.mkdir()
     dest_dir.mkdir()
 
-    # Create required files
-    (src_dir / "conversations.json").write_text("[]")
-    (src_dir / "users.json").write_text("{}")
+    # Create required files with test-specific names
+    conversations_file = src_dir / "conversations.json"
+    users_file = src_dir / "users.json"
 
-    return SourceConfig(type="claude", src_dir=src_dir, dest_dir=dest_dir)
+    conversations_file.write_text("[]")
+    users_file.write_text("{}")
+
+    # Use pytest's built-in yield fixture for cleanup
+    yield SourceConfig(type="claude", src_dir=src_dir, dest_dir=dest_dir)
+
+    # Cleanup after test
+    try:
+        if conversations_file.exists():
+            conversations_file.unlink()
+        if users_file.exists():
+            users_file.unlink()
+        if src_dir.exists():
+            src_dir.rmdir()
+        if dest_dir.exists():
+            dest_dir.rmdir()
+    except Exception:
+        pass  # Best effort cleanup
 
 
 @pytest.fixture

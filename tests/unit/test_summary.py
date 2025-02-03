@@ -8,7 +8,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from consolidate_markdown.output import print_summary
-from consolidate_markdown.processors.result import ProcessingResult, ProcessorStats
+from consolidate_markdown.processors.result import (ProcessingResult,
+                                                    ProcessorStats)
 
 
 class TestSummaryGeneration:

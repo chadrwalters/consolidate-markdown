@@ -1,7 +1,58 @@
 ---
-description:
+description: "Core base rules and standards for the project"
 globs:
+  - "**/*"  # Base rules apply to all files
+version: 1.0.0
+status: Active
 ---
+
+# Base Rules and Standards
+Version: 1.0.0
+Last Updated: 2024-02-03
+
+## Abstract/Purpose
+This document defines the core base rules and standards that govern the entire project. It establishes fundamental patterns, organization, and requirements that all other rules build upon.
+
+## Table of Contents
+- [Mandatory Constraints](#mandatory-constraints)
+- [Advisory Guidelines](#advisory-guidelines)
+- [File Organization](#file-organization)
+- [Pattern Management](#pattern-management)
+- [Rule Structure](#rule-structure)
+- [Project Structure](#project-structure)
+- [Code Standards](#code-standards)
+- [Exception Clauses](#exception-clauses)
+- [Examples](#examples)
+- [Dependencies](#dependencies)
+- [Changelog](#changelog)
+
+## Mandatory Constraints
+### MUST
+- Follow the numeric prefix system for rule organization
+- Place all rules in `.cursor/rules/` directory
+- Include required sections in all rule files
+- Use proper MDC processing hints
+- Follow project structure standards
+- Validate all rules before committing
+
+### MUST NOT
+- Create subdirectories in rules directory
+- Skip required sections in rule files
+- Use inconsistent formatting
+- Break established patterns
+
+## Advisory Guidelines
+### SHOULD
+- Keep rules focused and specific
+- Include clear examples
+- Document changes thoroughly
+- Use cross-references appropriately
+
+### RECOMMENDED
+- Regular rule validation
+- Periodic rule review
+- Clear documentation
+- Consistent formatting
 
 # Base Rules
 
@@ -20,16 +71,6 @@ globs:
   - inherit: List of global patterns to include
   - local: File-specific pattern definitions
   - exclude: Local exclusion patterns
-
----
-description:
-globs:
----
-# Base Rules and Standards
-# Version: 1.0.0
-# Purpose: Defines core project rules, organization, and standards
-# @since: 1.0.0
-# @updated: 2025-01-31
 
 # =============================================
 # METADATA SECTIONS
@@ -450,3 +491,42 @@ command_base_rules:
         - "Include usage examples"
         - "Specify required permissions"
 # </section: command_base_rules>
+
+## Exception Clauses
+Exceptions to these base rules require:
+- Written justification
+- Team review and approval
+- Documentation in rule file
+- Migration plan if temporary
+
+## Examples
+### Good Example
+```markdown
+---
+description: "Python code formatting standards"
+globs:
+  - "src/**/*.py"
+version: 1.0.0
+status: Active
+---
+
+# Python Formatting Standards
+[Complete content following template...]
+```
+
+### Bad Example
+```markdown
+# Python Rules
+Some formatting guidelines...
+// TODO: Add more details
+```
+
+## Dependencies
+This is a base rule with no dependencies.
+
+## Changelog
+### 1.0.0 (2024-02-03)
+- Initial version
+- Established base rules
+- Defined MDC processing
+- Set up rule organization

@@ -357,4 +357,4 @@ class GPTProcessor:
             processor_type: The type of processor requesting the analysis
         """
         result.add_gpt_skipped(processor_type)
-        return "[Image description will be generated in Phase 4]"
+        return f"[GPT image analysis skipped for {image_path.name}]"

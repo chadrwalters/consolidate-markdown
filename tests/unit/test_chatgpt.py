@@ -7,14 +7,10 @@ from typing import Any, Dict, List
 import pytest
 
 from consolidate_markdown.attachments.processor import AttachmentProcessor
-from consolidate_markdown.config import (
-    DEFAULT_OPENAI_BASE_URL,
-    DEFAULT_OPENROUTER_BASE_URL,
-    Config,
-    GlobalConfig,
-    ModelsConfig,
-    SourceConfig,
-)
+from consolidate_markdown.config import (DEFAULT_OPENAI_BASE_URL,
+                                         DEFAULT_OPENROUTER_BASE_URL, Config,
+                                         GlobalConfig, ModelsConfig,
+                                         SourceConfig)
 from consolidate_markdown.processors.chatgpt import ChatGPTProcessor
 
 
