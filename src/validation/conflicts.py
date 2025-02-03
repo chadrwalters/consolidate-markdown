@@ -1,7 +1,9 @@
 """Rule conflicts validation module."""
 
 import argparse
+import os
 from itertools import combinations
+from pathlib import Path
 from typing import Dict, List
 
 import yaml
@@ -13,7 +15,19 @@ def load_globs() -> Dict:
     Returns:
         Dict containing glob patterns
     """
-    with open(".cursor/rules/globs.yaml") as f:
+    # Get the workspace root directory (where .cursor/rules is located)
+    workspace_root = Path(os.getcwd())
+    while (
+        not (workspace_root / ".cursor").is_dir()
+        and workspace_root != workspace_root.parent
+    ):
+        workspace_root = workspace_root.parent
+
+    globs_file = workspace_root / ".cursor" / "rules" / "globs.yaml"
+    if not globs_file.exists():
+        raise FileNotFoundError(f"Could not find globs.yaml at {globs_file}")
+
+    with open(globs_file) as f:
         return yaml.safe_load(f)
 
 
