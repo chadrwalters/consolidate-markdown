@@ -33,8 +33,10 @@ class ClaudeProcessor(SourceProcessor):
     def __init__(self, source_config: SourceConfig):
         """Initialize processor with source configuration."""
         super().__init__(source_config)
-        self.cache_manager = CacheManager(source_config.dest_dir.parent)
-        self.validate()
+        # Initialize cache manager with global config directory
+        self.cache_manager: Optional[
+            CacheManager
+        ] = None  # Will be set when processing with global config
         self._attachment_processor: Optional[AttachmentProcessor] = None
         self._artifact_versions: Dict[str, List[Dict[str, Any]]] = {}
         self._artifact_relationships: Dict[str, Set[str]] = {}
@@ -67,22 +69,10 @@ class ClaudeProcessor(SourceProcessor):
                 f"conversations.json is not a file: {src_conversations_file}"
             )
 
-        # Check for conversations.json and users.json in the cache directory
-        cache_dir = self.cache_manager.cache_dir
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        conversations_file = cache_dir / "conversations.json"
-        users_file = cache_dir / "users.json"
-
-        # Create empty files in cache if they don't exist
-        if not conversations_file.exists():
-            conversations_file.write_text("[]")
-        if not users_file.exists():
-            users_file.write_text("{}")
-
-        if not conversations_file.is_file():
-            raise ValueError(f"conversations.json is not a file: {conversations_file}")
-        if not users_file.is_file():
-            raise ValueError(f"users.json is not a file: {users_file}")
+        # Skip cache directory check if cache_manager is not initialized yet
+        if self.cache_manager is not None:
+            # Ensure cache directory exists
+            self.cache_manager.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_conversation(self, conversation: Dict[str, Any]) -> bool:
         """Validate a conversation has required fields and valid content.
@@ -282,33 +272,36 @@ class ClaudeProcessor(SourceProcessor):
         self._artifact_relationships[conversation_id].add(artifact_id)
 
     def _process_impl(self, config: Config) -> ProcessingResult:
-        """Process Claude export files.
+        """Process Claude conversation exports into Markdown.
 
         Args:
-            config: The configuration to use.
+            config: The configuration object.
 
         Returns:
-            The processing result.
+            The processing result object.
         """
+        # Initialize cache manager if not already set
+        if self.cache_manager is None:
+            self.cache_manager = CacheManager(config.global_config.cm_dir)
+
+        # Create destination directory if it doesn't exist
+        self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize result
         result = ProcessingResult()
 
         # Reset artifact tracking
         self._artifact_versions = {}
         self._artifact_relationships = {}
 
-        # Create all necessary directories
-        self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
-        artifacts_dir = self.source_config.dest_dir / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        # Load conversations from cache
-        conversations_file = self.cache_manager.cache_dir / "conversations.json"
+        # Load conversations from source
+        conversations_file = self.source_config.src_dir / "conversations.json"
         try:
             conversations = json.loads(conversations_file.read_text())
             if not isinstance(conversations, list):
                 conversations = [conversations]
 
-            # Filter out None values and non-dict items
+            # Filter out non-dict items
             conversations = [c for c in conversations if isinstance(c, dict)]
 
             # Sort conversations by creation date (most recent first)

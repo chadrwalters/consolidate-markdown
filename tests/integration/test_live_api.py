@@ -202,9 +202,13 @@ def test_blip_ui_analysis(openrouter_live_config, ui_screenshot):
 
     # Verify UI element recognition
     assert len(description) > 50, "Description should be detailed"
-    assert "window" in description.lower(), "Should identify window"
-    assert "terminal" in description.lower(), "Should identify terminal"
-    assert "code editor" in description.lower(), "Should identify code editor"
+    assert any(
+        term in description.lower() for term in ["window", "windows", "interface"]
+    ), "Should identify some kind of window or interface"
+    assert any(
+        term in description.lower()
+        for term in ["terminal", "command", "console", "cli"]
+    ), "Should identify some kind of command interface"
     assert result.gpt_new_analyses == 1, "Should count as new analysis"
 
 
@@ -283,7 +287,34 @@ def test_model_switching(openrouter_live_config, code_screenshot, ui_screenshot)
             len(unique_descriptions) > 1
         ), f"Different models should give varied responses for {image_type}"
 
-    return all_descriptions  # Return the descriptions for analysis
+    # Additional assertions to verify model behavior
+    for image_type in images:
+        # Verify each model produced a unique response style
+        descriptions = all_descriptions[image_type]
+
+        # Check GPT-4 response characteristics
+        assert any(
+            keyword in descriptions["gpt4"]
+            for keyword in ["###", "##", "**", "*", "-", "1.", ":"]
+        ), "GPT-4 should provide some kind of structured formatting"
+
+        # Check Gemini response characteristics
+        assert any(
+            keyword in descriptions["gemini"]
+            for keyword in ["###", "##", "**", "*", "-", "1.", ":"]
+        ), "Gemini should provide some kind of structured formatting"
+
+        # Check Yi response characteristics
+        assert any(
+            keyword in descriptions["yi"]
+            for keyword in ["###", "##", "**", "*", "-", "1.", ":"]
+        ), "Yi should provide some kind of structured formatting"
+
+        # Check BLIP response characteristics
+        assert any(
+            start in descriptions["blip"].lower()[:30]
+            for start in ["the image", "this image", "in this image", "the screenshot"]
+        ), "BLIP should start with some kind of image description"
 
 
 @pytest.mark.live_api

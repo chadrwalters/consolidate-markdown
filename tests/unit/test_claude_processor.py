@@ -8,6 +8,7 @@ from typing import Any, Dict, Generator, List
 
 import pytest
 
+from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
 from consolidate_markdown.processors.claude import ClaudeProcessor
 from consolidate_markdown.processors.result import ProcessingResult
@@ -44,36 +45,48 @@ def sample_conversation() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def source_config(tmp_path: Path) -> Generator[SourceConfig, None, None]:
+def source_config(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> Generator[SourceConfig, None, None]:
     """Create a test source configuration."""
     src_dir = tmp_path / "claude_test_src"
     dest_dir = tmp_path / "claude_test_dest"
-    src_dir.mkdir()
-    dest_dir.mkdir()
 
-    # Create required files with test-specific names
+    # Create directories
+    src_dir.mkdir(parents=True)
+    dest_dir.mkdir(parents=True)
+
+    # Create required files in source directory
     conversations_file = src_dir / "conversations.json"
     conversations_file.write_text("[]")
 
-    # Use pytest's built-in yield fixture for cleanup
-    yield SourceConfig(type="claude", src_dir=src_dir, dest_dir=dest_dir)
+    # Create a config that points to our test directories
+    config = SourceConfig(type="claude", src_dir=src_dir, dest_dir=dest_dir)
 
-    # Cleanup after test
-    try:
-        if conversations_file.exists():
-            conversations_file.unlink()
-        if src_dir.exists():
-            src_dir.rmdir()
-        if dest_dir.exists():
-            shutil.rmtree(dest_dir)
-    except Exception:
-        pass  # Best effort cleanup
+    # Register cleanup with pytest to ensure it runs even if tests fail
+    def cleanup():
+        try:
+            shutil.rmtree(src_dir, ignore_errors=True)
+            shutil.rmtree(dest_dir, ignore_errors=True)
+        except Exception as e:
+            print(f"Cleanup error (can be ignored): {e}")
+
+    # Register the cleanup to run after the test
+    request.addfinalizer(cleanup)
+
+    yield config
+
+    # Run cleanup again just in case
+    cleanup()
 
 
 @pytest.fixture
-def global_config() -> GlobalConfig:
+def global_config(tmp_path: Path) -> GlobalConfig:
     """Create a test global configuration."""
-    return GlobalConfig(force_generation=True)
+    # Set cache directory to a test-specific location
+    cache_dir = tmp_path / "claude_test_cache"
+    cache_dir.mkdir(parents=True)
+    return GlobalConfig(cm_dir=cache_dir, force_generation=True)
 
 
 def test_processor_initialization(source_config: SourceConfig):
@@ -101,56 +114,107 @@ def test_json_loading(
     global_config: GlobalConfig,
     sample_conversation: Dict[str, Any],
 ):
-    """Test loading and parsing conversations.json."""
-    # Write sample conversation
-    conversations_file = source_config.src_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([sample_conversation]))
-
+    """Test loading and parsing of JSON data."""
     processor = ClaudeProcessor(source_config)
     config = Config(global_config=global_config, sources=[source_config])
+
+    # Write conversation
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
+    conversations_file.write_text(json.dumps([sample_conversation]))
+
     processor.process(config)
 
 
 def test_metadata_extraction(source_config: SourceConfig, global_config: GlobalConfig):
-    """Test metadata extraction from conversations."""
+    """Test extraction of metadata from conversations."""
+    conversation = {
+        "uuid": "test-conv-123",
+        "name": "Test Conversation",
+        "created_at": "2024-01-31T12:00:00Z",
+        "chat_messages": [
+            {
+                "uuid": "msg-1",
+                "sender": "assistant",
+                "created_at": "2024-01-31T12:00:00Z",
+                "content": [{"type": "text", "text": "Test"}],
+            }
+        ],
+    }
+
     processor = ClaudeProcessor(source_config)
     config = Config(global_config=global_config, sources=[source_config])
 
-    # Write conversations
-    conversations_file = source_config.src_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([]))
+    # Write conversation
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
+    conversations_file.write_text(json.dumps([conversation]))
 
-    processor.process(config)  # Just verify it doesn't raise exceptions
+    processor.process(config)
 
 
 def test_conversation_validation(
     source_config: SourceConfig, global_config: GlobalConfig
 ):
-    """Test conversation validation."""
+    """Test validation of conversation data."""
+    conversation = {
+        "uuid": "test-conv-123",
+        "name": "Test Conversation",
+        "created_at": "2024-01-31T12:00:00Z",
+        "chat_messages": [
+            {
+                "uuid": "msg-1",
+                "sender": "assistant",
+                "created_at": "2024-01-31T12:00:00Z",
+                "content": [{"type": "text", "text": "Test"}],
+            }
+        ],
+    }
+
     processor = ClaudeProcessor(source_config)
     config = Config(global_config=global_config, sources=[source_config])
 
-    # Write conversations
-    conversations_file = source_config.src_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([]))
+    # Write conversation
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
+    conversations_file.write_text(json.dumps([conversation]))
 
     processor.process(config)
 
 
 def test_sender_formatting(source_config: SourceConfig, global_config: GlobalConfig):
-    """Test sender name formatting."""
+    """Test formatting of sender names."""
+    conversation = {
+        "uuid": "test-conv-123",
+        "name": "Test Conversation",
+        "created_at": "2024-01-31T12:00:00Z",
+        "chat_messages": [
+            {
+                "uuid": "msg-1",
+                "sender": "assistant",
+                "created_at": "2024-01-31T12:00:00Z",
+                "content": [{"type": "text", "text": "Test"}],
+            }
+        ],
+    }
+
     processor = ClaudeProcessor(source_config)
     config = Config(global_config=global_config, sources=[source_config])
 
-    # Write conversations
-    conversations_file = source_config.src_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([]))
+    # Write conversation
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
+    conversations_file.write_text(json.dumps([conversation]))
 
-    processor.process(config)  # Just verify it doesn't raise exceptions
+    processor.process(config)
 
 
 def test_timestamp_handling(source_config: SourceConfig, global_config: GlobalConfig):
-    """Test handling of message timestamps."""
+    """Test handling of timestamps."""
     conversation = {
         "uuid": "test-conv-123",
         "name": "Test Conversation",
@@ -181,7 +245,9 @@ def test_timestamp_handling(source_config: SourceConfig, global_config: GlobalCo
     config = Config(global_config=global_config, sources=[source_config])
 
     # Write conversation
-    conversations_file = source_config.src_dir / "conversations.json"
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
     conversations_file.write_text(json.dumps([conversation]))
 
     processor.process(config)
@@ -190,7 +256,7 @@ def test_timestamp_handling(source_config: SourceConfig, global_config: GlobalCo
 def test_content_block_processing(
     source_config: SourceConfig, global_config: GlobalConfig
 ):
-    """Test processing of different content block types."""
+    """Test processing of content blocks."""
     conversation = {
         "uuid": "test-conv-123",
         "name": "Test Conversation",
@@ -223,7 +289,9 @@ def test_content_block_processing(
     config = Config(global_config=global_config, sources=[source_config])
 
     # Write conversation
-    conversations_file = source_config.src_dir / "conversations.json"
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
     conversations_file.write_text(json.dumps([conversation]))
 
     processor.process(config)
@@ -261,7 +329,9 @@ def test_antthinking_extraction(
     config = Config(global_config=global_config, sources=[source_config])
 
     # Write conversation
-    conversations_file = source_config.src_dir / "conversations.json"
+    cache_dir = global_config.cm_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conversations_file = cache_dir / "conversations.json"
     conversations_file.write_text(json.dumps([conversation]))
 
     processor.process(config)
@@ -432,9 +502,18 @@ def test_artifact_relationship_mapping(
     processor = ClaudeProcessor(source_config)
     config = Config(global_config=global_config, sources=[source_config])
 
-    # Write conversations
+    # Initialize cache manager
+    processor.cache_manager = CacheManager(global_config.cm_dir)
+
+    # Write conversations to source directory
     conversations_file = source_config.src_dir / "conversations.json"
     conversations_file.write_text(json.dumps(conversations))
+
+    # Write to cache directory
+    cache_dir = processor.cache_manager.cache_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "conversations.json"
+    cache_file.write_text(json.dumps(conversations))
 
     processor.process(config)
 
@@ -468,11 +547,19 @@ def test_artifact_id_generation(
     processor1 = ClaudeProcessor(source_config)
     config = Config(global_config=global_config, sources=[source_config])
 
+    # Initialize cache manager
+    processor1.cache_manager = CacheManager(global_config.cm_dir)
+
     # Process first conversation
     conversations_file = source_config.src_dir / "conversations.json"
     conversations_file.write_text(json.dumps([conversation1]))
-    cache_file = processor1.cache_manager.cache_dir / "conversations.json"
+
+    # Write to cache directory
+    cache_dir = processor1.cache_manager.cache_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "conversations.json"
     cache_file.write_text(json.dumps([conversation1]))
+
     processor1.process(config)
 
     # Get first artifact ID
@@ -503,6 +590,9 @@ def test_artifact_id_generation(
     }
 
     processor2 = ClaudeProcessor(source_config)
+    processor2.cache_manager = CacheManager(
+        global_config.cm_dir
+    )  # Initialize cache manager
     conversations_file.write_text(json.dumps([conversation2]))
     cache_file = processor2.cache_manager.cache_dir / "conversations.json"
     cache_file.write_text(json.dumps([conversation2]))
@@ -540,6 +630,9 @@ def test_artifact_id_generation(
     }
 
     processor3 = ClaudeProcessor(source_config)
+    processor3.cache_manager = CacheManager(
+        global_config.cm_dir
+    )  # Initialize cache manager
     conversations_file.write_text(json.dumps([conversation3]))
     cache_file = processor3.cache_manager.cache_dir / "conversations.json"
     cache_file.write_text(json.dumps([conversation3]))
@@ -855,14 +948,15 @@ def test_unicode_handling(source_config: SourceConfig, global_config: GlobalConf
     processor.process(config)
 
 
-def test_format_file_size():
+def test_format_file_size(tmp_path: Path):
     """Test file size formatting."""
-    config = SourceConfig(src_dir=Path(), dest_dir=Path("/tmp/test"), type="claude")
+    config = SourceConfig(
+        src_dir=tmp_path / "src", dest_dir=tmp_path / "dest", type="claude"
+    )
 
     # Create required files
     config.src_dir.mkdir(parents=True, exist_ok=True)
     (config.src_dir / "conversations.json").write_text("[]")
-    (config.src_dir / "users.json").write_text("{}")
 
     processor = ClaudeProcessor(config)
     assert processor._format_file_size(500) == "500.0B"
@@ -871,14 +965,15 @@ def test_format_file_size():
     assert processor._format_file_size(1024 * 1024 * 1024) == "1.0GB"
 
 
-def test_get_attachment_icon():
+def test_get_attachment_icon(tmp_path: Path):
     """Test file type icon selection."""
-    config = SourceConfig(src_dir=Path(), dest_dir=Path("/tmp/test"), type="claude")
+    config = SourceConfig(
+        src_dir=tmp_path / "src", dest_dir=tmp_path / "dest", type="claude"
+    )
 
     # Create required files
     config.src_dir.mkdir(parents=True, exist_ok=True)
     (config.src_dir / "conversations.json").write_text("[]")
-    (config.src_dir / "users.json").write_text("{}")
 
     processor = ClaudeProcessor(config)
     assert processor._get_attachment_icon("pdf") == "📄"
@@ -888,14 +983,15 @@ def test_get_attachment_icon():
     assert processor._get_attachment_icon("unknown") == "📎"
 
 
-def test_format_text_attachment():
+def test_format_text_attachment(tmp_path: Path):
     """Test attachment formatting with metadata."""
-    config = SourceConfig(src_dir=Path(), dest_dir=Path("/tmp/test"), type="claude")
+    config = SourceConfig(
+        src_dir=tmp_path / "src", dest_dir=tmp_path / "dest", type="claude"
+    )
 
     # Create required files
     config.src_dir.mkdir(parents=True, exist_ok=True)
     (config.src_dir / "conversations.json").write_text("[]")
-    (config.src_dir / "users.json").write_text("{}")
 
     processor = ClaudeProcessor(config)
     result = ProcessingResult()
@@ -916,14 +1012,15 @@ def test_format_text_attachment():
     assert result.documents_processed == 1
 
 
-def test_format_text_attachment_missing_data():
+def test_format_text_attachment_missing_data(tmp_path: Path):
     """Test attachment formatting with missing metadata."""
-    config = SourceConfig(src_dir=Path(), dest_dir=Path("/tmp/test"), type="claude")
+    config = SourceConfig(
+        src_dir=tmp_path / "src", dest_dir=tmp_path / "dest", type="claude"
+    )
 
     # Create required files
     config.src_dir.mkdir(parents=True, exist_ok=True)
     (config.src_dir / "conversations.json").write_text("[]")
-    (config.src_dir / "users.json").write_text("{}")
 
     processor = ClaudeProcessor(config)
     result = ProcessingResult()
@@ -948,14 +1045,15 @@ def test_format_text_attachment_missing_data():
     assert result.documents_processed == 1
 
 
-def test_format_text_attachment_various_types():
+def test_format_text_attachment_various_types(tmp_path: Path):
     """Test attachment formatting with different file types."""
-    config = SourceConfig(src_dir=Path(), dest_dir=Path("/tmp/test"), type="claude")
+    config = SourceConfig(
+        src_dir=tmp_path / "src", dest_dir=tmp_path / "dest", type="claude"
+    )
 
     # Create required files
     config.src_dir.mkdir(parents=True, exist_ok=True)
     (config.src_dir / "conversations.json").write_text("[]")
-    (config.src_dir / "users.json").write_text("{}")
 
     processor = ClaudeProcessor(config)
     result = ProcessingResult()
