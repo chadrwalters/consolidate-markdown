@@ -5,10 +5,12 @@ on:
     paths:
       - ".cursor/rules/**"
       - "src/validation/**"
+      - ".github/workflows/validate-rules.yml"
   pull_request:
     paths:
       - ".cursor/rules/**"
       - "src/validation/**"
+      - ".github/workflows/validate-rules.yml"
 
 jobs:
   validate:
