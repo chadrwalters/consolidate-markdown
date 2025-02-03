@@ -29,14 +29,17 @@ jobs:
           pip install pyyaml
           pip install -e .
 
+      - name: Create reports directory
+        run: mkdir -p reports
+
       - name: Validate rule structure
-        run: python -m src.validation.rules .cursor/rules/*.md
+        run: python -m src.validation.rules .cursor/rules/*.md > reports/validation.md
 
       - name: Check rule conflicts
-        run: python -m src.validation.conflicts .cursor/rules/*.md
+        run: python -m src.validation.conflicts .cursor/rules/*.md > reports/conflicts.md
 
       - name: Generate summaries
-        run: python -m src.validation.summary .cursor/rules/*.md
+        run: python -m src.validation.summary .cursor/rules/*.md > reports/summary.md
 
       - name: Upload validation report
         uses: actions/upload-artifact@v4
