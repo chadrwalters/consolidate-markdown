@@ -34,9 +34,9 @@ class ClaudeProcessor(SourceProcessor):
         """Initialize processor with source configuration."""
         super().__init__(source_config)
         # Initialize cache manager with global config directory
-        self.cache_manager: Optional[
-            CacheManager
-        ] = None  # Will be set when processing with global config
+        self.cache_manager: Optional[CacheManager] = (
+            None  # Will be set when processing with global config
+        )
         self._attachment_processor: Optional[AttachmentProcessor] = None
         self._artifact_versions: Dict[str, List[Dict[str, Any]]] = {}
         self._artifact_relationships: Dict[str, Set[str]] = {}

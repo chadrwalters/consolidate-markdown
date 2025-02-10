@@ -28,12 +28,12 @@ class Runner:
         """
         self.config = config
         self.summary = ProcessingResult()
-        self.selected_processor: Optional[
-            str
-        ] = None  # Type of processor to run (optional)
-        self.processing_limit: Optional[
-            int
-        ] = None  # Max items to process per processor
+        self.selected_processor: Optional[str] = (
+            None  # Type of processor to run (optional)
+        )
+        self.processing_limit: Optional[int] = (
+            None  # Max items to process per processor
+        )
 
     def run(self, parallel: bool = False) -> ProcessingResult:
         """Run the consolidation process.

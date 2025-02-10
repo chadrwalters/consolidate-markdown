@@ -136,11 +136,11 @@ class ImageProcessor:
                 try:
                     with Image.open(image_path) as img:
                         # Convert to RGB mode if necessary (in case of RGBA WebP)
-                        if img.mode in ('RGBA', 'LA'):
-                            background = Image.new('RGB', img.size, (255, 255, 255))
+                        if img.mode in ("RGBA", "LA"):
+                            background = Image.new("RGB", img.size, (255, 255, 255))
                             background.paste(img, mask=img.split()[-1])
                             img = background
-                        img.save(temp_path, 'JPEG', quality=95)
+                        img.save(temp_path, "JPEG", quality=95)
                 except Exception as e:
                     raise ImageProcessingError(f"WebP conversion failed: {str(e)}")
 
