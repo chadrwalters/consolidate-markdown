@@ -136,9 +136,18 @@ class AttachmentProcessor:
                 else:
                     # Try to convert other document types to markdown
                     try:
-                        metadata.markdown_content = self.markitdown.convert_to_markdown(
-                            file_path, force
-                        )
+                        unsupported_extensions = [".mov", ".3gp", ".qtvr"]
+                        if file_path.suffix.lower() not in unsupported_extensions:
+                            metadata.markdown_content = (
+                                self.markitdown.convert_to_markdown(file_path, force)
+                            )
+                        else:
+                            logger.warning(
+                                f"Skipping unsupported file type: {file_path.name}"
+                            )
+                            metadata.markdown_content = (
+                                f"[Unsupported file type: {file_path.name}]"
+                            )
                     except Exception as e:
                         error_msg_doc = f"Document conversion failed: {str(e)}"
                         logger.error(error_msg_doc, exc_info=True)
