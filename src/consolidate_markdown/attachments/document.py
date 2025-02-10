@@ -133,8 +133,12 @@ class MarkItDown:
         try:
             text = extract_text(str(file_path))
             # Clean up the text
-            text = re.sub(r'\s+', ' ', text).strip()  # Replace multiple whitespace with single space
-            text = re.sub(r'\f', '\n\n', text)  # Replace form feeds with double newlines
+            text = re.sub(
+                r"\s+", " ", text
+            ).strip()  # Replace multiple whitespace with single space
+            text = re.sub(
+                r"\f", "\n\n", text
+            )  # Replace form feeds with double newlines
             return text
         except Exception as e:
             raise ConversionError(f"Failed to convert PDF: {str(e)}")

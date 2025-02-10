@@ -1,12 +1,9 @@
+import logging
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 import pytest
-import logging
 from reportlab.pdfgen import canvas
-from io import BytesIO
-
-import pytest
-import logging
 
 from consolidate_markdown.attachments.gpt import GPTProcessor
 from consolidate_markdown.attachments.processor import (AttachmentMetadata,
