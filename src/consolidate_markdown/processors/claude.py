@@ -197,24 +197,48 @@ class ClaudeProcessor(SourceProcessor):
         # Create destination directory if it doesn't exist
         self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
 
-        # Process each conversation file in the directory
-        for file_path in self.source_config.src_dir.glob("*"):
-            if not file_path.is_file() or file_path.suffix != ".json":
-                continue
+        # Process conversations.json file
+        conversations_file = self.source_config.src_dir / "conversations.json"
+        if not conversations_file.is_file():
+            error_msg = (
+                f"Could not find conversations.json in {self.source_config.src_dir}"
+            )
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+            return result
 
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    conversation = json.load(f)
+        try:
+            with open(conversations_file, "r", encoding="utf-8") as f:
+                conversations = json.load(f)
 
-                self._process_conversation(conversation, config, result)
-                # Only increment if the conversation was processed or loaded from cache
-                if result.last_action in ["generated", "from_cache"]:
-                    result.processed += 1
-            except Exception as e:
-                error_msg = f"Error processing conversation file {file_path}: {str(e)}"
+            # Handle both single conversation and array of conversations
+            if isinstance(conversations, dict):
+                conversations = [conversations]
+            elif not isinstance(conversations, list):
+                error_msg = f"Invalid conversations format in {conversations_file}"
                 logger.error(error_msg)
                 result.add_error(error_msg, self._processor_type)
-                result.add_skipped(self._processor_type)
+                return result
+
+            # Process each conversation
+            for conversation in conversations:
+                try:
+                    self._process_conversation(conversation, config, result)
+                    # Only increment if the conversation was processed or loaded from cache
+                    if result.last_action in ["generated", "from_cache"]:
+                        result.processed += 1
+                except Exception as e:
+                    error_msg = f"Error processing conversation: {str(e)}"
+                    logger.error(error_msg)
+                    result.add_error(error_msg, self._processor_type)
+                    result.add_skipped(self._processor_type)
+
+        except Exception as e:
+            error_msg = (
+                f"Error reading conversations file {conversations_file}: {str(e)}"
+            )
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
 
         return result
 

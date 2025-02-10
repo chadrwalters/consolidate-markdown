@@ -269,23 +269,20 @@ Processes Claude conversation exports:
 type = "claude"
 src_dir = "~/Downloads/claude_exports"
 dest_dir = "output/claude"
-options = {
-    # Optional: Custom date format for conversation filenames
-    date_format = "%Y%m%d",
-    # Optional: Custom title format for conversation files
-    title_format = "{date}-{name}",
-    # Optional: Preserve original XML tags in output
-    preserve_tags = false,
-    # Optional: Extract artifacts from conversations
-    extract_artifacts = true,
-    # Optional: Track artifact versions
-    track_versions = true,
-    # Optional: Process attachments
-    process_attachments = true,
-    # Optional: Directory for processed attachments
-    attachments_dir = "attachments"
-}
 ```
+
+#### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `date_format` | string | `%Y%m%d` | Custom date format for conversation filenames |
+| `title_format` | string | `{date}-{name}` | Custom title format for conversation files |
+| `preserve_tags` | boolean | `false` | Preserve original XML tags in output |
+| `extract_artifacts` | boolean | `true` | Extract artifacts from conversations |
+| `track_versions` | boolean | `true` | Track artifact versions |
+| `process_attachments` | boolean | `true` | Process attachments |
+| `attachments_dir` | string | `attachments` | Directory for processed attachments |
+| `model` | string | `google/gemini-pro-vision-1.0` | Vision model for image analysis |
 
 ### Bear Notes
 
@@ -298,6 +295,16 @@ src_dir = "~/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application 
 dest_dir = "output/bear"
 ```
 
+#### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `model` | string | `google/gemini-pro-vision-1.0` | Vision model for image analysis |
+| `preserve_tags` | boolean | `true` | Preserve Bear tags in output |
+| `extract_code` | boolean | `true` | Extract code blocks to separate files |
+| `process_attachments` | boolean | `true` | Process note attachments |
+| `attachments_dir` | string | `attachments` | Directory for processed attachments |
+
 ### X Bookmarks
 
 Processes X (Twitter) bookmarks:
@@ -309,6 +316,16 @@ src_dir = "~/Library/Containers/com.apple.Safari/Data/Library/Safari/Bookmarks.p
 dest_dir = "output/bookmarks"
 ```
 
+#### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `model` | string | `google/gemini-pro-vision-1.0` | Vision model for image analysis |
+| `download_media` | boolean | `true` | Download tweet media |
+| `thread_format` | string | `single` | Thread format (`single` or `multiple`) |
+| `media_dir` | string | `media` | Directory for downloaded media |
+| `include_metrics` | boolean | `true` | Include engagement metrics |
+
 ### ChatGPT Export
 
 Processes ChatGPT conversation exports:
@@ -319,6 +336,16 @@ type = "chatgptexport"
 src_dir = "~/Downloads/chatgpt_exports"
 dest_dir = "output/chatgpt"
 ```
+
+#### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `model` | string | `google/gemini-pro-vision-1.0` | Vision model for image analysis |
+| `preserve_metadata` | boolean | `true` | Preserve conversation metadata |
+| `extract_code` | boolean | `true` | Extract code blocks to files |
+| `process_attachments` | boolean | `true` | Process conversation attachments |
+| `attachments_dir` | string | `attachments` | Directory for processed attachments |
 
 ## Example Configurations
 
@@ -378,4 +405,3 @@ dest_dir = "./output/notes"
 type = "chatgptexport"
 src_dir = "~/Downloads/chatgpt"
 dest_dir = "./output/chatgpt"
-```
