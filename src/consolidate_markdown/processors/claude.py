@@ -421,16 +421,67 @@ class ClaudeProcessor(SourceProcessor):
             The markdown representation of the attachment, or None if invalid
         """
         try:
-            content = attachment.get("extracted_content", "")
-            if not content:
+            file_type = attachment.get("file_type", "")
+            file_name = attachment.get("file_name", "")
+            content = attachment.get("content", attachment.get("extracted_content", ""))
+            file_size = attachment.get("file_size", 0)
+
+            if not file_type or not file_name:
+                logger.warning(
+                    f"Invalid text attachment in message {message_id}: missing type or name"
+                )
                 return None
 
-            # Format as code block if it looks like code
-            if any(line.startswith(("    ", "\t")) for line in content.splitlines()):
-                return f"```\n{content}\n```"
+            # Update processing result
+            result.documents_processed += 1
 
-            # Otherwise return as plain text
-            return content
+            # Format size if available
+            size_str = (
+                f" ({self._format_file_size(file_size)} {file_type})"
+                if file_size
+                else f" ({file_type})"
+            )
+
+            # Get appropriate icon
+            icon = self._get_attachment_icon(file_type)
+
+            # If content is empty, show metadata with a note
+            if not content:
+                logger.warning(
+                    f"Empty content in attachment {file_name} ({message_id})"
+                )
+                return f"""
+<!-- CLAUDE EXPORT: Empty attachment {file_name} -->
+<details>
+<summary>{icon} {file_name}{size_str} - Empty Attachment</summary>
+
+Original File Information:
+- Type: {file_type}
+- Size: {self._format_file_size(file_size) if file_size else 'Unknown'}
+- Extracted: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
+- Status: No content available in Claude export
+
+</details>
+"""
+
+            # Format the content with details tag
+            return f"""
+<!-- CLAUDE EXPORT: Extracted content from {file_name} -->
+<details>
+<summary>{icon} {file_name}{size_str} - Extracted Content</summary>
+
+Original File Information:
+- Type: {file_type}
+- Size: {self._format_file_size(file_size) if file_size else 'Unknown'}
+- Extracted: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
+
+Extracted Content:
+```{file_type}
+{content}
+```
+
+</details>
+"""
 
         except Exception as e:
             error_msg = (
