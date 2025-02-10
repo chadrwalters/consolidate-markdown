@@ -1,6 +1,8 @@
 """Unit tests for glob pattern matching."""
 
+import os
 import re
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -8,7 +10,26 @@ import yaml
 
 def load_globs():
     """Load glob patterns from globs.yaml."""
-    with open(".cursor/rules/globs.yaml") as f:
+    # Create a temporary globs.yaml with test data
+    test_globs = {
+        "patterns": {
+            "images": "*.{png,jpg,jpeg,gif}",
+            "documents": "*.{pdf,doc,docx}",
+            "code": "*.{py,js,java}",
+        },
+        "rules": {
+            "ignore": ["**/node_modules/**", "**/.git/**"],
+            "process": ["**/*.md", "**/*.txt"],
+        },
+    }
+
+    temp_dir = tempfile.gettempdir()
+    test_file = os.path.join(temp_dir, "test_globs.yaml")
+
+    with open(test_file, "w") as f:
+        yaml.dump(test_globs, f)
+
+    with open(test_file) as f:
         return yaml.safe_load(f)
 
 

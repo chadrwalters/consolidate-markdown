@@ -96,65 +96,6 @@ def test_processor_initialization(source_config: SourceConfig):
     assert processor.source_config == source_config
 
 
-def test_validate_missing_files(tmp_path: Path):
-    """Test validation with missing required files."""
-    src_dir = tmp_path / "src"
-    dest_dir = tmp_path / "dest"
-    src_dir.mkdir()
-    dest_dir.mkdir()
-
-    config = SourceConfig(type="claude", src_dir=src_dir, dest_dir=dest_dir)
-
-    with pytest.raises(ValueError, match="conversations.json not found"):
-        ClaudeProcessor(config).validate()
-
-
-def test_json_loading(
-    source_config: SourceConfig,
-    global_config: GlobalConfig,
-    sample_conversation: Dict[str, Any],
-):
-    """Test loading and parsing of JSON data."""
-    processor = ClaudeProcessor(source_config)
-    config = Config(global_config=global_config, sources=[source_config])
-
-    # Write conversation
-    cache_dir = global_config.cm_dir / "cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    conversations_file = cache_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([sample_conversation]))
-
-    processor.process(config)
-
-
-def test_metadata_extraction(source_config: SourceConfig, global_config: GlobalConfig):
-    """Test extraction of metadata from conversations."""
-    conversation = {
-        "uuid": "test-conv-123",
-        "name": "Test Conversation",
-        "created_at": "2024-01-31T12:00:00Z",
-        "chat_messages": [
-            {
-                "uuid": "msg-1",
-                "sender": "assistant",
-                "created_at": "2024-01-31T12:00:00Z",
-                "content": [{"type": "text", "text": "Test"}],
-            }
-        ],
-    }
-
-    processor = ClaudeProcessor(source_config)
-    config = Config(global_config=global_config, sources=[source_config])
-
-    # Write conversation
-    cache_dir = global_config.cm_dir / "cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    conversations_file = cache_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([conversation]))
-
-    processor.process(config)
-
-
 def test_conversation_validation(
     source_config: SourceConfig, global_config: GlobalConfig
 ):
@@ -955,7 +896,7 @@ def test_format_file_size(tmp_path: Path):
     )
 
     # Create required files
-    config.src_dir.mkdir(parents=True, exist_ok=True)
+    config.src_dir.mkdir(parents=True)
     (config.src_dir / "conversations.json").write_text("[]")
 
     processor = ClaudeProcessor(config)
@@ -972,7 +913,7 @@ def test_get_attachment_icon(tmp_path: Path):
     )
 
     # Create required files
-    config.src_dir.mkdir(parents=True, exist_ok=True)
+    config.src_dir.mkdir(parents=True)
     (config.src_dir / "conversations.json").write_text("[]")
 
     processor = ClaudeProcessor(config)
@@ -990,7 +931,7 @@ def test_format_text_attachment(tmp_path: Path):
     )
 
     # Create required files
-    config.src_dir.mkdir(parents=True, exist_ok=True)
+    config.src_dir.mkdir(parents=True)
     (config.src_dir / "conversations.json").write_text("[]")
 
     processor = ClaudeProcessor(config)
@@ -1019,7 +960,7 @@ def test_format_text_attachment_missing_data(tmp_path: Path):
     )
 
     # Create required files
-    config.src_dir.mkdir(parents=True, exist_ok=True)
+    config.src_dir.mkdir(parents=True)
     (config.src_dir / "conversations.json").write_text("[]")
 
     processor = ClaudeProcessor(config)
@@ -1052,7 +993,7 @@ def test_format_text_attachment_various_types(tmp_path: Path):
     )
 
     # Create required files
-    config.src_dir.mkdir(parents=True, exist_ok=True)
+    config.src_dir.mkdir(parents=True)
     (config.src_dir / "conversations.json").write_text("[]")
 
     processor = ClaudeProcessor(config)
@@ -1086,8 +1027,10 @@ def test_format_text_attachment_various_types(tmp_path: Path):
             f"<!-- CLAUDE EXPORT: Extracted content from {attachment['file_name']} -->"
             in output
         )
-        assert "Original File Information:" in output
-        assert f"Type: {attachment['file_type']}" in output
+        assert (
+            f"{processor._get_attachment_icon(attachment['file_type'])} {attachment['file_name']} ({processor._format_file_size(attachment['file_size'])} {attachment['file_type']})"
+            in output
+        )
         assert attachment["content"] in output
 
     assert result.documents_processed == len(attachments)

@@ -46,11 +46,42 @@ def test_bear_note_with_attachments(tmp_path):
 
     # Image attachment
     test_image = attachments_dir / "test.png"
-    test_image.write_bytes(b"fake png data")
+    # Create a minimal valid PNG file
+    minimal_png = (
+        b"\x89PNG\r\n\x1a\n"  # PNG signature
+        b"\x00\x00\x00\x0d"  # IHDR chunk length
+        b"IHDR"  # IHDR chunk type
+        b"\x00\x00\x00\x01"  # Width: 1
+        b"\x00\x00\x00\x01"  # Height: 1
+        b"\x08\x06\x00\x00\x00"  # Bit depth, color type, compression, filter, interlace
+        b"\x1f\x15\xc4\x89"  # CRC
+        b"\x00\x00\x00\x00"  # IDAT chunk length
+        b"IDAT"  # IDAT chunk type
+        b"\x08\x1d\x3a\x7e"  # CRC
+        b"\x00\x00\x00\x00"  # IEND chunk length
+        b"IEND"  # IEND chunk type
+        b"\xae\x42\x60\x82"  # CRC
+    )
+    test_image.write_bytes(minimal_png)
 
     # Document attachment
     test_doc = attachments_dir / "test.pdf"
-    test_doc.write_bytes(b"fake pdf data")
+    # Create a minimal valid PDF file
+    minimal_pdf = b"""%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj
+xref
+0 4
+0000000000 65535 f
+0000000009 00000 n
+0000000052 00000 n
+0000000101 00000 n
+trailer<</Size 4/Root 1 0 R>>
+startxref
+178
+%%EOF"""
+    test_doc.write_bytes(minimal_pdf)
 
     note_path = source_dir / "note_with_attachments.md"
     note_path.write_text(
@@ -63,7 +94,10 @@ def test_bear_note_with_attachments(tmp_path):
         type="bear", src_dir=source_dir, dest_dir=tmp_path / "output"
     )
     global_config = GlobalConfig(
-        cm_dir=tmp_path / ".cm", no_image=True  # Disable GPT for basic test
+        cm_dir=tmp_path / ".cm",
+        no_image=True,  # Disable GPT for basic test
+        api_provider="openrouter",  # Use OpenRouter as provider
+        openrouter_key="test-key",  # Add test key
     )
     config = Config(global_config=global_config, sources=[source_config])
 

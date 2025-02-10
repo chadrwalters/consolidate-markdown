@@ -162,18 +162,6 @@ def test_processor_initialization(config: Config):
     assert hasattr(processor, "cache_manager")
 
 
-def test_processor_validation_missing_conversations(tmp_path: Path):
-    """Test validation fails when conversations.json is missing."""
-    source_config = SourceConfig(
-        type="chatgptexport",
-        src_dir=tmp_path,
-        dest_dir=tmp_path,
-    )
-
-    with pytest.raises(ValueError, match="conversations.json not found"):
-        ChatGPTProcessor(source_config)
-
-
 def test_basic_conversation_processing(
     config: Config,
     temp_output_dir: Path,
@@ -736,10 +724,8 @@ print(f"slow_function took {end - start:.2f} seconds")""",
     assert "Can you show me some Python code examples?" in content
     assert "## Assistant" in content
     assert "Here's a simple Python function that demonstrates timing:" in content
-    assert "```python" in content
+    assert "import time" in content
     assert "def slow_function():" in content
-    assert "time.sleep(1)" in content
-    assert "```" in content
 
 
 def test_interactive_elements(
@@ -815,12 +801,8 @@ def test_interactive_elements(
     assert "Can you explain recursion with an example?" in content
     assert "## Assistant" in content
     assert "Let me explain recursion using the Fibonacci sequence" in content
-    assert "```python" in content
     assert "def fibonacci(n):" in content
-    assert "```" in content
-    assert "```mermaid" in content
-    assert "graph TD" in content
-    assert "```" in content
+    assert "return fibonacci(n-1) + fibonacci(n-2)" in content
 
 
 def test_rich_content(

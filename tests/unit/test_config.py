@@ -26,7 +26,7 @@ def test_basic_config_loading(tmp_path):
             "default_model": "gpt-4o",  # Use valid OpenRouter model
             "alternate_models": {
                 "gpt4": "gpt-4o",
-                "gemini": "google/gemini-pro-vision-1.0",
+                "vision": "deepinfra/blip",  # Updated to use valid model
             },
         },
         "sources": [
@@ -46,6 +46,7 @@ def test_basic_config_loading(tmp_path):
     assert config.sources[0].type == "bear"
     assert config.global_config.models.default_model == "gpt-4o"
     assert "gpt4" in config.global_config.models.alternate_models
+    assert "vision" in config.global_config.models.alternate_models
 
 
 def test_full_config_loading(tmp_path):
@@ -77,7 +78,7 @@ def test_full_config_loading(tmp_path):
             "default_model": "gpt-4o",
             "alternate_models": {
                 "gpt4": "gpt-4o",
-                "gemini": "google/gemini-pro-vision-1.0",
+                "vision": "deepinfra/blip",
                 "yi": "yi/yi-vision-01",
             },
         },
@@ -103,7 +104,7 @@ def test_full_config_loading(tmp_path):
         assert config.global_config.models.default_model == "gpt-4o"
         assert config.global_config.models.alternate_models == {
             "gpt4": "gpt-4o",
-            "gemini": "google/gemini-pro-vision-1.0",
+            "vision": "deepinfra/blip",
             "yi": "yi/yi-vision-01",
         }
         assert len(config.sources) == 1
@@ -141,7 +142,7 @@ def test_config_validation(tmp_path):
             "default_model": "gpt-4o",
             "alternate_models": {
                 "gpt4": "gpt-4o",
-                "gemini": "google/gemini-pro-vision-1.0",
+                "vision": "deepinfra/blip",
             },
         },
         "sources": [
