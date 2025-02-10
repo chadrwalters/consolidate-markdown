@@ -1,0 +1,43 @@
+# Consolidate Markdown Project Rules
+
+## Development Environment
+- ✅ ALWAYS use UV for Python package management
+- ❌ NEVER run Python directly - use UV environments
+- 📍 Source Directory: `/Users/chadwalters/Library/Mobile Documents/com~apple~CloudDocs/_Input/_BearNotes`
+- 📍 Output Directory: `/Users/chadwalters/Library/Mobile Documents/com~apple~CloudDocs/_Output/_BearNotes`
+
+## Core Project Rules
+1. **One Output Per Input**
+   - Each source note/bookmark must generate exactly one .md file
+   - No partial files or subfolders in destination directory
+   - Maintain strict 1:1 mapping
+
+2. **Attachment Handling**
+   - All attachments must be processed and referenced properly
+   - Images: Generate text descriptions using GPT-4o when enabled
+   - Non-images: Use MarkItDown for proper conversion
+
+3. **Configuration-Driven**
+   - All source configurations must be in config.toml
+   - No hardcoded paths or settings in code
+   - Support for Bear & X Bookmarks sources
+
+4. **Development Process**
+   - Record all plans in `.Plan` file chronologically
+   - Maintain existing completed items
+   - Add date-stamped notes for important decisions
+   - Focus only on requested features
+   - No file/functionality duplication
+
+5. **Testing & Verification**
+   - Verify input/output paths before processing
+   - Log all operations for traceability
+   - Support skip/reprocess logic for efficiency
+   - Maintain test coverage for core functionality
+
+## Command Keywords
+| Command | Action |
+|---------|---------|
+| `talk`  | Explain without code changes |
+| `debug` | Add debugging output only |
+| `think` | Analyze without changes |
