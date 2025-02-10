@@ -112,19 +112,7 @@ class AttachmentProcessor:
 
             # Check if we need to process
             if not force and temp_path.exists():
-                # For Bear attachments in iCloud, don't use timestamps
-                if "com~apple~CloudDocs/_BearNotes" in str(file_path):
-                    return temp_path, AttachmentMetadata(
-                        original_path=file_path,
-                        mime_type=mime_type or "application/octet-stream",
-                        size_bytes=size_bytes,
-                        is_image=False,
-                        created_time=created_time,
-                        modified_time=modified_time,
-                        file_hash=file_hash,
-                    )
-                # For other files, use timestamp check
-                elif temp_path.stat().st_mtime >= file_path.stat().st_mtime:
+                if temp_path.stat().st_mtime >= file_path.stat().st_mtime:
                     return temp_path, AttachmentMetadata(
                         original_path=file_path,
                         mime_type=mime_type or "application/octet-stream",
@@ -138,18 +126,15 @@ class AttachmentProcessor:
             # Copy to temp location
             shutil.copy2(file_path, temp_path)
 
-            # Convert document to markdown if applicable
+            # Try to convert document to markdown
             markdown_content: str = ""  # Initialize with empty string
             error_msg_doc: Optional[str] = None
-            if file_path.suffix.lower() in MarkItDown.SUPPORTED_FORMATS:
-                try:
-                    # convert_to_markdown always returns str or raises an exception
-                    markdown_content = self.markitdown.convert_to_markdown(
-                        file_path, force
-                    )
-                except Exception as e:
-                    error_msg_doc = f"Document conversion failed: {str(e)}"
-                    markdown_content = f"[Error converting {file_path.name}: {str(e)}]"
+            try:
+                # convert_to_markdown always returns str or raises an exception
+                markdown_content = self.markitdown.convert_to_markdown(file_path, force)
+            except Exception as e:
+                error_msg_doc = f"Document conversion failed: {str(e)}"
+                markdown_content = f"[Error converting {file_path.name}: {str(e)}]"
 
             metadata = AttachmentMetadata(
                 original_path=file_path,
