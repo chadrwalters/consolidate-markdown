@@ -8,6 +8,7 @@ from rich.progress import Progress, TaskID
 
 from ..attachments.gpt import GPTProcessor
 from ..attachments.processor import AttachmentMetadata, AttachmentProcessor
+from ..cache import CacheManager
 from ..config import Config, SourceConfig
 from .result import ProcessingResult
 
@@ -36,17 +37,24 @@ class AttachmentHandlerMixin:
         cache_manager=None,
     ) -> str:
         """Format an image with optional GPT description."""
-        size_kb = metadata.size_bytes / 1024
+        size_kb = metadata.size / 1024
         dimensions = metadata.dimensions or (0, 0)
+        is_svg = image_path.suffix.lower() == ".svg"
 
         # Get image description if enabled
         description = ""
         if not config.global_config.no_image:
             try:
                 gpt = GPTProcessor(config.global_config, cache_manager)
-                description = gpt.describe_image(
-                    image_path, result, self._processor_type
-                )
+                # For SVGs, use the PNG version for GPT analysis
+                if is_svg and hasattr(metadata, "png_path"):
+                    description = gpt.describe_image(
+                        Path(metadata.png_path), result, self._processor_type
+                    )
+                else:
+                    description = gpt.describe_image(
+                        image_path, result, self._processor_type
+                    )
             except Exception as e:
                 logger.error(f"GPT processing failed for {image_path}: {str(e)}")
                 gpt = GPTProcessor(config.global_config, cache_manager)
@@ -56,6 +64,18 @@ class AttachmentHandlerMixin:
         else:
             gpt = GPTProcessor(config.global_config, cache_manager)
             description = gpt.get_placeholder(image_path, result, self._processor_type)
+
+        # Handle SVG files - embed content directly
+        if is_svg and hasattr(metadata, "inlined_content"):
+            return f"""<!-- EMBEDDED SVG: {image_path.name} -->
+{metadata.inlined_content}
+
+<details>
+<summary>🖼️ {image_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
+
+{description}
+
+</details>"""
 
         # Add standard markdown image link and details section
         relative_path = Path("attachments") / image_path.name
@@ -79,20 +99,18 @@ class AttachmentHandlerMixin:
         result: Optional[ProcessingResult] = None,
     ) -> str:
         """Format a document attachment."""
-        size_kb = metadata.size_bytes / 1024
+        size_kb = metadata.size / 1024
 
         # Handle PDFs differently
         if doc_path.suffix.lower() == ".pdf":
             relative_path = Path("attachments") / doc_path.name
-            return f"""
-<!-- EMBEDDED PDF: {doc_path.name} -->
+            return f"""<!-- EMBEDDED PDF: {doc_path.name} -->
 <details>
 <summary>📄 {alt_text or doc_path.name} ({size_kb:.0f}KB)</summary>
 
-[View PDF]({relative_path})
+{metadata.markdown_content or f'[View PDF]({relative_path})'}
 
-</details>
-"""
+</details>"""
 
         # Handle other documents
         content = (
@@ -100,8 +118,7 @@ class AttachmentHandlerMixin:
             or "[Document content will be converted in Phase 4]"
         )
 
-        return f"""
-<!-- EMBEDDED DOCUMENT: {doc_path.name} -->
+        return f"""<!-- EMBEDDED DOCUMENT: {doc_path.name} -->
 <details>
 <summary>📄 {alt_text or doc_path.name} ({size_kb:.0f}KB)</summary>
 
@@ -130,11 +147,17 @@ class AttachmentHandlerMixin:
                     progress.advance(task_id)
                 return None
 
+            logger.info(f"Processing attachment file: {attachment_path}")
+
             # Process the file
             temp_path, metadata = attachment_processor.process_file(
                 attachment_path,
                 force=config.global_config.force_generation,
                 result=result,
+            )
+
+            logger.info(
+                f"Processed {attachment_path.name}: is_image={metadata.is_image}, markdown_content_length={len(metadata.markdown_content) if metadata.markdown_content else 0}"
             )
 
             # Copy processed file to output directory
@@ -166,6 +189,10 @@ class AttachmentHandlerMixin:
                     output_path, metadata, alt_text, result
                 )
 
+            logger.info(
+                f"Formatted {attachment_path.name} as {'image' if metadata.is_image else 'document'}"
+            )
+
             if progress and task_id is not None:
                 progress.advance(task_id)
             return formatted
@@ -184,25 +211,35 @@ class AttachmentHandlerMixin:
 class SourceProcessor(AttachmentHandlerMixin, ABC):
     """Base class for all source processors."""
 
-    def __init__(self, source_config: SourceConfig):
+    def __init__(
+        self, source_config: SourceConfig, cache_manager: Optional[CacheManager] = None
+    ):
         """Initialize processor with source configuration."""
         self.source_config = source_config
-        self.validate_called = False
+        self.cache_manager = cache_manager or CacheManager(
+            source_config.dest_dir.parent
+        )
         self._attachment_processor: Optional[AttachmentProcessor] = None
+        self.validate_called = False
         self._temp_dir: Optional[Path] = None
         self.item_limit: Optional[int] = None  # Maximum number of items to process
         self._progress: Optional[Progress] = None
         self._task_id: Optional[TaskID] = None
         self.__processor_type = source_config.type
+        self.validate()
+
+        # Initialize attachment processor
+        self._attachment_processor = None
 
     @property
-    def _processor_type(self) -> str:
-        """Get the processor type.
-
-        Returns:
-            The processor type string
-        """
-        return self.__processor_type
+    def attachment_processor(self) -> AttachmentProcessor:
+        """Get the attachment processor instance."""
+        if self._attachment_processor is None:
+            self._attachment_processor = AttachmentProcessor(
+                self.source_config.dest_dir
+            )
+        assert self._attachment_processor is not None
+        return self._attachment_processor
 
     def set_progress(self, progress: Progress, task_id: TaskID) -> None:
         """Set the progress tracker for this processor.
@@ -215,13 +252,13 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
         self._task_id = task_id
 
     @property
-    def attachment_processor(self) -> AttachmentProcessor:
-        """Get the attachment processor instance."""
-        if self._attachment_processor is None:
-            self._attachment_processor = AttachmentProcessor(
-                self.source_config.dest_dir
-            )
-        return self._attachment_processor
+    def _processor_type(self) -> str:
+        """Get the processor type.
+
+        Returns:
+            The processor type string
+        """
+        return self.__processor_type
 
     def validate(self) -> None:
         """Validate source configuration.

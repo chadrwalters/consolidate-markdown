@@ -21,13 +21,12 @@ logger = logging.getLogger(__name__)
 class ChatGPTProcessor(SourceProcessor):
     """Process ChatGPT conversation exports into Markdown."""
 
-    def __init__(self, source_config: SourceConfig):
+    def __init__(
+        self, source_config: SourceConfig, cache_manager: Optional[CacheManager] = None
+    ):
         """Initialize processor with source configuration."""
-        super().__init__(source_config)
+        super().__init__(source_config, cache_manager)
         self.validate()
-
-        # Initialize cache manager
-        self.cache_manager = CacheManager(source_config.dest_dir.parent)
 
     def validate(self) -> None:
         """Validate source configuration.
@@ -398,42 +397,18 @@ class ChatGPTProcessor(SourceProcessor):
                             if file_path_str:
                                 try:
                                     file_path = Path(file_path_str)
-                                    if file_path.exists() and file_path.is_file():
-                                        file_content = file_path.read_text(
-                                            encoding="utf-8"
+                                    if file_path.exists():
+                                        return f"[File: {file_path.name}]"
+                                    else:
+                                        logger.warning(
+                                            f"{context} - Failed to process file"
                                         )
-                                        language = str(
-                                            part.get("metadata", {}).get("language", "")
-                                        )
-                                        mime_type = str(
-                                            part.get("metadata", {}).get(
-                                                "mime_type", ""
-                                            )
-                                        )
-                                        if mime_type == "application/zip":
-                                            content_parts.append(
-                                                f"[Archive: {file_path.name}]"
-                                            )
-                                        elif mime_type == "application/pdf":
-                                            content_parts.append(
-                                                f"<!-- EMBEDDED PDF: {file_path.name} -->\n"
-                                                f"<details>\n<summary>📄 {file_path.name}</summary>\n\n"
-                                                f"[View PDF](attachments/{file_path.name})\n\n</details>"
-                                            )
-                                        elif language:
-                                            content_parts.append(
-                                                f"```{language}\n{file_content}\n```"
-                                            )
-                                        else:
-                                            content_parts.append(file_content)
-                                        result.documents_processed += 1
+                                        return "[Error processing file]"
                                 except Exception as e:
                                     logger.error(
                                         f"{context} - Error processing file: {str(e)}"
                                     )
-                                    content_parts.append(
-                                        f"[Error processing file: {str(e)}]"
-                                    )
+                                    return f"[Error processing file: {str(e)}]"
                         elif part_type == "tool_use":
                             # Handle tool usage
                             tool = part.get("tool", "")
@@ -851,77 +826,10 @@ class ChatGPTProcessor(SourceProcessor):
                                         content_parts.append(file_content)
                                     result.documents_processed += 1
                                 else:
-                                    # Try processing as attachment
-                                    output_attachments_dir = (
-                                        self.source_config.dest_dir / "attachments"
+                                    logger.warning(
+                                        f"{context} - Failed to process file"
                                     )
-                                    output_attachments_dir.mkdir(
-                                        parents=True, exist_ok=True
-                                    )
-                                    attachment_content: str | None = (
-                                        self._process_attachment(
-                                            file_path,
-                                            output_attachments_dir,
-                                            self.attachment_processor,
-                                            config,
-                                            result,
-                                        )
-                                    )
-                                    if attachment_content:
-                                        result.documents_processed += 1
-                                        # Check file extension first
-                                        ext = file_path.suffix.lower()
-                                        if ext == ".zip":
-                                            content_parts.append(
-                                                f"[Archive: {file_path.name}]"
-                                            )
-                                        elif ext == ".pdf":
-                                            content_parts.append(
-                                                f"<!-- EMBEDDED PDF: {file_path.name} -->\n"
-                                                f"<details>\n<summary>📄 {file_path.name}</summary>\n\n"
-                                                f"[View PDF](attachments/{file_path.name})\n\n</details>"
-                                            )
-                                        # Check if it's a code file and determine language
-                                        code_extensions: dict[str, str] = {
-                                            ".py": "python",
-                                            ".js": "javascript",
-                                            ".ts": "typescript",
-                                            ".java": "java",
-                                            ".cpp": "cpp",
-                                            ".c": "c",
-                                            ".cs": "csharp",
-                                            ".rb": "ruby",
-                                            ".go": "go",
-                                            ".rs": "rust",
-                                            ".php": "php",
-                                            ".swift": "swift",
-                                            ".kt": "kotlin",
-                                            ".scala": "scala",
-                                            ".sh": "bash",
-                                            ".sql": "sql",
-                                            ".html": "html",
-                                            ".css": "css",
-                                            ".xml": "xml",
-                                            ".yaml": "yaml",
-                                            ".json": "json",
-                                            ".md": "markdown",
-                                        }
-                                        code_language: str | None = code_extensions.get(
-                                            ext
-                                        )
-                                        if code_language is not None:
-                                            content_parts.append(
-                                                f"```{code_language}\n{attachment_content}\n```"
-                                            )
-                                        else:
-                                            content_parts.append(attachment_content)
-                                    else:
-                                        logger.warning(
-                                            f"{context} - Failed to process file"
-                                        )
-                                        content_parts.append(
-                                            str("[Error processing file]")
-                                        )
+                                    content_parts.append("[Error processing file]")
                             except Exception as e:
                                 logger.error(
                                     f"{context} - Error processing file: {str(e)}"

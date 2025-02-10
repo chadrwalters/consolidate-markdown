@@ -14,14 +14,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AttachmentMetadata:
-    """Metadata for an attachment file."""
+    """Metadata for an attachment."""
 
-    original_path: Path
-    mime_type: str
-    size_bytes: int
+    path: Path
     is_image: bool
+    size: int
+    alt_text: Optional[str] = None
+    mime_type: str = ""
     dimensions: Optional[tuple[int, int]] = None
-    markdown_content: str = ""  # Default to empty string instead of None
+    markdown_content: str = ""
     created_time: Optional[float] = None
     modified_time: Optional[float] = None
     file_hash: Optional[str] = None
@@ -52,6 +53,11 @@ class AttachmentProcessor:
         mime_type, _ = mimetypes.guess_type(str(file_path))
         size_bytes = file_path.stat().st_size
         is_image = mime_type and mime_type.startswith("image/")
+        is_svg = file_path.suffix.lower() == ".svg"
+
+        # SVGs are always treated as images
+        if is_svg:
+            is_image = True
 
         # Get file timestamps
         stat = file_path.stat()
@@ -63,114 +69,92 @@ class AttachmentProcessor:
         try:
             import hashlib
 
-            file_hash = hashlib.md5(file_path.read_bytes()).hexdigest()
+            with open(file_path, "rb") as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
         except Exception as e:
-            logger.warning(f"Failed to calculate hash for {file_path}: {str(e)}")
+            logger.warning(f"Failed to calculate file hash: {str(e)}")
 
-        # Process image files
-        if is_image:
-            try:
+        # Initialize metadata
+        metadata = AttachmentMetadata(
+            path=file_path,
+            is_image=bool(is_image),
+            size=size_bytes,
+            mime_type=mime_type or "application/octet-stream",
+            created_time=created_time,
+            modified_time=modified_time,
+            file_hash=file_hash,
+        )
+
+        # Process based on file type
+        temp_path: Optional[Path] = None
+        dimensions: Optional[Tuple[int, int]] = None
+        error_msg_doc: Optional[str] = None
+
+        try:
+            if is_image:
+                # Process image
                 temp_path, img_metadata = self.image_processor.process_image(
                     file_path, force
                 )
-                metadata = AttachmentMetadata(
-                    original_path=file_path,
-                    mime_type=mime_type or "application/octet-stream",
-                    size_bytes=img_metadata["size_bytes"],
-                    is_image=True,
-                    dimensions=img_metadata["dimensions"],
-                    created_time=created_time,
-                    modified_time=modified_time,
-                    file_hash=file_hash,
-                )
-                return temp_path, metadata
-            except Exception as e:
-                error_msg = f"Image processing failed: {str(e)}"
-                logger.warning(f"{error_msg} for {file_path.name}, using basic copy")
-                # Fallback to basic copy if image processing fails
+                dimensions = img_metadata.get("dimensions")
+                metadata.dimensions = dimensions
+
+                # Handle SVG files
+                if file_path.suffix.lower() == ".svg":
+                    width = dimensions[0] if dimensions else 0
+                    height = dimensions[1] if dimensions else 0
+                    metadata.markdown_content = f"""![{file_path.name}](attachments/{file_path.name})
+
+<!-- EMBEDDED IMAGE: {file_path.name} -->
+<details>
+<summary> {file_path.name} ({width}x{height}, {size_bytes//1024}KB)</summary>
+
+{img_metadata.get('inlined_content', '[Error analyzing image]')}
+
+</details>"""
+            else:
+                # Process document files
                 temp_path = self.temp_dir / file_path.name
                 temp_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(file_path, temp_path)
-                metadata = AttachmentMetadata(
-                    original_path=file_path,
-                    mime_type=mime_type or "application/octet-stream",
-                    size_bytes=size_bytes,
-                    is_image=True,
-                    dimensions=None,
-                    created_time=created_time,
-                    modified_time=modified_time,
-                    file_hash=file_hash,
-                    error=error_msg,
-                )
-                return temp_path, metadata
 
-        # Process document files
-        try:
-            # Create temp path preserving directory structure
-            temp_path = self.temp_dir / file_path.name
-            temp_path.parent.mkdir(parents=True, exist_ok=True)
+                # Handle PDF files
+                if file_path.suffix.lower() == ".pdf":
+                    try:
+                        # PDF handling is now done in the MarkItDown class using PyMuPDF
+                        markdown_content = self.markitdown.convert_to_markdown(
+                            file_path, force
+                        )
+                        if not markdown_content:
+                            error_msg_doc = "PDF conversion produced no content"
+                            logger.error(error_msg_doc)
+                        else:
+                            metadata.markdown_content = markdown_content
+                    except Exception as e:
+                        error_msg_doc = f"PDF conversion failed: {str(e)}"
+                        logger.error(error_msg_doc, exc_info=True)
+                else:
+                    # Try to convert other document types to markdown
+                    try:
+                        metadata.markdown_content = self.markitdown.convert_to_markdown(
+                            file_path, force
+                        )
+                    except Exception as e:
+                        error_msg_doc = f"Document conversion failed: {str(e)}"
+                        logger.error(error_msg_doc, exc_info=True)
+                        metadata.markdown_content = (
+                            f"[Error converting {file_path.name}: {str(e)}]"
+                        )
 
-            # Check if we need to process
-            if not force and temp_path.exists():
-                if temp_path.stat().st_mtime >= file_path.stat().st_mtime:
-                    return temp_path, AttachmentMetadata(
-                        original_path=file_path,
-                        mime_type=mime_type or "application/octet-stream",
-                        size_bytes=size_bytes,
-                        is_image=False,
-                        created_time=created_time,
-                        modified_time=modified_time,
-                        file_hash=file_hash,
-                    )
-
-            # Copy to temp location
-            shutil.copy2(file_path, temp_path)
-
-            # Try to convert document to markdown
-            markdown_content: str = ""  # Initialize with empty string
-            error_msg_doc: Optional[str] = None
-            try:
-                logger.debug(f"Converting document to markdown: {file_path}")
-                # convert_to_markdown always returns str or raises an exception
-                markdown_content = self.markitdown.convert_to_markdown(file_path, force)
-                logger.debug(
-                    f"Conversion successful, content length: {len(markdown_content)}"
-                )
-            except Exception as e:
-                error_msg_doc = f"Document conversion failed: {str(e)}"
-                logger.error(f"Document conversion failed: {str(e)}", exc_info=True)
-                markdown_content = f"[Error converting {file_path.name}: {str(e)}]"
-
-            metadata = AttachmentMetadata(
-                original_path=file_path,
-                mime_type=mime_type or "application/octet-stream",
-                size_bytes=size_bytes,
-                is_image=False,
-                markdown_content=markdown_content,
-                created_time=created_time,
-                modified_time=modified_time,
-                file_hash=file_hash,
-                error=error_msg_doc,
-            )
-            return temp_path, metadata
         except Exception as e:
-            error_msg = f"Document processing failed: {str(e)}"
+            error_msg = f"Processing failed: {str(e)}"
             logger.warning(f"{error_msg} for {file_path.name}, using basic copy")
-            # Fallback to basic copy
             temp_path = self.temp_dir / file_path.name
             temp_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(file_path, temp_path)
-            metadata = AttachmentMetadata(
-                original_path=file_path,
-                mime_type=mime_type or "application/octet-stream",
-                size_bytes=size_bytes,
-                is_image=False,
-                created_time=created_time,
-                modified_time=modified_time,
-                file_hash=file_hash,
-                error=error_msg,
-            )
-            return temp_path, metadata
+
+        metadata.error = error_msg_doc
+        return temp_path, metadata
 
     def cleanup(self) -> None:
         """Clean up temporary files."""

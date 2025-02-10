@@ -241,6 +241,115 @@ class GPTProcessor:
                 f"OpenRouter API error with model {self.current_model}: {str(e)}"
             )
 
+    def describe_image(
+        self,
+        image_path: Path,
+        result: ProcessingResult,
+        processor_type: str,
+    ) -> str:
+        """Get GPT description of image.
+
+        Args:
+            image_path: Path to the image file
+            result: The processing result to update
+            processor_type: The type of processor requesting the analysis
+        """
+        # Convert image to supported format if needed
+        converted_path, needs_cleanup = self._convert_to_supported_format(image_path)
+        if converted_path is None:
+            logger.error(f"Could not convert {image_path} to a supported format")
+            result.add_gpt_skipped(processor_type)
+            return "[Error: Unsupported image format]"
+
+        try:
+            # Generate cache key from image content
+            image_hash = quick_hash(str(converted_path.read_bytes()))
+
+            # Check cache first
+            if self.cache_manager:
+                cached = self.cache_manager.get_gpt_cache(image_hash)
+                if cached:
+                    logger.debug(f"Cache hit for GPT analysis: {image_hash}")
+                    result.add_gpt_from_cache(processor_type)
+                    return str(cached)
+
+            logger.debug(f"Cache miss for GPT analysis: {image_hash}")
+
+            # Convert image to base64
+            with open(converted_path, "rb") as img_file:
+                img_base64 = base64.b64encode(img_file.read()).decode()
+
+            # Create API request with proper type annotation
+            messages: list[ChatCompletionUserMessageParam] = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe this image in detail."},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{img_base64}"
+                            },
+                        },
+                    ],
+                }
+            ]
+
+            # Log request without base64 data for debugging
+            logger.debug(
+                f"Sending GPT request to {self.provider} for image analysis (base64 data omitted)"
+            )
+
+            response = self.client.chat.completions.create(
+                model=self.current_model,
+                messages=messages,
+                max_tokens=300,
+            )
+            content = response.choices[0].message.content
+            if content is None:
+                logger.error(f"GPT API returned no content ({self.provider})")
+                result.add_gpt_skipped(processor_type)
+                return "[Error: No content returned]"
+
+            description = str(content)
+            result.add_gpt_generated(processor_type)
+
+            # Cache the result
+            if self.cache_manager:
+                self.cache_manager.update_gpt_cache(image_hash, description)
+
+            return description
+
+        except Exception as e:
+            logger.error(f"GPT API error ({self.provider}): {str(e)}")
+            result.add_gpt_skipped(processor_type)
+            return "[Error analyzing image]"
+        finally:
+            # Clean up temporary file if needed
+            if needs_cleanup and converted_path and converted_path.exists():
+                try:
+                    converted_path.unlink()
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to clean up temporary file {converted_path}: {e}"
+                    )
+
+    def get_placeholder(
+        self,
+        image_path: Path,
+        result: ProcessingResult,
+        processor_type: str,
+    ) -> str:
+        """Get a placeholder description for an image.
+
+        Args:
+            image_path: Path to the image file
+            result: The processing result to update
+            processor_type: The type of processor requesting the analysis
+        """
+        result.add_gpt_skipped(processor_type)
+        return f"[GPT image analysis skipped for {image_path.name}]"
+
     def _convert_to_supported_format(
         self, image_path: Path
     ) -> Tuple[Optional[Path], bool]:
@@ -248,6 +357,27 @@ class GPTProcessor:
         suffix = image_path.suffix.lower()
         if suffix in self.SUPPORTED_FORMATS:
             return image_path, False
+
+        # For SVG files, look for PNG version in metadata
+        if suffix == ".svg":
+            # Look for PNG version in same directory as SVG
+            png_path = image_path.with_suffix(".png")
+            if png_path.exists():
+                return png_path, False
+
+            # Try to convert SVG to PNG using rsvg-convert
+            try:
+                output_path = image_path.with_suffix(".png")
+                subprocess.run(
+                    ["rsvg-convert", "-o", str(output_path), str(image_path)],
+                    check=True,
+                    capture_output=True,
+                )
+                logger.debug(f"Converted {image_path.name} to PNG for GPT analysis")
+                return output_path, True
+            except Exception as e:
+                logger.error(f"Failed to convert SVG to PNG: {e}")
+                return None, False
 
         # Convert HEIC to JPEG using sips on macOS
         if suffix == ".heic":
@@ -273,94 +403,3 @@ class GPTProcessor:
                 return None, False
 
         return None, False
-
-    def describe_image(
-        self,
-        image_path: Path,
-        result: ProcessingResult,
-        processor_type: str,
-    ) -> str:
-        """Get GPT description of image.
-
-        Args:
-            image_path: Path to the image file
-            result: The processing result to update
-            processor_type: The type of processor requesting the analysis
-        """
-        # Generate cache key from image content
-        image_hash = quick_hash(str(image_path.read_bytes()))
-
-        # Check cache first
-        if self.cache_manager:
-            cached = self.cache_manager.get_gpt_cache(image_hash)
-            if cached:
-                logger.debug(f"Cache hit for GPT analysis: {image_hash}")
-                result.add_gpt_from_cache(processor_type)
-                return str(cached)
-
-        logger.debug(f"Cache miss for GPT analysis: {image_hash}")
-
-        # Convert image to base64
-        with open(image_path, "rb") as img_file:
-            img_base64 = base64.b64encode(img_file.read()).decode()
-
-        # Create API request with proper type annotation
-        messages: list[ChatCompletionUserMessageParam] = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Describe this image in detail."},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"},
-                    },
-                ],
-            }
-        ]
-
-        # Log request without base64 data for debugging
-        logger.debug(
-            f"Sending GPT request to {self.provider} for image analysis (base64 data omitted)"
-        )
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.current_model,
-                messages=messages,
-                max_tokens=300,
-            )
-            content = response.choices[0].message.content
-            if content is None:
-                logger.error(f"GPT API returned no content ({self.provider})")
-                result.add_gpt_skipped(processor_type)
-                return "[Error: No content returned]"
-
-            description = str(content)
-            result.add_gpt_generated(processor_type)
-
-            # Cache the result
-            if self.cache_manager:
-                self.cache_manager.update_gpt_cache(image_hash, description)
-
-            return description
-
-        except Exception as e:
-            logger.error(f"GPT API error ({self.provider}): {str(e)}")
-            result.add_gpt_skipped(processor_type)
-            return "[Error analyzing image]"
-
-    def get_placeholder(
-        self,
-        image_path: Path,
-        result: ProcessingResult,
-        processor_type: str,
-    ) -> str:
-        """Get a placeholder description for an image.
-
-        Args:
-            image_path: Path to the image file
-            result: The processing result to update
-            processor_type: The type of processor requesting the analysis
-        """
-        result.add_gpt_skipped(processor_type)
-        return f"[GPT image analysis skipped for {image_path.name}]"

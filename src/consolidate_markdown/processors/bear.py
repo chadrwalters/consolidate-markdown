@@ -20,11 +20,16 @@ logger = logging.getLogger(__name__)
 class BearProcessor(SourceProcessor):
     """Process Bear notes and their attachments."""
 
-    def __init__(self, source_config: SourceConfig):
+    def __init__(
+        self, source_config: SourceConfig, cache_manager: Optional[CacheManager] = None
+    ):
         """Initialize processor."""
-        super().__init__(source_config)
+        super().__init__(source_config, cache_manager)
         self.validate()  # Call validate to ensure source directory exists
-        self.cache_manager = CacheManager(source_config.dest_dir.parent)
+        if cache_manager is None:
+            self.cache_manager = CacheManager(source_config.dest_dir.parent)
+        else:
+            self.cache_manager = cache_manager
 
     def _count_attachments(self, content: str, attachment_dir: Path) -> Tuple[int, int]:
         """Count images and documents in content.
@@ -199,7 +204,7 @@ class BearProcessor(SourceProcessor):
                 task_id,
             )
 
-        # Write processed note
+        # Write processed content
         output_file = self.source_config.dest_dir / note_file.name
         output_file.write_text(content, encoding="utf-8")
 
@@ -207,8 +212,9 @@ class BearProcessor(SourceProcessor):
         self.cache_manager.update_note_cache(
             str(note_file),
             content_hash,
-            note_file.stat().st_mtime,
-            processed_content=content,
+            output_file.stat().st_mtime,
+            result.gpt_new_analyses,
+            content,
         )
 
         # Add to result stats
@@ -251,6 +257,10 @@ class BearProcessor(SourceProcessor):
                     progress.advance(task_id)
                 return match.group(0)
 
+            logger.info(
+                f"Processing attachment: {attachment_path} (is_image={is_image})"
+            )
+
             # Process the attachment using the base class method
             markdown = self._process_attachment(
                 attachment_path,
@@ -263,14 +273,24 @@ class BearProcessor(SourceProcessor):
                 progress=progress,
                 task_id=task_id,
             )
+            logger.info(
+                f"Generated markdown for {attachment_path.name}: {markdown[:200] if markdown else 'None'}"
+            )
             return markdown if markdown else match.group(0)
 
         # Replace image references
         content = re.sub(r"!\[(.*?)\]\((.*?)\)", replace_attachment, content)
 
-        # Replace embedded document references
+        # First try to replace embedded document references with Bear's format or our PDF format
         content = re.sub(
-            r'\[(.*?)\]\((.*?)\)<!-- *{"embed":"true".*?} *-->',
+            r'\[(.*?)\]\((.*?)\)(?:<!-- *(?:{"embed":"true".*?}|EMBEDDED PDF: .*?) *-->)',
+            replace_attachment,
+            content,
+        )
+
+        # Then replace any remaining PDF links that don't have comments and haven't been replaced
+        content = re.sub(
+            r'\[(.*?)\]\((.*?\.pdf)\)(?!<!-- *(?:{"embed":"true".*?}|EMBEDDED PDF: .*?) *-->)',
             replace_attachment,
             content,
         )

@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 import pytest
 
 from consolidate_markdown.attachments.processor import AttachmentProcessor
+from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import (
     DEFAULT_OPENAI_BASE_URL,
     DEFAULT_OPENROUTER_BASE_URL,
@@ -1088,7 +1089,9 @@ def test_process_conversation_with_attachments(tmp_path: Path) -> None:
     )
 
     config = Config(global_config=global_config, sources=[source_config])
-    processor = ChatGPTProcessor(source_config=source_config)
+    processor = ChatGPTProcessor(source_config)
+    processor.cache_manager = CacheManager(global_config.cm_dir)
+    processor._attachment_processor = AttachmentProcessor(source_config.dest_dir)
     result = processor.process(config)
 
     # Verify attachments were processed

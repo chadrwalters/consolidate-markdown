@@ -3,6 +3,7 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager, quick_hash
@@ -15,11 +16,16 @@ logger = logging.getLogger(__name__)
 class XBookmarksProcessor(SourceProcessor):
     """Process X bookmarks and their attachments."""
 
-    def __init__(self, source_config: SourceConfig):
+    def __init__(
+        self, source_config: SourceConfig, cache_manager: Optional[CacheManager] = None
+    ):
         """Initialize processor."""
-        super().__init__(source_config)
+        super().__init__(source_config, cache_manager)
         self.validate()  # Call validate to ensure source directory exists
-        self.cache_manager = CacheManager(source_config.dest_dir.parent)
+        if cache_manager is None:
+            self.cache_manager = CacheManager(source_config.dest_dir.parent)
+        else:
+            self.cache_manager = cache_manager
 
     def _process_impl(self, config: Config) -> ProcessingResult:
         """Process all X bookmarks in the source directory."""
@@ -205,13 +211,13 @@ class XBookmarksProcessor(SourceProcessor):
                     else:
                         result.add_image_from_cache(self._processor_type)
 
-                    size_kb = metadata.size_bytes / 1024
+                    size_kb = metadata.size // 1024
                     dimensions = metadata.dimensions or (0, 0)
 
                     media_content += f"""
 <!-- EMBEDDED IMAGE: {media_file.name} -->
 <details>
-<summary>🖼️ {media_file.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
+<summary>🖼️ {media_file.name} ({dimensions[0]}x{dimensions[1]}, {size_kb}KB)</summary>
 
 [Image will be analyzed in Phase 4]
 
@@ -257,7 +263,7 @@ class XBookmarksProcessor(SourceProcessor):
                     else:
                         result.add_document_from_cache(self._processor_type)
 
-                    size_kb = metadata.size_bytes / 1024
+                    size_kb = metadata.size // 1024
                     doc_content = (
                         metadata.markdown_content
                         or "[Document content will be converted in Phase 4]"
@@ -267,7 +273,7 @@ class XBookmarksProcessor(SourceProcessor):
 
 <!-- EMBEDDED DOCUMENT: {attachment.name} -->
 <details>
-<summary>📄 {attachment.name} ({size_kb:.0f}KB)</summary>
+<summary>📄 {attachment.name} ({size_kb}KB)</summary>
 
 {doc_content}
 

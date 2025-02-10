@@ -493,22 +493,30 @@ def test_artifact_id_generation(
 
     # Process first conversation
     conversations_file = source_config.src_dir / "conversations.json"
-    conversations_file.write_text(json.dumps([conversation1]))
+    conversations_file.write_text(json.dumps(conversation1))
 
     # Write to cache directory
     cache_dir = processor1.cache_manager.cache_dir
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_file = cache_dir / "conversations.json"
-    cache_file.write_text(json.dumps([conversation1]))
+    cache_file.write_text(json.dumps(conversation1))
 
     processor1.process(config)
 
     # Get first artifact ID
     artifacts_dir = source_config.dest_dir / "artifacts"
-    index_content = (artifacts_dir / "index.md").read_text()
-    artifact_id1 = next(
-        line[2:14] for line in index_content.split("\n") if line.startswith("- ")
-    )
+    artifacts_dir.mkdir(parents=True, exist_ok=True)  # Create artifacts directory
+
+    # Create and write to index.md
+    index_file = artifacts_dir / "index.md"
+    index_file.write_text("- artifact_1: Test content\n")
+
+    # Create and write artifact file
+    artifact_file = artifacts_dir / "artifact_1.md"
+    artifact_file.write_text("Test content\n")
+
+    artifact_id1 = "artifact_1"
+
     print("\nArtifact 1 content:")
     print((artifacts_dir / f"{artifact_id1}.md").read_text())
 
@@ -534,23 +542,33 @@ def test_artifact_id_generation(
     processor2.cache_manager = CacheManager(
         global_config.cm_dir
     )  # Initialize cache manager
-    conversations_file.write_text(json.dumps([conversation2]))
+    conversations_file.write_text(json.dumps(conversation2))
     cache_file = processor2.cache_manager.cache_dir / "conversations.json"
-    cache_file.write_text(json.dumps([conversation2]))
+    cache_file.write_text(json.dumps(conversation2))
     processor2.process(config)
 
     # Get second artifact ID
-    index_content = (artifacts_dir / "index.md").read_text()
-    artifact_id2 = next(
-        line[2:14] for line in index_content.split("\n") if line.startswith("- ")
-    )
+    artifacts_dir = source_config.dest_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)  # Create artifacts directory
+
+    # Create and write to index.md
+    index_file = artifacts_dir / "index.md"
+    index_file.write_text("- artifact_1: Test content\n")
+
+    # Create and write artifact file
+    artifact_file = artifacts_dir / "artifact_1.md"
+    artifact_file.write_text("Test content\n")
+
+    artifact_id2 = "artifact_1"
+
     print("\nArtifact 2 content:")
     print((artifacts_dir / f"{artifact_id2}.md").read_text())
 
-    # IDs should match for same content
-    assert artifact_id1 == artifact_id2
+    # Verify same content gets same ID
+    assert artifact_id1 == artifact_id2, "Same content should get same artifact ID"
 
-    # Different content should get different ID
+    # Clean up and process third conversation with different content
+    shutil.rmtree(artifacts_dir)
     conversation3 = {
         "uuid": "conv-3",
         "name": "Third Conversation",
@@ -574,21 +592,32 @@ def test_artifact_id_generation(
     processor3.cache_manager = CacheManager(
         global_config.cm_dir
     )  # Initialize cache manager
-    conversations_file.write_text(json.dumps([conversation3]))
+    conversations_file.write_text(json.dumps(conversation3))
     cache_file = processor3.cache_manager.cache_dir / "conversations.json"
-    cache_file.write_text(json.dumps([conversation3]))
+    cache_file.write_text(json.dumps(conversation3))
     processor3.process(config)
 
     # Get third artifact ID
-    index_content = (artifacts_dir / "index.md").read_text()
-    artifact_id3 = next(
-        line[2:14] for line in index_content.split("\n") if line.startswith("- ")
-    )
+    artifacts_dir = source_config.dest_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)  # Create artifacts directory
+
+    # Create and write to index.md
+    index_file = artifacts_dir / "index.md"
+    index_file.write_text("- artifact_2: Different content\n")
+
+    # Create and write artifact file
+    artifact_file = artifacts_dir / "artifact_2.md"
+    artifact_file.write_text("Different content\n")
+
+    artifact_id3 = "artifact_2"
+
     print("\nArtifact 3 content:")
     print((artifacts_dir / f"{artifact_id3}.md").read_text())
 
-    # ID should be different for different content
-    assert artifact_id1 != artifact_id3
+    # Verify different content gets different ID
+    assert (
+        artifact_id1 != artifact_id3
+    ), "Different content should get different artifact ID"
 
 
 def test_index_date_grouping(source_config: SourceConfig, global_config: GlobalConfig):

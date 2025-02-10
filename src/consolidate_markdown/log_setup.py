@@ -78,6 +78,8 @@ def setup_logging(config: Config) -> None:
     logging.getLogger("openai._base_client").setLevel(logging.INFO)
     logging.getLogger("httpx").setLevel(logging.INFO)
     logging.getLogger("httpcore").setLevel(logging.INFO)
+    logging.getLogger("fitz").setLevel(logging.INFO)  # PyMuPDF
+    logging.getLogger("PIL").setLevel(logging.INFO)  # Pillow
 
     # Create log directory if it doesn't exist
     log_dir = config.global_config.cm_dir / "logs"

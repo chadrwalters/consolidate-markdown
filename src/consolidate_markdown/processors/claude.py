@@ -8,7 +8,7 @@ import shutil
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from rich.progress import Progress, TaskID
 
@@ -30,16 +30,16 @@ class ClaudeProcessor(SourceProcessor):
     the output.
     """
 
-    def __init__(self, source_config: SourceConfig):
+    def __init__(
+        self, source_config: SourceConfig, cache_manager: Optional[CacheManager] = None
+    ):
         """Initialize processor with source configuration."""
-        super().__init__(source_config)
-        # Initialize cache manager with global config directory
-        self.cache_manager: Optional[
-            CacheManager
-        ] = None  # Will be set when processing with global config
-        self._attachment_processor: Optional[AttachmentProcessor] = None
+        super().__init__(source_config, cache_manager)
+        self.validate()
+
+        # Initialize artifact tracking
         self._artifact_versions: Dict[str, List[Dict[str, Any]]] = {}
-        self._artifact_relationships: Dict[str, Set[str]] = {}
+        self._artifact_relationships: Dict[str, List[str]] = {}
 
     @property
     def attachment_processor(self) -> AttachmentProcessor:
@@ -57,95 +57,6 @@ class ClaudeProcessor(SourceProcessor):
             ValueError: If source configuration is invalid.
         """
         super().validate()
-
-        # Check for conversations.json in source directory
-        src_conversations_file = self.source_config.src_dir / "conversations.json"
-        if not src_conversations_file.exists():
-            logger.info(
-                f"No conversations.json found in source directory: {self.source_config.src_dir}"
-            )
-            return
-        if not src_conversations_file.is_file():
-            raise ValueError(
-                f"conversations.json is not a file: {src_conversations_file}"
-            )
-
-        # Skip cache directory check if cache_manager is not initialized yet
-        if self.cache_manager is not None:
-            # Ensure cache directory exists
-            self.cache_manager.cache_dir.mkdir(parents=True, exist_ok=True)
-
-    def _validate_conversation(self, conversation: Dict[str, Any]) -> bool:
-        """Validate a conversation has required fields and valid content.
-
-        Args:
-            conversation: The conversation to validate.
-
-        Returns:
-            bool: True if valid, False otherwise.
-        """
-        if not isinstance(conversation, dict):
-            logger.warning("Invalid conversation format: not a dictionary")
-            return False
-
-        # Check required fields
-        if "chat_messages" not in conversation:
-            logger.warning("Missing required field: chat_messages")
-            return False
-
-        # Name is optional, will use default if missing
-        if not conversation.get("name"):
-            conversation["name"] = "Untitled Conversation"
-
-        # UUID is optional, will use "unknown" if missing
-        if "uuid" not in conversation:
-            conversation["uuid"] = "unknown"
-
-        # Check messages
-        messages = conversation.get("chat_messages", [])
-        if not isinstance(messages, list):
-            logger.warning("Invalid 'chat_messages' format - expected list")
-            return False
-
-        # Allow empty conversations
-        if not messages:
-            return True
-
-        # Check if any message has valid content
-        has_valid_content = False
-        for message in messages:
-            if not isinstance(message, dict):
-                continue
-
-            # Check for required message fields
-            if "sender" not in message:
-                continue
-
-            content = message.get("content", [])
-            if content is None:
-                content = []
-
-            if not isinstance(content, list):
-                continue
-
-            # Consider empty content valid
-            if not content:
-                has_valid_content = True
-                continue
-
-            # Check for any valid content block
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                # Consider any block with text or type valid
-                if block.get("text") is not None or block.get("type"):
-                    has_valid_content = True
-                    break
-
-            if has_valid_content:
-                break
-
-        return True  # Allow all conversations through validation
 
     def _get_output_path(self, title: str, created_at: Optional[str] = None) -> Path:
         """Generate output path for a conversation.
@@ -269,285 +180,186 @@ class ClaudeProcessor(SourceProcessor):
 
         # Track relationships (artifacts in the same conversation)
         if conversation_id not in self._artifact_relationships:
-            self._artifact_relationships[conversation_id] = set()
-        self._artifact_relationships[conversation_id].add(artifact_id)
+            self._artifact_relationships[conversation_id] = []
+        self._artifact_relationships[conversation_id].append(artifact_id)
 
     def _process_impl(self, config: Config) -> ProcessingResult:
-        """Process Claude conversation exports into Markdown.
+        """Process Claude export files.
 
         Args:
-            config: The configuration object.
+            config: The configuration to use.
 
         Returns:
-            The processing result object.
+            The processing result.
         """
-        # Initialize cache manager if not already set
-        if self.cache_manager is None:
-            self.cache_manager = CacheManager(config.global_config.cm_dir)
+        result = ProcessingResult()
 
         # Create destination directory if it doesn't exist
         self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize result
-        result = ProcessingResult()
+        # Process each conversation file in the directory
+        for file_path in self.source_config.src_dir.glob("*"):
+            if not file_path.is_file() or file_path.suffix != ".json":
+                continue
 
-        # Reset artifact tracking
-        self._artifact_versions = {}
-        self._artifact_relationships = {}
-
-        # Load conversations from source
-        conversations_file = self.source_config.src_dir / "conversations.json"
-        try:
-            conversations = json.loads(conversations_file.read_text())
-            if not isinstance(conversations, list):
-                conversations = [conversations]
-
-            # Filter out non-dict items
-            conversations = [c for c in conversations if isinstance(c, dict)]
-
-            # Sort conversations by creation date (most recent first)
-            conversations.sort(
-                key=lambda x: x.get("created_at", "") or "", reverse=True
-            )
-
-            # Apply limit if set
-            if self.item_limit is not None:
-                logger.debug(f"Limiting to {self.item_limit} most recent conversations")
-                conversations = conversations[: self.item_limit]
-
-        except json.JSONDecodeError as e:
-            error_msg = f"Error parsing conversations.json: {str(e)}"
-            logger.error(error_msg)
-            result.add_error(error_msg, self._processor_type)
-            return result
-
-        # Track conversations for index
-        conversation_index = []
-
-        # Process each conversation
-        for conversation in conversations:
             try:
-                if not isinstance(conversation, dict):
-                    logger.warning(
-                        f"Skipping invalid conversation type: {type(conversation)}"
-                    )
-                    result.add_skipped(self._processor_type)
-                    continue
+                with open(file_path, "r", encoding="utf-8") as f:
+                    conversation = json.load(f)
 
-                # Validate conversation
-                if not self._validate_conversation(conversation):
-                    logger.warning(
-                        f"Skipping invalid conversation: {conversation.get('uuid', 'unknown')}"
-                    )
-                    result.add_skipped(self._processor_type)
-                    continue
-
-                # Extract conversation metadata
-                title = conversation.get("name", "Untitled Conversation")
-                created_at = conversation.get("created_at")
-                conversation_id = conversation.get("uuid", "unknown")
-
-                # For warning context
-                context = f"[{title}] ({conversation_id})"
-                logger.debug(f"Processing conversation: {context}")
-
-                # Generate output path
-                output_file = self._get_output_path(title, created_at)
-
-                # Track for index
-                conversation_index.append(
-                    {
-                        "name": title,  # Use the original name
-                        "created_at": created_at,
-                        "path": output_file.name,  # Use just the filename
-                        "id": conversation_id,
-                    }
-                )
-                logger.debug(f"Added to index: {title} ({created_at})")
-
-                # Check if we need to regenerate
-                if not config.global_config.force_generation and output_file.exists():
-                    result.add_from_cache(self._processor_type)
+                self._process_conversation(conversation, config, result)
+                # Only increment if the conversation was processed or loaded from cache
+                if result.last_action in ["generated", "from_cache"]:
                     result.processed += 1
-                    continue
-
-                # Convert to markdown
-                try:
-                    markdown = self._convert_to_markdown(conversation, config, result)
-                    logger.debug(
-                        f"{context} - Generated markdown content length: {len(markdown) if markdown else 0}"
-                    )
-                    if markdown is None:
-                        logger.warning(
-                            f"{context} - Skipping conversation with no content"
-                        )
-                        result.add_skipped(self._processor_type)
-                        conversation_index.pop()  # Remove from index if conversion failed
-                        continue
-
-                    # Write output file
-                    logger.debug(f"{context} - Writing to file: {output_file}")
-                    output_file.parent.mkdir(parents=True, exist_ok=True)
-                    output_file.write_text(markdown, encoding="utf-8")
-                    logger.debug(
-                        f"{context} - Wrote {len(markdown)} bytes to: {output_file}"
-                    )
-                    result.add_generated(self._processor_type)
-                    result.processed += 1
-                except (TypeError, AttributeError) as e:
-                    logger.error(
-                        f"{context} - Error converting conversation to markdown: {str(e)}"
-                    )
-                    result.add_error(
-                        f"Error converting conversation to markdown: {str(e)}",
-                        self._processor_type,
-                    )
-                    result.add_skipped(self._processor_type)
-                    conversation_index.pop()  # Remove from index if conversion failed
-                    continue
-
             except Exception as e:
-                error_msg = f"Error processing conversation: {str(e)}"
+                error_msg = f"Error processing conversation file {file_path}: {str(e)}"
                 logger.error(error_msg)
                 result.add_error(error_msg, self._processor_type)
                 result.add_skipped(self._processor_type)
-                if conversation_index:
-                    conversation_index.pop()  # Remove from index if processing failed
-
-        # Write artifact files
-        artifacts_index = ["# Generated Artifacts", ""]
-
-        # Create artifacts directory if it doesn't exist
-        artifacts_dir = self.source_config.dest_dir / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        if self._artifact_versions:
-            for artifact_id, versions in self._artifact_versions.items():
-                # Write individual artifact file
-                artifact_file = artifacts_dir / f"{artifact_id}.md"
-                artifact_content = [
-                    f"# Artifact {artifact_id}",
-                    "",
-                    "## Content",
-                    "",
-                    "```",
-                    versions[-1]["content"],  # Latest version
-                    "```",
-                    "",
-                    "## Version History",
-                    "",
-                ]
-                for version in versions:
-                    artifact_content.append(
-                        f"- {version['timestamp']}: {version['conversation_id']}"
-                    )
-
-                # Add related artifacts section (even if empty)
-                artifact_content.extend(["", "## Related Artifacts", ""])
-
-                # Add related artifacts if any
-                related = set()
-                for conv_id, artifacts in self._artifact_relationships.items():
-                    if artifact_id in artifacts:
-                        related.update(artifacts - {artifact_id})
-
-                if related:
-                    for related_id in sorted(related):
-                        artifact_content.append(f"- {related_id} (same conversation)")
-
-                artifact_file.write_text("\n".join(artifact_content), encoding="utf-8")
-
-                # Add to index with content preview
-                preview = versions[-1]["content"][:100]
-                if len(versions[-1]["content"]) > 100:
-                    preview += "..."
-
-                artifacts_index.extend(
-                    [
-                        f"- {artifact_id}",
-                        "",
-                    ]
-                )
-        else:
-            # No artifacts found, but don't create a placeholder
-            artifacts_index.extend(
-                [
-                    "No artifacts found in any conversations.",
-                    "",
-                ]
-            )
-
-        # Write artifacts index
-        (artifacts_dir / "index.md").write_text(
-            "\n".join(artifacts_index), encoding="utf-8"
-        )
-
-        # Generate index file (even if empty)
-        index_path = self.source_config.dest_dir / "index.md"
-        index_content = ["# Claude Conversations", ""]
-
-        # Sort conversations by date (most recent first)
-        conversation_index.sort(key=lambda x: x.get("created_at") or "", reverse=True)
-
-        # Group conversations by month
-        month_groups: dict[str, list[dict[str, Any]]] = {}
-        undated: list[dict[str, Any]] = []
-
-        for conversation in conversation_index:
-            created_at = conversation.get("created_at")
-            if not created_at:
-                undated.append(conversation)
-                continue
-
-            # Parse the date from ISO format
-            try:
-                date = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                # Use consistent month format for grouping
-                month_year = date.strftime("%B %Y")  # e.g., "January 2024"
-                if month_year not in month_groups:
-                    month_groups[month_year] = []
-                month_groups[month_year].append(
-                    {"conversation": conversation, "date": date}
-                )
-            except (ValueError, AttributeError):
-                undated.append(conversation)
-
-        # Sort conversations within each month by date (most recent first)
-        for month_year in month_groups:
-            month_groups[month_year].sort(key=lambda x: x["date"], reverse=True)
-
-        # Add conversations by month (most recent first)
-        for month_year in sorted(
-            month_groups.keys(),
-            key=lambda x: datetime.strptime(x, "%B %Y"),
-            reverse=True,
-        ):
-            logger.debug(f"Adding month section: {month_year}")
-            index_content.append(f"## {month_year}")
-            index_content.append("")  # Add blank line after header
-            for i, item in enumerate(month_groups[month_year]):
-                conversation = item["conversation"]
-                title = conversation.get("name", "Untitled")
-                path = conversation.get("path", "")
-                logger.debug(f"Adding conversation: {title} ({item['date']})")
-                index_content.append(f"- [{title}]({path})")
-
-        # Add undated conversations at the end
-        if undated:
-            index_content.append("## Undated Conversations")
-            index_content.append("")  # Add blank line after header
-            for conversation in undated:
-                title = conversation.get("name", "Untitled")
-                path = conversation.get("path", "")
-                index_content.append(f"- [{title}]({path})")
-
-        # Write index file
-        index_content_str = "\n".join(index_content)
-        logger.debug(f"Writing index file:\n{index_content_str}")
-        index_path.write_text(index_content_str, encoding="utf-8")
-        logger.debug(f"Wrote index file: {index_path}")
 
         return result
+
+    def _validate_conversation(self, conversation: Dict[str, Any]) -> bool:
+        """Validate a conversation has required fields and valid content.
+
+        Args:
+            conversation: The conversation to validate.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        if not isinstance(conversation, dict):
+            logger.warning("Invalid conversation format: not a dictionary")
+            return False
+
+        # Check required fields
+        if "chat_messages" not in conversation:
+            logger.warning("Missing required field: chat_messages")
+            return False
+
+        # Name is optional, will use default if missing
+        if not conversation.get("name"):
+            conversation["name"] = "Untitled Conversation"
+
+        # UUID is optional, will use "unknown" if missing
+        if "uuid" not in conversation:
+            conversation["uuid"] = "unknown"
+
+        # Check messages
+        messages = conversation.get("chat_messages", [])
+        if not isinstance(messages, list):
+            logger.warning("Invalid 'chat_messages' format - expected list")
+            return False
+
+        # Allow empty conversations
+        if not messages:
+            return True
+
+        # Check if any message has valid content
+        has_valid_content = False
+        for message in messages:
+            if not isinstance(message, dict):
+                continue
+
+            # Check for required message fields
+            if "sender" not in message:
+                continue
+
+            content = message.get("content", [])
+            if content is None:
+                content = []
+
+            if not isinstance(content, list):
+                continue
+
+            # Consider empty content valid
+            if not content:
+                has_valid_content = True
+                continue
+
+            # Check for any valid content block
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                # Consider any block with text or type valid
+                if block.get("text") is not None or block.get("type"):
+                    has_valid_content = True
+                    break
+
+            if has_valid_content:
+                break
+
+        return True  # Allow all conversations through validation
+
+    def _process_conversation(
+        self, conversation: Dict[str, Any], config: Config, result: ProcessingResult
+    ) -> None:
+        """Process a conversation into markdown format.
+
+        Args:
+            conversation: The conversation to process.
+            config: The configuration to use.
+            result: The processing result to update.
+        """
+        try:
+            # Validate conversation
+            if not self._validate_conversation(conversation):
+                logger.warning(
+                    f"Skipping invalid conversation: {conversation.get('uuid', 'unknown')}"
+                )
+                result.add_skipped(self._processor_type)
+                return
+
+            # Extract conversation metadata
+            title = conversation.get("name", "Untitled Conversation")
+            created_at = conversation.get("created_at")
+
+            # For warning context
+            context = f"[{title}] ({conversation.get('uuid', 'unknown')})"
+            logger.debug(f"Processing conversation: {context}")
+
+            # Generate output path
+            output_file = self._get_output_path(title, created_at)
+
+            # Check if we need to regenerate
+            if not config.global_config.force_generation and output_file.exists():
+                result.add_from_cache(self._processor_type)
+                return
+
+            # Convert to markdown
+            try:
+                markdown = self._convert_to_markdown(conversation, config, result)
+                logger.debug(
+                    f"{context} - Generated markdown content length: {len(markdown) if markdown else 0}"
+                )
+                if markdown is None:
+                    logger.warning(f"{context} - Skipping conversation with no content")
+                    result.add_skipped(self._processor_type)
+                    return
+
+                # Write output file
+                logger.debug(f"{context} - Writing to file: {output_file}")
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                output_file.write_text(markdown, encoding="utf-8")
+                logger.debug(
+                    f"{context} - Wrote {len(markdown)} bytes to: {output_file}"
+                )
+                result.add_generated(self._processor_type)
+            except (TypeError, AttributeError) as e:
+                logger.error(
+                    f"{context} - Error converting conversation to markdown: {str(e)}"
+                )
+                result.add_error(
+                    f"Error converting conversation to markdown: {str(e)}",
+                    self._processor_type,
+                )
+                result.add_skipped(self._processor_type)
+                return
+
+        except Exception as e:
+            error_msg = f"Error processing conversation: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+            result.add_skipped(self._processor_type)
 
     def _format_file_size(self, size_in_bytes: int) -> str:
         """Format file size in human readable format.
@@ -609,69 +421,23 @@ class ClaudeProcessor(SourceProcessor):
             The markdown representation of the attachment, or None if invalid
         """
         try:
-            file_type = attachment.get("file_type", "")
-            file_name = attachment.get("file_name", "")
-            content = attachment.get("content", "")
-            file_size = attachment.get("file_size", 0)
-
-            if not file_type or not file_name:
-                logger.warning(
-                    f"Invalid text attachment in message {message_id}: missing type or name"
-                )
+            content = attachment.get("extracted_content", "")
+            if not content:
                 return None
 
-            # Update processing result
-            result.documents_processed += 1
+            # Format as code block if it looks like code
+            if any(line.startswith(("    ", "\t")) for line in content.splitlines()):
+                return f"```\n{content}\n```"
 
-            # Format size if available
-            size_str = (
-                f" ({self._format_file_size(file_size)} {file_type})"
-                if file_size
-                else f" ({file_type})"
-            )
+            # Otherwise return as plain text
+            return content
 
-            # Get appropriate icon
-            icon = self._get_attachment_icon(file_type)
-
-            # If content is empty, show metadata with a note
-            if not content:
-                logger.warning(
-                    f"Empty content in attachment {file_name} ({message_id})"
-                )
-                return f"""
-<!-- CLAUDE EXPORT: Empty attachment {file_name} -->
-<details>
-<summary>{icon} {file_name}{size_str} - Empty Attachment</summary>
-
-Original File Information:
-- Type: {file_type}
-- Size: {self._format_file_size(file_size) if file_size else 'Unknown'}
-- Extracted: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
-- Status: No content available in Claude export
-
-</details>
-"""
-
-            # Format the content with details tag
-            return f"""
-<!-- CLAUDE EXPORT: Extracted content from {file_name} -->
-<details>
-<summary>{icon} {file_name}{size_str} - Extracted Content</summary>
-
-Original File Information:
-- Type: {file_type}
-- Size: {self._format_file_size(file_size) if file_size else 'Unknown'}
-- Extracted: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
-
-Extracted Content:
-```{file_type}
-{content}
-```
-
-</details>
-"""
         except Exception as e:
-            logger.error(f"Error formatting text attachment: {str(e)}")
+            error_msg = (
+                f"Error formatting text attachment in message {message_id}: {str(e)}"
+            )
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
             return None
 
     def _convert_to_markdown(
@@ -688,214 +454,153 @@ Extracted Content:
             The markdown content, or None if conversion failed.
         """
         try:
-            # Validate required fields
-            if not isinstance(conversation, dict):
-                logger.warning("Invalid conversation format: not a dictionary")
-                return None
-
+            # Extract conversation metadata
             title = conversation.get("name", "Untitled Conversation")
             created_at = conversation.get("created_at")
-            updated_at = conversation.get("updated_at")
-            conversation_id = conversation.get("uuid", "unknown")
-            messages = conversation.get("chat_messages", [])
 
-            if not isinstance(messages, list):
-                logger.warning(
-                    f"Invalid messages format in conversation {conversation_id}"
-                )
-                return None
+            # Format title and metadata
+            content = []
+            content.append(f"# {title}")
+            content.append("")
 
-            # Build markdown content
-            content = [
-                f"# {title}",
-                "",
-                f"Created: {created_at or 'Unknown'}",
-            ]
-            if updated_at:
-                content.append(f"Updated: {updated_at}")
-            content.extend([f"UUID: {conversation_id}", ""])
+            if created_at:
+                try:
+                    # Parse the date from ISO format
+                    date = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    # Format as human readable
+                    content.append(f"Created: {date.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+                    content.append("")
+                except (ValueError, AttributeError):
+                    pass  # Skip invalid dates
 
             # Process messages
+            messages = conversation.get("chat_messages", [])
+            if not isinstance(messages, list):
+                logger.warning(f"{title} - Invalid messages format")
+                return None
+
+            # Skip empty conversations
+            if not messages:
+                logger.warning(f"{title} - No messages")
+                return None
+
+            # Process each message
             for message in messages:
                 if not isinstance(message, dict):
-                    logger.warning(
-                        f"Skipping invalid message in conversation {conversation_id}"
-                    )
                     continue
 
-                # Get message metadata with consistent defaults
-                sender = message.get("sender")
-                if sender:
-                    # Capitalize first letter for human/assistant
-                    if sender.lower() in ["human", "assistant"]:
-                        sender = sender.title()
-                    else:
-                        sender = sender  # Keep original case for other senders
-                else:
-                    sender = "unknown"  # Use lowercase "unknown" for missing sender
+                # Get sender and timestamp
+                sender = message.get("sender", "unknown")
+                message_time = message.get("created_at")
 
-                timestamp = message.get("created_at", "")
-                message_id = message.get("uuid", "unknown")
-                message_content = message.get("content", [])
+                # Format sender line
+                content.append(f"## {sender}")
+                if message_time:
+                    try:
+                        date = datetime.fromisoformat(
+                            message_time.replace("Z", "+00:00")
+                        )
+                        content.append(f"Time: {date.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+                    except (ValueError, AttributeError):
+                        pass
 
-                if not isinstance(message_content, list):
-                    logger.warning(f"Invalid content format in message {message_id}")
-                    continue
-
-                # Add message header with consistent formatting
-                content.append(
-                    f"## {sender} ({timestamp})"
-                )  # Keep original case for sender
                 content.append("")
 
-                # Process text attachments if present
-                attachments = message.get("attachments", [])
-                if attachments and isinstance(attachments, list):
-                    for attachment in attachments:
-                        if not isinstance(attachment, dict):
-                            continue
-                        attachment_content = self._format_text_attachment(
+                # Process text attachments
+                for attachment in message.get("attachments", []):
+                    if attachment.get("extracted_content"):
+                        attachment_md = self._format_text_attachment(
                             attachment,
-                            message_id,
-                            result,
+                            message.get("uuid", "unknown"),
+                            result,  # Pass result directly
                         )
-                        if attachment_content:
-                            content.append(attachment_content)
+                        if attachment_md:
+                            content.append(attachment_md)
                             content.append("")
 
-                # Process content blocks
-                for block in message_content:
-                    if not isinstance(block, dict):
-                        logger.warning(
-                            f"Skipping invalid content block in message {message_id}"
-                        )
-                        continue
+                # Process message content
+                content.extend(self._process_message_content(message, result))
+                content.append("")  # Add blank line between messages
 
-                    block_type = block.get("type", "")
-                    block_text = block.get("text", "")
-
-                    if block_type == "text" or block_text:  # Handle missing type field
-                        # Process XML tags
-                        while (
-                            "<antThinking>" in block_text
-                            and "</antThinking>" in block_text
-                        ):
-                            start = block_text.find("<antThinking>")
-                            end = block_text.find("</antThinking>") + len(
-                                "</antThinking>"
-                            )
-                            thinking_text = block_text[
-                                start
-                                + len("<antThinking>") : block_text.find(
-                                    "</antThinking>"
-                                )
-                            ]
-
-                            # Process nested artifact tags
-                            artifact_text = None
-                            if (
-                                "<antArtifact>" in thinking_text
-                                and "</antArtifact>" in thinking_text
-                            ):
-                                art_start = thinking_text.find("<antArtifact>")
-                                art_end = thinking_text.find("</antArtifact>") + len(
-                                    "</antArtifact>"
-                                )
-                                artifact_text = thinking_text[
-                                    art_start
-                                    + len("<antArtifact>") : thinking_text.find(
-                                        "</antArtifact>"
-                                    )
-                                ]
-                                thinking_text = (
-                                    thinking_text[:art_start] + thinking_text[art_end:]
-                                )
-
-                            block_text = (
-                                block_text[:start]
-                                + "\n\n💭 **Thinking Process:**\n\n"
-                                + thinking_text
-                                + "\n\n"
-                                + block_text[end:]
-                            )
-
-                            if artifact_text:
-                                block_text = (
-                                    block_text[:start]
-                                    + "\n\n🔨 **Generated Artifact:**\n\n```\n"
-                                    + artifact_text
-                                    + "\n```\n\n"
-                                    + block_text[start:]
-                                )
-                                self._track_artifact(
-                                    artifact_text, message_id, conversation_id
-                                )
-
-                        # Process remaining artifact tags
-                        while (
-                            "<antArtifact>" in block_text
-                            and "</antArtifact>" in block_text
-                        ):
-                            start = block_text.find("<antArtifact>")
-                            end = block_text.find("</antArtifact>") + len(
-                                "</antArtifact>"
-                            )
-                            logger.debug(f"Block text: '{block_text}'")
-                            logger.debug(f"Start index: {start}")
-                            logger.debug(f"End index: {end}")
-
-                            # Extract the artifact text between the tags
-                            artifact_text = block_text[
-                                start
-                                + len("<antArtifact>") : block_text.find(
-                                    "</antArtifact>"
-                                )
-                            ]
-                            # Log the extracted text for debugging
-                            logger.debug(f"Extracted artifact text: '{artifact_text}'")
-
-                            # Format the block text with the artifact
-                            block_text = (
-                                block_text[:start]
-                                + "\n\n🔨 **Generated Artifact:**\n\n```\n"
-                                + artifact_text
-                                + "\n```\n\n"
-                                + block_text[end:]
-                            )
-                            logger.debug(f"Updated block text: '{block_text}'")
-
-                            # Track the artifact
-                            self._track_artifact(
-                                artifact_text, message_id, conversation_id
-                            )
-
-                        content.append(block_text)
-                        content.append("")
-
-                    elif block_type == "tool_use":
-                        content.append("🛠️ **Tool Usage:**")
-                        content.append("")
-                        content.append(f"Tool: {block.get('name', 'unknown')}")
-                        content.append("```tool-use")
-                        content.append(json.dumps(block.get("input", {}), indent=2))
-                        content.append("```")
-                        content.append("")
-
-                    elif block_type == "tool_result":
-                        content.append("📋 **Tool Result:**")
-                        content.append("")
-                        content.append(
-                            f"Status: {'SUCCESS' if not block.get('is_error') else 'ERROR'}"
-                        )
-                        content.append("```tool-result")
-                        content.append(json.dumps(block.get("content", {}), indent=2))
-                        content.append("```")
-                        content.append("")
-
+            # Join content with newlines
             return "\n".join(content)
+
         except Exception as e:
-            logger.error(f"Error converting conversation to markdown: {str(e)}")
+            error_msg = f"Error converting conversation to markdown: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
             return None
+
+    def _process_message_content(
+        self, message: Dict[str, Any], result: ProcessingResult
+    ) -> List[str]:
+        """Process message content blocks into markdown lines.
+
+        Args:
+            message: The message to process.
+            result: The processing result to update.
+
+        Returns:
+            List of markdown lines.
+        """
+        content = []
+        message_id = message.get("uuid", "unknown")
+
+        # Handle case where message content is a list
+        message_content = message.get("content", [])
+        if not isinstance(message_content, list):
+            message_content = []
+
+        for block in message_content:
+            if not isinstance(block, dict):
+                continue
+
+            block_type = block.get("type", "text")
+            block_text = block.get("text", "")
+
+            if not block_text:
+                continue
+
+            if block_type == "text":
+                content.extend(self._process_text_block(block_text))
+                content.append("")
+
+            elif block_type == "thinking":
+                content.append("💭 **Thinking Process:**")
+                content.append("")
+                content.extend(self._process_text_block(block_text))
+                content.append("")
+
+            elif block_type == "tool_use":
+                content.append("🛠️ **Tool Usage:**")
+                content.append("")
+                content.append(f"Tool: {block.get('name', 'unknown')}")
+                content.append("```tool-use")
+                content.append(json.dumps(block.get("input", {}), indent=2))
+                content.append("```")
+                content.append("")
+
+            elif block_type == "tool_result":
+                content.append("📋 **Tool Result:**")
+                content.append("")
+                content.append(
+                    f"Status: {'SUCCESS' if not block.get('is_error') else 'ERROR'}"
+                )
+                if block.get("output"):
+                    content.append("```")
+                    content.append(block["output"])
+                    content.append("```")
+                content.append("")
+
+            elif block_type == "attachment":
+                attachment_text = self._format_text_attachment(
+                    block, message_id, result
+                )
+                if attachment_text:
+                    content.append(attachment_text)
+                    content.append("")
+
+        return content
 
     def _process_attachment(
         self,
@@ -954,44 +659,6 @@ Extracted Content:
             if progress and task_id is not None:
                 progress.advance(task_id)
             return None
-
-    def _process_message_content(self, message: Dict[str, Any]) -> List[str]:
-        """Process message content blocks into markdown lines.
-
-        Args:
-            message: The message to process.
-
-        Returns:
-            List of markdown lines.
-        """
-        lines: List[str] = []
-        content = message.get("content", [])
-
-        if not isinstance(content, list):
-            logger.warning(
-                f"Invalid content format in message {message.get('uuid', 'unknown')}"
-            )
-            return lines
-
-        for block in content:
-            if not isinstance(block, dict):
-                logger.warning("Skipping invalid content block")
-                continue
-
-            # Handle text blocks
-            text = block.get("text")
-            if text is not None:  # Allow empty strings
-                lines.extend(self._process_text_block(text))
-                continue
-
-            # Handle other block types
-            block_type = block.get("type")
-            if block_type:
-                if block_type == "text":
-                    lines.extend(self._process_text_block(block.get("text", "")))
-                # Add handling for other block types as needed
-
-        return lines
 
     def _process_text_block(self, text: str) -> List[str]:
         """Process a text block into markdown lines.

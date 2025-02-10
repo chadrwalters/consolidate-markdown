@@ -11,6 +11,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import Config
 from consolidate_markdown.log_setup import set_progress
 from consolidate_markdown.processors import PROCESSOR_TYPES
@@ -38,6 +39,9 @@ class Runner:
         self.processing_limit: Optional[
             int
         ] = None  # Max items to process per processor
+
+        # Create a single shared cache manager for all processors
+        self.cache_manager = CacheManager(config.global_config.cm_dir)
 
     def run(self, parallel: bool = False) -> ProcessingResult:
         """Run the consolidation process.
@@ -95,8 +99,10 @@ class Runner:
                             progress.advance(source_task)
                             continue
 
-                        # Create and run the processor
-                        processor = processor_class(source)
+                        # Create processor with shared cache manager
+                        processor = processor_class(
+                            source, cache_manager=self.cache_manager
+                        )
                         if self.processing_limit is not None:
                             processor.item_limit = self.processing_limit
 

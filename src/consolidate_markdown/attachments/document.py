@@ -3,10 +3,9 @@ import logging
 import re
 from pathlib import Path
 
+import fitz  # PyMuPDF for better PDF handling
 import pandas as pd
 from markitdown import MarkItDown as MicrosoftMarkItDown
-from markitdown._markitdown import UnsupportedFormatException
-from pdfminer.high_level import extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +17,21 @@ class ConversionError(Exception):
 
 
 class MarkItDown:
-    """Convert various document formats to markdown using Microsoft's MarkItDown package and custom handlers."""
+    """Convert various document formats to markdown.
+
+    Note on PDF Handling:
+    We use PyMuPDF (fitz) instead of Microsoft's MarkItDown for PDF processing because:
+    1. Better text extraction with layout preservation
+    2. Support for extracting images and tables
+    3. More reliable handling of complex PDF structures
+    4. Active maintenance and comprehensive documentation
+    """
 
     CUSTOM_FORMATS = {
         ".csv": "csv",  # Direct CSV conversion
         ".txt": "text",  # Direct text conversion
         ".json": "json",  # JSON pretty printing
-        ".pdf": "pdf",  # Custom PDF conversion
+        ".pdf": "pdf",  # Custom PDF conversion using PyMuPDF
     }
 
     def __init__(self, cm_dir: Path):
@@ -35,37 +42,49 @@ class MarkItDown:
         self.converter = MicrosoftMarkItDown()
 
     def convert_to_markdown(self, file_path: Path, force: bool = False) -> str:
-        """Convert a document to markdown format using Microsoft's MarkItDown or custom handlers."""
+        """Convert a document to markdown format.
+
+        Args:
+            file_path: Path to the document file
+            force: If True, force reconversion even if cached
+
+        Returns:
+            Markdown formatted string
+
+        Raises:
+            ConversionError: If conversion fails
+            FileNotFoundError: If file not found
+        """
         if not file_path.exists():
             raise FileNotFoundError(f"Document not found: {file_path}")
 
         if file_path.name == ".DS_Store":
-            raise ConversionError("Skipping system file: .DS_Store")
+            logger.debug("Skipping system file: .DS_Store")
+            return ""  # Return empty string instead of raising error
 
         # Try custom handlers first for known formats
         suffix = file_path.suffix.lower()
-        if suffix in self.CUSTOM_FORMATS:
-            try:
-                logger.debug(f"Using custom handler for {suffix}")
-                return self._convert_with_custom_handler(file_path, suffix)
-            except Exception as e:
-                logger.debug(f"Custom handler failed: {str(e)}", exc_info=True)
-                # Fall back to Microsoft's MarkItDown
-
         try:
             # Try Microsoft's MarkItDown
-            logger.debug(f"Attempting to convert {file_path} using MarkItDown")
+            logger.debug(f"Attempting to convert {file_path}")
             result = self.converter.convert(str(file_path))
             logger.debug(f"MarkItDown result: {result}")
             if result and hasattr(result, "text_content"):
                 logger.debug(f"Text content: {result.text_content}")
                 return result.text_content
-            raise ConversionError("No text content returned")
-        except UnsupportedFormatException:
-            # Fall back to custom handlers for unsupported formats
+
+            # If MarkItDown fails, check for custom handlers
             if suffix in self.CUSTOM_FORMATS:
                 logger.debug(f"Using custom handler for {suffix}")
                 return self._convert_with_custom_handler(file_path, suffix)
+
+            # For media files, just return a link
+            media_extensions = [".mov", ".mp4", ".avi", ".wmv", ".flv", ".mkv"]
+            if suffix in media_extensions:
+                logger.debug(f"Creating link for media file: {file_path.name}")
+                return f"[Media: {file_path.name}](attachments/{file_path.name})"
+
+            # If we get here, no handler could process it
             raise ConversionError(f"Format not supported: {suffix}")
         except Exception as e:
             logger.debug(f"Conversion failed: {str(e)}", exc_info=True)
@@ -129,17 +148,69 @@ class MarkItDown:
             raise ConversionError(f"Failed to parse JSON file: {str(e)}")
 
     def _convert_pdf(self, file_path: Path) -> str:
-        """Convert PDF to markdown using pdfminer-six."""
+        """Convert PDF to markdown using PyMuPDF.
+
+        PyMuPDF provides superior PDF handling compared to Microsoft's MarkItDown:
+        - Better text extraction with layout preservation
+        - Support for extracting images and tables
+        - More reliable handling of complex PDF structures
+        """
         try:
-            text = extract_text(str(file_path))
-            # Clean up the text
-            text = re.sub(
-                r"\s+", " ", text
-            ).strip()  # Replace multiple whitespace with single space
-            text = re.sub(
-                r"\f", "\n\n", text
-            )  # Replace form feeds with double newlines
-            return text
+            # Open the PDF
+            doc = fitz.open(file_path)
+
+            # Extract text with layout preservation
+            content = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                # Get text blocks with their layout information
+                blocks = page.get_text("dict")["blocks"]
+
+                # Process each text block
+                for block in blocks:
+                    if block.get("type") == 0:  # Text block
+                        for line in block.get("lines", []):
+                            for span in line.get("spans", []):
+                                text = span.get("text", "").strip()
+                                if text:
+                                    content.append(text)
+
+            # Join content with proper spacing
+            text = "\n".join(content)
+
+            # If no content was extracted, try a simpler approach
+            if not text.strip():
+                text = ""
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text += page.get_text() + "\n\n"
+
+            # Format as markdown with metadata
+            page_count = len(doc)
+            size_kb = file_path.stat().st_size // 1024
+
+            # Close the document
+            doc.close()
+
+            # Only include text content if we have some
+            text = text.strip()
+            text_block = (
+                f"""```pdf
+{text}
+```"""
+                if text
+                else "[PDF content could not be extracted]"
+            )
+
+            return f"""<!-- EMBEDDED PDF: {file_path.name} -->
+<details>
+<summary>📄 {file_path.name} ({size_kb}KB, {page_count} pages)</summary>
+
+{text_block}
+
+[View PDF](attachments/{file_path.name})
+</details>"""
+
         except Exception as e:
             raise ConversionError(f"Failed to convert PDF: {str(e)}")
 

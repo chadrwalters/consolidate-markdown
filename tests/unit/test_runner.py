@@ -13,9 +13,9 @@ from consolidate_markdown.runner import Runner
 class MockProcessor(SourceProcessor):
     """Mock processor for testing."""
 
-    def __init__(self, source_config: SourceConfig):
+    def __init__(self, source_config: SourceConfig, cache_manager=None):
         """Initialize the mock processor."""
-        super().__init__(source_config)
+        super().__init__(source_config, cache_manager)
         self.process_called = False
         self.validate_called = False
 
@@ -81,8 +81,8 @@ def test_processor_validation(runner):
 
     # Override the processor creation
     class TrackingProcessor(MockProcessor):
-        def __init__(self, config):
-            super().__init__(config)
+        def __init__(self, config, cache_manager=None):
+            super().__init__(config, cache_manager)
             processors.append(self)
 
     Runner.PROCESSORS = {"mock": TrackingProcessor}
