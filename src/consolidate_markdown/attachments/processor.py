@@ -130,10 +130,13 @@ class AttachmentProcessor:
             markdown_content: str = ""  # Initialize with empty string
             error_msg_doc: Optional[str] = None
             try:
+                logger.debug(f"Converting document to markdown: {file_path}")
                 # convert_to_markdown always returns str or raises an exception
                 markdown_content = self.markitdown.convert_to_markdown(file_path, force)
+                logger.debug(f"Conversion successful, content length: {len(markdown_content)}")
             except Exception as e:
                 error_msg_doc = f"Document conversion failed: {str(e)}"
+                logger.error(f"Document conversion failed: {str(e)}", exc_info=True)
                 markdown_content = f"[Error converting {file_path.name}: {str(e)}]"
 
             metadata = AttachmentMetadata(

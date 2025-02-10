@@ -6,6 +6,7 @@ A tool to consolidate markdown files from various sources into a single location
 
 - Consolidate markdown files from multiple sources
 - GPT-powered image analysis and description
+- PDF text extraction using pdfminer-six
 - Configurable output formats
 - Caching for improved performance
 - Detailed logging and error reporting

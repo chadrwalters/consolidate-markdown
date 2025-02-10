@@ -86,6 +86,30 @@ dest_dir = "output/personal"
 
 ## Processing Issues
 
+### PDF Processing
+
+**Problem**: PDF attachments not converting correctly or returning empty text.
+
+**Solutions**:
+1. Verify the PDF contains actual text content (not just scanned images)
+2. Check if the PDF is password-protected or encrypted
+3. For scanned PDFs, consider using OCR software first
+4. Use debug logging to see processing details:
+   ```bash
+   consolidate-markdown --config config.toml --debug
+   ```
+
+**Note**: While we use Microsoft's MarkItDown library for general document conversion, we've implemented a custom PDF handler using pdfminer-six due to limitations in MarkItDown's PDF support. This provides more reliable text extraction but has the following limitations:
+- No support for scanned PDFs without OCR
+- No automatic table structure preservation
+- Limited formatting preservation
+
+For best results with PDFs:
+- Use PDFs with embedded text (not scanned)
+- Keep formatting simple
+- Avoid complex layouts with multiple columns
+- For scanned PDFs, pre-process with OCR software
+
 ### No Items Processed
 
 **Problem**: Tool runs but no items are processed.

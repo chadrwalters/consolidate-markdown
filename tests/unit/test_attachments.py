@@ -1,6 +1,12 @@
 from unittest.mock import Mock, patch
 
 import pytest
+import logging
+from reportlab.pdfgen import canvas
+from io import BytesIO
+
+import pytest
+import logging
 
 from consolidate_markdown.attachments.gpt import GPTProcessor
 from consolidate_markdown.attachments.processor import (AttachmentMetadata,
@@ -92,6 +98,31 @@ def test_svg_handling(tmp_path):
     assert metadata.mime_type == "image/svg+xml"
     assert temp_path.exists()
     assert temp_path == cm_dir / "temp" / "test.svg"
+
+
+def test_pdf_processing(tmp_path):
+    """Test processing of PDF files."""
+    # Configure logging
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger("consolidate_markdown")
+    logger.setLevel(logging.DEBUG)
+
+    # Create test PDF using reportlab
+    pdf_file = tmp_path / "test.pdf"
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer)
+    c.drawString(100, 750, "This is a test PDF document.")
+    c.save()
+    pdf_file.write_bytes(buffer.getvalue())
+
+    # Process the PDF
+    processor = AttachmentProcessor(tmp_path)
+    temp_path, metadata = processor.process_file(pdf_file)
+
+    # Check results
+    assert metadata.mime_type == "application/pdf"
+    assert metadata.is_image is False
+    assert "test pdf document" in metadata.markdown_content.lower()
 
 
 @pytest.fixture
