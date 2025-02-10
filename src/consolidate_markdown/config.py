@@ -14,14 +14,13 @@ DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Default model
-DEFAULT_MODEL = "google/gemini-pro-vision-1.0"
+DEFAULT_MODEL = "gpt-4o"
 
 # Valid models per provider
 VALID_MODELS = {
-    "openai": ["gpt-4o"],
+    "openai": ["gpt-4-vision-preview"],
     "openrouter": [
         "gpt-4o",
-        "google/gemini-pro-vision-1.0",
         "yi/yi-vision-01",
         "deepinfra/blip",
         "meta/llama-3.2-90b-vision-instruct",
@@ -48,7 +47,6 @@ class ModelsConfig:
         valid_models = {
             "openrouter": [
                 "gpt-4o",
-                "google/gemini-pro-vision-1.0",
                 "yi/yi-vision-01",
                 "deepinfra/blip",
                 "meta/llama-3.2-90b-vision-instruct",
@@ -142,11 +140,10 @@ class Config:
         """Validate configuration settings."""
         errors = []
 
-        # Validate global settings
-        if not self.global_config.cm_dir.parent.exists():
-            errors.append(
-                f"Parent directory for cm_dir does not exist: {self.global_config.cm_dir}"
-            )
+        # Create necessary directories
+        self.global_config.cm_dir.parent.mkdir(parents=True, exist_ok=True)
+        for source in self.sources:
+            source.dest_dir.parent.mkdir(parents=True, exist_ok=True)
 
         # Validate API provider
         if self.global_config.api_provider not in VALID_API_PROVIDERS:
@@ -183,10 +180,6 @@ class Config:
         for source in self.sources:
             if not source.src_dir.exists():
                 errors.append(f"Source directory does not exist: {source.src_dir}")
-            if not source.dest_dir.parent.exists():
-                errors.append(
-                    f"Parent of destination directory does not exist: {source.dest_dir}"
-                )
             if source.type not in VALID_SOURCE_TYPES:
                 errors.append(f"Invalid source type: {source.type}")
 

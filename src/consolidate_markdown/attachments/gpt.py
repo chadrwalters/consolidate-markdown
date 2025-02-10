@@ -225,7 +225,7 @@ class GPTProcessor:
             # For OpenRouter, we pass the model directly in the model parameter
             # The API will handle routing to the correct model
             response = self.client.chat.completions.create(
-                model=f"openrouter/{self.current_model}",
+                model=self.current_model,
                 messages=messages,
                 max_tokens=500,
             )
@@ -325,11 +325,17 @@ class GPTProcessor:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model=self.current_model,
                 messages=messages,
                 max_tokens=300,
             )
-            description = str(response.choices[0].message.content)
+            content = response.choices[0].message.content
+            if content is None:
+                logger.error(f"GPT API returned no content ({self.provider})")
+                result.add_gpt_skipped(processor_type)
+                return "[Error: No content returned]"
+
+            description = str(content)
             result.add_gpt_generated(processor_type)
 
             # Cache the result

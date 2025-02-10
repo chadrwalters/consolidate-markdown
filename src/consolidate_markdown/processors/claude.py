@@ -61,9 +61,10 @@ class ClaudeProcessor(SourceProcessor):
         # Check for conversations.json in source directory
         src_conversations_file = self.source_config.src_dir / "conversations.json"
         if not src_conversations_file.exists():
-            raise ValueError(
-                f"conversations.json not found in source directory: {self.source_config.src_dir}"
+            logger.info(
+                f"No conversations.json found in source directory: {self.source_config.src_dir}"
             )
+            return
         if not src_conversations_file.is_file():
             raise ValueError(
                 f"conversations.json is not a file: {src_conversations_file}"

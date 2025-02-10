@@ -40,9 +40,10 @@ class ChatGPTProcessor(SourceProcessor):
         # Check for conversations.json
         conversations_file = self.source_config.src_dir / "conversations.json"
         if not conversations_file.exists():
-            raise ValueError(
-                f"conversations.json not found in source directory: {self.source_config.src_dir}"
+            logger.info(
+                f"No conversations.json found in source directory: {self.source_config.src_dir}"
             )
+            return
         if not conversations_file.is_file():
             raise ValueError(f"conversations.json is not a file: {conversations_file}")
 
@@ -486,54 +487,86 @@ class ChatGPTProcessor(SourceProcessor):
                                 content_parts.append(text)
             return "\n\n".join(content_parts) if content_parts else None
         elif isinstance(content, dict):
-            if "type" in content:
-                part_type = content.get("type")
-                if part_type == "text":
-                    text = content.get("text", "")  # Don't strip text parts
-                    if text:
-                        return text
-                elif part_type == "code":
-                    language = content.get("language", "")
-                    code = content.get("text", "").strip()
-                    if code:
-                        return f"```{language}\n{code}\n```"
-                elif part_type == "image_url":
-                    # Handle inline base64 images (same as above)
-                    image_url = content.get("image_url", {}).get("url", "")
-                    logger.debug(
-                        f"{context} - Processing image URL: {image_url[:100]}..."
-                    )
-                    if image_url.startswith("data:image/"):
-                        try:
-                            import base64
+            try:
+                if "type" in content:
+                    part_type = content.get("type")
+                    if part_type == "text":
+                        text = content.get("text", "")  # Don't strip text parts
+                        if text:
+                            return text
+                    elif part_type == "code":
+                        language = content.get("language", "")
+                        code = content.get("text", "").strip()
+                        if code:
+                            return f"```{language}\n{code}\n```"
+                    elif part_type == "image_url":
+                        # Handle inline base64 images
+                        image_url = content.get("image_url", {}).get("url", "")
+                        logger.debug(
+                            f"{context} - Processing image URL: {image_url[:100]}..."
+                        )
+                        if image_url.startswith("data:image/"):
+                            try:
+                                import base64
 
-                            # Parse data URL
-                            header, encoded = image_url.split(",", 1)
-                            image_data = base64.b64decode(encoded)
-                            # Get format from header
-                            format_match = header.split(";")[0].split("/")[-1]
-                            ext = f".{format_match}" if format_match else ".jpg"
+                                # Parse data URL
+                                header, encoded = image_url.split(",", 1)
+                                image_data = base64.b64decode(encoded)
+                                # Get format from header
+                                format_match = header.split(";")[0].split("/")[-1]
+                                ext = f".{format_match}" if format_match else ".jpg"
 
-                            # Create temp file
-                            temp_dir = self._create_temp_dir(config)
-                            temp_file = (
-                                temp_dir
-                                / f"inline_image_{result.images_processed}{ext}"
-                            )
-                            temp_file.write_bytes(image_data)
-                            logger.debug(
-                                f"{context} - Saved base64 image to: {temp_file}"
-                            )
+                                # Create temp file
+                                temp_dir = self._create_temp_dir(config)
+                                temp_file = (
+                                    temp_dir
+                                    / f"inline_image_{result.images_processed}{ext}"
+                                )
+                                temp_file.write_bytes(image_data)
+                                logger.debug(
+                                    f"{context} - Saved base64 image to: {temp_file}"
+                                )
 
+                                # Create output attachments directory
+                                output_attachments_dir = (
+                                    self.source_config.dest_dir / "attachments"
+                                )
+                                output_attachments_dir.mkdir(exist_ok=True)
+
+                                # Process like a regular image
+                                attachment_content = self._process_attachment(
+                                    Path(str(temp_file)),
+                                    output_attachments_dir,
+                                    self.attachment_processor,
+                                    config,
+                                    result,
+                                    is_image=True,
+                                )
+                                if attachment_content:
+                                    logger.debug(
+                                        f"{context} - Successfully processed base64 image"
+                                    )
+                                    return attachment_content
+                                else:
+                                    logger.warning(
+                                        f"{context} - Failed to process base64 image"
+                                    )
+                                    return "[Error processing inline image]"
+                            except Exception as e:
+                                logger.error(
+                                    f"{context} - Error processing base64 image: {str(e)}"
+                                )
+                                return "[Error processing inline image]"
+                        else:
+                            # Handle regular image URLs
+                            logger.debug(f"{context} - Processing regular image URL")
                             # Create output attachments directory
                             output_attachments_dir = (
                                 self.source_config.dest_dir / "attachments"
                             )
                             output_attachments_dir.mkdir(exist_ok=True)
-
-                            # Process like a regular image
                             attachment_content = self._process_attachment(
-                                Path(str(temp_file)),
+                                Path(image_url),
                                 output_attachments_dir,
                                 self.attachment_processor,
                                 config,
@@ -542,126 +575,32 @@ class ChatGPTProcessor(SourceProcessor):
                             )
                             if attachment_content:
                                 logger.debug(
-                                    f"{context} - Successfully processed base64 image"
+                                    f"{context} - Successfully processed image URL"
                                 )
                                 return attachment_content
                             else:
                                 logger.warning(
-                                    f"{context} - Failed to process base64 image"
+                                    f"{context} - Failed to process image URL"
                                 )
-                                return "[Error processing inline image]"
-                        except Exception as e:
-                            logger.error(
-                                f"{context} - Error processing base64 image: {str(e)}"
-                            )
-                            return "[Error processing inline image]"
-                    else:
-                        # Handle regular image URLs
-                        logger.debug(f"{context} - Processing regular image URL")
-                        # Create output attachments directory
-                        output_attachments_dir = (
-                            self.source_config.dest_dir / "attachments"
-                        )
-                        output_attachments_dir.mkdir(exist_ok=True)
-                        attachment_content = self._process_attachment(
-                            Path(image_url),
-                            output_attachments_dir,
-                            self.attachment_processor,
-                            config,
-                            result,
-                            is_image=True,
-                        )
-                        if attachment_content:
-                            logger.debug(
-                                f"{context} - Successfully processed image URL"
-                            )
-                            return attachment_content
-                        else:
-                            logger.warning(f"{context} - Failed to process image URL")
-                            return "[Error processing image URL]"
-                elif part_type == "file":
-                    # Handle file attachments
-                    file_path_str = str(content.get("file_path", ""))
-                    if file_path_str:
-                        try:
-                            file_path = Path(file_path_str)
-                            if file_path.exists() and file_path.is_file():
-                                file_content = file_path.read_text(encoding="utf-8")
-                                language = str(
-                                    content.get("metadata", {}).get("language", "")
-                                )
-                                mime_type = str(
-                                    content.get("metadata", {}).get("mime_type", "")
-                                )
-                                if mime_type == "application/zip":
-                                    return f"[Archive: {file_path.name}]"
-                                elif mime_type == "application/pdf":
-                                    return f"<!-- EMBEDDED PDF: {file_path.name} -->\n<details>\n<summary>📄 {file_path.name}</summary>\n\n"
-                                    f"[View PDF](attachments/{file_path.name})\n\n</details>"
-                                elif language:
-                                    return f"```{language}\n{file_content}\n```"
-                                return file_content
-                            else:
-                                # Try processing as attachment
-                                output_attachments_dir = (
-                                    self.source_config.dest_dir / "attachments"
-                                )
-                                output_attachments_dir.mkdir(exist_ok=True)
-                                attachment_content = self._process_attachment(
-                                    file_path,
-                                    output_attachments_dir,
-                                    self.attachment_processor,
-                                    config,
-                                    result,
-                                )
-                                if attachment_content:
-                                    result.documents_processed += 1
-                                    # Check file extension first
-                                    ext = file_path.suffix.lower()
-                                    if ext == ".zip":
-                                        return f"[Archive: {file_path.name}]"
-                                    elif ext == ".pdf":
-                                        return f"<!-- EMBEDDED PDF: {file_path.name} -->\n<details>\n<summary>📄 {file_path.name}</summary>\n\n"
-                                        f"[View PDF](attachments/{file_path.name})\n\n</details>"
-                                    # Check if it's a code file and determine language
-                                    code_extensions = {
-                                        ".py": "python",
-                                        ".js": "javascript",
-                                        ".ts": "typescript",
-                                        ".java": "java",
-                                        ".cpp": "cpp",
-                                        ".c": "c",
-                                        ".cs": "csharp",
-                                        ".rb": "ruby",
-                                        ".go": "go",
-                                        ".rs": "rust",
-                                        ".php": "php",
-                                        ".swift": "swift",
-                                        ".kt": "kotlin",
-                                        ".scala": "scala",
-                                        ".sh": "bash",
-                                        ".sql": "sql",
-                                        ".html": "html",
-                                        ".css": "css",
-                                        ".xml": "xml",
-                                        ".yaml": "yaml",
-                                        ".json": "json",
-                                        ".md": "markdown",
-                                    }
-                                    language = code_extensions.get(ext)
-                                    if language:
-                                        return (
-                                            f"```{language}\n{attachment_content}\n```"
-                                        )
-                                    return attachment_content
+                                return "[Error processing image URL]"
+                    elif part_type == "file":
+                        # Handle file attachments
+                        file_path_str = str(content.get("file_path", ""))
+                        if file_path_str:
+                            try:
+                                file_path = Path(file_path_str)
+                                if file_path.exists():
+                                    return f"[File: {file_path.name}]"
                                 else:
                                     logger.warning(
                                         f"{context} - Failed to process file"
                                     )
-                                return "[Error processing file]"
-                        except Exception as e:
-                            logger.error(f"{context} - Error processing file: {str(e)}")
-                            return f"[Error processing file: {str(e)}]"
+                                    return "[Error processing file]"
+                            except Exception as e:
+                                logger.error(
+                                    f"{context} - Error processing file: {str(e)}"
+                                )
+                                return f"[Error processing file: {str(e)}]"
                     elif part_type == "tool_use":
                         # Handle tool usage
                         tool = content.get("tool", "")
@@ -701,26 +640,16 @@ class ChatGPTProcessor(SourceProcessor):
                         diagram = content.get("diagram", "").strip()
                         if diagram:
                             return f"```mermaid\n{diagram}\n```"
-            elif "text" in content:
-                text = content.get("text", "")  # Don't strip text parts
-                if text:
-                    if content.get("type") == "code":
-                        language = content.get("language", "")
-                        return f"```{language}\n{text}\n```"
-                    return text
-            elif "parts" in content:
-                parts = content.get("parts")
-                if parts is None:
-                    return None
-                if not isinstance(parts, list):
-                    return None
-                content_parts = []
-                for part in parts:
-                    if part is None:
-                        continue
-                    if isinstance(part, str) and part.strip():
-                        content_parts.append(part.strip())
-                return "\n\n".join(content_parts) if content_parts else None
+                if "text" in content:
+                    text = content.get("text", "")  # Don't strip text parts
+                    if text:
+                        if content.get("type") == "code":
+                            language = content.get("language", "")
+                            return f"```{language}\n{text}\n```"
+                        return text
+            except Exception as e:
+                logger.error(f"{context} - Error processing content: {str(e)}")
+                return f"[Error processing content: {str(e)}]"
         return None
 
     def _get_output_path(self, title: str, create_time: Optional[str] = None) -> Path:
@@ -885,41 +814,13 @@ class ChatGPTProcessor(SourceProcessor):
         if isinstance(content, str):
             content_parts.append(content)
         elif isinstance(content, list):
-            for part in content:
-                if isinstance(part, dict):
-                    part_type = str(part.get("type", ""))
-                    if part_type == "text":
-                        text = str(part.get("text", ""))
-                        if text:
-                            content_parts.append(text)
-                    elif part_type == "code":
-                        language = str(part.get("language", ""))
-                        code = str(part.get("text", "")).strip()
-                        if code:
-                            content_parts.append(f"```{language}\n{code}\n```")
-                    elif part_type == "math":
-                        latex = str(part.get("latex", "")).strip()
-                        if latex:
-                            content_parts.append(f"$${latex}$$")
-                    elif part_type == "table":
-                        headers = [str(h) for h in part.get("headers", [])]
-                        rows = [
-                            [str(cell) for cell in row] for row in part.get("rows", [])
-                        ]
-                        if headers and rows:
-                            table_parts = []
-                            table_parts.append("| " + " | ".join(headers) + " |")
-                            table_parts.append(
-                                "| " + " | ".join(["---"] * len(headers)) + " |"
-                            )
-                            for row in rows:
-                                table_parts.append("| " + " | ".join(row) + " |")
-                            content_parts.append("\n".join(table_parts))
-                    elif part_type == "mermaid":
-                        diagram = str(part.get("diagram", "")).strip()
-                        if diagram:
-                            content_parts.append(f"```mermaid\n{diagram}\n```")
-                    elif part_type == "file":
+            try:
+                for part in content:
+                    part_type = str(part.get("type", "")).lower()
+                    content = part.get("content", {})
+
+                    if part_type == "file":
+                        # Handle file attachments
                         file_path_str = str(part.get("file_path", ""))
                         if file_path_str:
                             try:
@@ -949,6 +850,74 @@ class ChatGPTProcessor(SourceProcessor):
                                     else:
                                         content_parts.append(file_content)
                                     result.documents_processed += 1
+                                else:
+                                    # Try processing as attachment
+                                    output_attachments_dir = (
+                                        self.source_config.dest_dir / "attachments"
+                                    )
+                                    output_attachments_dir.mkdir(
+                                        parents=True, exist_ok=True
+                                    )
+                                    attachment_content = self._process_attachment(
+                                        file_path,
+                                        output_attachments_dir,
+                                        self.attachment_processor,
+                                        config,
+                                        result,
+                                    )
+                                    if attachment_content:
+                                        result.documents_processed += 1
+                                        # Check file extension first
+                                        ext = file_path.suffix.lower()
+                                        if ext == ".zip":
+                                            content_parts.append(
+                                                f"[Archive: {file_path.name}]"
+                                            )
+                                        elif ext == ".pdf":
+                                            content_parts.append(
+                                                f"<!-- EMBEDDED PDF: {file_path.name} -->\n"
+                                                f"<details>\n<summary>📄 {file_path.name}</summary>\n\n"
+                                                f"[View PDF](attachments/{file_path.name})\n\n</details>"
+                                            )
+                                        # Check if it's a code file and determine language
+                                        code_extensions = {
+                                            ".py": "python",
+                                            ".js": "javascript",
+                                            ".ts": "typescript",
+                                            ".java": "java",
+                                            ".cpp": "cpp",
+                                            ".c": "c",
+                                            ".cs": "csharp",
+                                            ".rb": "ruby",
+                                            ".go": "go",
+                                            ".rs": "rust",
+                                            ".php": "php",
+                                            ".swift": "swift",
+                                            ".kt": "kotlin",
+                                            ".scala": "scala",
+                                            ".sh": "bash",
+                                            ".sql": "sql",
+                                            ".html": "html",
+                                            ".css": "css",
+                                            ".xml": "xml",
+                                            ".yaml": "yaml",
+                                            ".json": "json",
+                                            ".md": "markdown",
+                                        }
+                                        language = code_extensions.get(ext)
+                                        if language:
+                                            content_parts.append(
+                                                f"```{language}\n{attachment_content}\n```"
+                                            )
+                                        else:
+                                            content_parts.append(attachment_content)
+                                    else:
+                                        logger.warning(
+                                            f"{context} - Failed to process file"
+                                        )
+                                        content_parts.append(
+                                            str("[Error processing file]")
+                                        )
                             except Exception as e:
                                 logger.error(
                                     f"{context} - Error processing file: {str(e)}"
@@ -956,6 +925,54 @@ class ChatGPTProcessor(SourceProcessor):
                                 content_parts.append(
                                     f"[Error processing file: {str(e)}]"
                                 )
+                    elif part_type == "tool_use":
+                        # Handle tool usage
+                        tool = part.get("tool", "")
+                        input_text = part.get("input", "").strip()
+                        if input_text:
+                            content_parts.append(
+                                f"Tool: {tool}\nInput:\n```\n{input_text}\n```"
+                            )
+                    elif part_type == "tool_result":
+                        # Handle tool results
+                        output = part.get("output", "").strip()
+                        if output:
+                            content_parts.append(f"Output: {output}")
+                    elif part_type == "table":
+                        # Handle tables
+                        headers = part.get("headers", [])
+                        rows = part.get("rows", [])
+                        if headers and rows:
+                            table_parts = []
+                            # Add headers
+                            table_parts.append("| " + " | ".join(headers) + " |")
+                            # Add separator
+                            table_parts.append(
+                                "| " + " | ".join(["---"] * len(headers)) + " |"
+                            )
+                            # Add rows
+                            for row in rows:
+                                table_parts.append(
+                                    "| " + " | ".join(str(cell) for cell in row) + " |"
+                                )
+                            content_parts.append("\n".join(table_parts))
+                    elif part_type == "math":
+                        # Handle math equations
+                        latex = part.get("latex", "").strip()
+                        if latex:
+                            content_parts.append(f"$${latex}$$")
+                    elif part_type == "mermaid":
+                        # Handle mermaid diagrams
+                        diagram = part.get("diagram", "").strip()
+                        if diagram:
+                            content_parts.append(f"```mermaid\n{diagram}\n```")
+                    elif "text" in part:
+                        text = part.get("text", "")  # Don't strip text parts
+                        if text:
+                            content_parts.append(text)
+            except Exception as e:
+                logger.error(f"{context} - Error processing message part: {str(e)}")
+                content_parts.append(f"[Error processing message: {str(e)}]")
 
         # Process attachments
         for attachment in attachments:
@@ -964,7 +981,7 @@ class ChatGPTProcessor(SourceProcessor):
                 continue
 
             # Get attachment path
-            file_path_str = str(attachment.get("file_path", ""))
+            file_path_str = attachment.get("file_path", "")
             if not file_path_str:
                 file_path = self.source_config.src_dir / "attachments" / name
             else:

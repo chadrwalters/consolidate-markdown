@@ -100,18 +100,34 @@ class Runner:
                         processor.set_progress(progress, source_task)
 
                         # Validate and process
-                        processor.validate()
-                        logger.info(f"Processing source: {source.type}")
-                        result = processor.process(self.config)
-                        self.summary.merge(result)
+                        try:
+                            processor.validate()
+                            logger.info(f"Processing source: {source.type}")
+                            result = processor.process(self.config)
+                            self.summary.merge(result)
 
-                        # Update progress
-                        progress.update(
-                            source_task,
-                            advance=1,
-                            description=f"[green]Completed {source.type}",
-                        )
-                        logger.info(f"Completed source: {source.type}")
+                            # Update progress
+                            progress.update(
+                                source_task,
+                                advance=1,
+                                description=f"[green]Completed {source.type}",
+                            )
+                            logger.info(f"Completed source: {source.type}")
+
+                        except FileNotFoundError as e:
+                            # Skip if this is just a missing conversations.json for Claude
+                            if (
+                                "conversations.json" in str(e)
+                                and source.type == "claude"
+                            ):
+                                progress.update(
+                                    source_task,
+                                    advance=1,
+                                    description=f"[yellow]Skipped {source.type}",
+                                )
+                                logger.info(f"Skipped {source.type}: {str(e)}")
+                            else:
+                                raise
 
                     except Exception as e:
                         error_msg = f"Error processing {source.type}: {str(e)}"

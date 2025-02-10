@@ -77,7 +77,7 @@ def _get_svg_converter() -> List[str]:
 class ImageProcessor:
     """Handle image format conversions and metadata extraction."""
 
-    SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".svg", ".heic"}
+    SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".svg", ".heic", ".webp"}
 
     def __init__(self, cm_dir: Path):
         self.cm_dir = cm_dir
@@ -129,6 +129,20 @@ class ImageProcessor:
                     raise ImageProcessingError(
                         f"HEIC conversion failed: {e.stderr.decode()}"
                     )
+
+            # Handle WebP files - convert to JPEG using Pillow
+            elif suffix == ".webp":
+                temp_path = temp_path.with_suffix(".jpg")
+                try:
+                    with Image.open(image_path) as img:
+                        # Convert to RGB mode if necessary (in case of RGBA WebP)
+                        if img.mode in ('RGBA', 'LA'):
+                            background = Image.new('RGB', img.size, (255, 255, 255))
+                            background.paste(img, mask=img.split()[-1])
+                            img = background
+                        img.save(temp_path, 'JPEG', quality=95)
+                except Exception as e:
+                    raise ImageProcessingError(f"WebP conversion failed: {str(e)}")
 
             # Handle other image formats - copy with metadata
             else:

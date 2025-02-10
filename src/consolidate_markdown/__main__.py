@@ -88,18 +88,25 @@ def main() -> None:
     # Set up logging
     setup_logging(config)
 
+    # Create output directories
+    config.global_config.cm_dir.mkdir(parents=True, exist_ok=True)
+    for source in config.sources:
+        source.dest_dir.mkdir(parents=True, exist_ok=True)
+
     # Delete existing files if requested
     if args.delete:
         # Delete .cm directory
         if config.global_config.cm_dir.exists():
             print_deletion_message(str(config.global_config.cm_dir))
             shutil.rmtree(config.global_config.cm_dir)
+            config.global_config.cm_dir.mkdir(parents=True, exist_ok=True)
 
         # Delete output directories
         for source in config.sources:
             if source.dest_dir.exists():
                 print_deletion_message(str(source.dest_dir))
                 shutil.rmtree(source.dest_dir)
+                source.dest_dir.mkdir(parents=True, exist_ok=True)
 
     # Create and run the processor
     runner = Runner(config)
@@ -111,6 +118,8 @@ def main() -> None:
     try:
         result = runner.run()
         print_summary(result)
+        if result.errors:
+            sys.exit(1)
     except Exception as e:
         logger.error(f"Processing failed: {str(e)}")
         sys.exit(1)
