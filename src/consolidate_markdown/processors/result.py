@@ -62,7 +62,7 @@ class ProcessorStats:
 class ProcessingResult:
     """Track results of processing a set of notes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize empty result."""
         self.processed = 0
         self.from_cache = 0
@@ -98,7 +98,7 @@ class ProcessingResult:
             self.processor_stats[processor_type] = stats
         return self.processor_stats[processor_type]
 
-    def add_error(self, error: str, processor_type: Optional[str] = None):
+    def add_error(self, error: str, processor_type: Optional[str] = None) -> None:
         """Add an error message.
 
         Args:
@@ -109,7 +109,7 @@ class ProcessingResult:
         if processor_type:
             self.get_processor_stats(processor_type).errors.append(error)
 
-    def merge(self, other: "ProcessingResult"):
+    def merge(self, other: "ProcessingResult") -> None:
         """Merge another result into this one.
 
         Args:
@@ -150,7 +150,7 @@ class ProcessingResult:
             else:
                 self.processor_stats[proc_type] = stats
 
-    def add_from_cache(self, processor_type: str):
+    def add_from_cache(self, processor_type: str) -> None:
         """Record a note loaded from cache.
 
         Args:
@@ -164,7 +164,7 @@ class ProcessingResult:
         stats.regenerated = 0  # Reset regenerated counter in processor stats too
         self.last_action = "from_cache"
 
-    def add_generated(self, processor_type: str):
+    def add_generated(self, processor_type: str) -> None:
         """Record a generated note.
 
         Args:
@@ -176,7 +176,7 @@ class ProcessingResult:
         stats.regenerated += 1  # Increment in processor stats too
         self.last_action = "generated"
 
-    def add_skipped(self, processor_type: str):
+    def add_skipped(self, processor_type: str) -> None:
         """Record a skipped note.
 
         Args:
@@ -187,7 +187,7 @@ class ProcessingResult:
         stats.skipped += 1
         self.last_action = "skipped"
 
-    def add_document_generated(self, processor_type: str):
+    def add_document_generated(self, processor_type: str) -> None:
         """Record a generated document.
 
         Args:
@@ -199,7 +199,7 @@ class ProcessingResult:
         stats.documents_processed += 1
         stats.documents_generated += 1
 
-    def add_document_from_cache(self, processor_type: str):
+    def add_document_from_cache(self, processor_type: str) -> None:
         """Record a document loaded from cache.
 
         Args:
@@ -211,7 +211,7 @@ class ProcessingResult:
         stats.documents_processed += 1
         stats.documents_from_cache += 1
 
-    def add_document_skipped(self, processor_type: str):
+    def add_document_skipped(self, processor_type: str) -> None:
         """Record a skipped document.
 
         Args:
@@ -221,7 +221,7 @@ class ProcessingResult:
         stats = self.get_processor_stats(processor_type)
         stats.documents_skipped += 1
 
-    def add_image_generated(self, processor_type: str):
+    def add_image_generated(self, processor_type: str) -> None:
         """Record a generated image.
 
         Args:
@@ -233,7 +233,7 @@ class ProcessingResult:
         stats.images_processed += 1
         stats.images_generated += 1
 
-    def add_image_from_cache(self, processor_type: str):
+    def add_image_from_cache(self, processor_type: str) -> None:
         """Record an image loaded from cache.
 
         Args:
@@ -245,7 +245,7 @@ class ProcessingResult:
         stats.images_processed += 1
         stats.images_from_cache += 1
 
-    def add_image_skipped(self, processor_type: str):
+    def add_image_skipped(self, processor_type: str) -> None:
         """Record a skipped image.
 
         Args:
@@ -255,7 +255,7 @@ class ProcessingResult:
         stats = self.get_processor_stats(processor_type)
         stats.images_skipped += 1
 
-    def add_gpt_generated(self, processor_type: str):
+    def add_gpt_generated(self, processor_type: str) -> None:
         """Record a generated GPT analysis.
 
         Args:
@@ -265,7 +265,7 @@ class ProcessingResult:
         stats = self.get_processor_stats(processor_type)
         stats.gpt_new_analyses += 1
 
-    def add_gpt_from_cache(self, processor_type: str):
+    def add_gpt_from_cache(self, processor_type: str) -> None:
         """Record a GPT analysis loaded from cache.
 
         Args:
@@ -275,7 +275,7 @@ class ProcessingResult:
         stats = self.get_processor_stats(processor_type)
         stats.gpt_cache_hits += 1
 
-    def add_gpt_skipped(self, processor_type: str):
+    def add_gpt_skipped(self, processor_type: str) -> None:
         """Record a skipped GPT analysis.
 
         Args:

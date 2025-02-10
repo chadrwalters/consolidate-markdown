@@ -186,8 +186,10 @@ class TestOutputGenerator:
         from rich.console import Console
 
         from consolidate_markdown.output import print_summary
-        from consolidate_markdown.processors.result import (ProcessingResult,
-                                                            ProcessorStats)
+        from consolidate_markdown.processors.result import (
+            ProcessingResult,
+            ProcessorStats,
+        )
 
         # Create result with many processors to make a wide table
         result = ProcessingResult()

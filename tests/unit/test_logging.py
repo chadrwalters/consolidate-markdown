@@ -7,8 +7,11 @@ from typing import cast
 import pytest
 
 from consolidate_markdown.config import Config, GlobalConfig
-from consolidate_markdown.log_setup import (ProgressAwareHandler,
-                                            SummaryLogger, setup_logging)
+from consolidate_markdown.log_setup import (
+    ProgressAwareHandler,
+    SummaryLogger,
+    setup_logging,
+)
 
 
 @pytest.fixture

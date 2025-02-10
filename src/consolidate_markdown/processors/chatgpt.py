@@ -858,12 +858,14 @@ class ChatGPTProcessor(SourceProcessor):
                                     output_attachments_dir.mkdir(
                                         parents=True, exist_ok=True
                                     )
-                                    attachment_content = self._process_attachment(
-                                        file_path,
-                                        output_attachments_dir,
-                                        self.attachment_processor,
-                                        config,
-                                        result,
+                                    attachment_content: str | None = (
+                                        self._process_attachment(
+                                            file_path,
+                                            output_attachments_dir,
+                                            self.attachment_processor,
+                                            config,
+                                            result,
+                                        )
                                     )
                                     if attachment_content:
                                         result.documents_processed += 1
@@ -880,7 +882,7 @@ class ChatGPTProcessor(SourceProcessor):
                                                 f"[View PDF](attachments/{file_path.name})\n\n</details>"
                                             )
                                         # Check if it's a code file and determine language
-                                        code_extensions = {
+                                        code_extensions: dict[str, str] = {
                                             ".py": "python",
                                             ".js": "javascript",
                                             ".ts": "typescript",
@@ -904,10 +906,12 @@ class ChatGPTProcessor(SourceProcessor):
                                             ".json": "json",
                                             ".md": "markdown",
                                         }
-                                        language = code_extensions.get(ext)
-                                        if language:
+                                        code_language: str | None = code_extensions.get(
+                                            ext
+                                        )
+                                        if code_language is not None:
                                             content_parts.append(
-                                                f"```{language}\n{attachment_content}\n```"
+                                                f"```{code_language}\n{attachment_content}\n```"
                                             )
                                         else:
                                             content_parts.append(attachment_content)
