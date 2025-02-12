@@ -1,3 +1,14 @@
+"""Convert various document formats to markdown.
+
+Note on PDF Handling:
+We use PyMuPDF (fitz) instead of Microsoft's MarkItDown for PDF processing because:
+1. Better text extraction with layout preservation
+2. Support for extracting images and tables
+3. More reliable handling of complex PDF structures
+4. Active maintenance and comprehensive documentation
+"""
+
+import csv
 import json
 import logging
 import re
@@ -6,6 +17,7 @@ from pathlib import Path
 import fitz  # PyMuPDF for better PDF handling
 import pandas as pd
 from markitdown import MarkItDown as MicrosoftMarkItDown
+from markitdown._markitdown import UnsupportedFormatException
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +76,22 @@ class MarkItDown:
 
         # Try custom handlers first for known formats
         suffix = file_path.suffix.lower()
+        if suffix in self.CUSTOM_FORMATS:
+            logger.debug(f"Using custom handler for {suffix}")
+            try:
+                return self._convert_with_custom_handler(file_path, suffix)
+            except Exception as e:
+                logger.debug(f"Custom handler failed: {str(e)}", exc_info=True)
+                raise ConversionError(f"Failed to convert {file_path}: {str(e)}")
+
         try:
-            # Try Microsoft's MarkItDown
+            # Try Microsoft's MarkItDown for other formats
             logger.debug(f"Attempting to convert {file_path}")
             result = self.converter.convert(str(file_path))
             logger.debug(f"MarkItDown result: {result}")
             if result and hasattr(result, "text_content"):
                 logger.debug(f"Text content: {result.text_content}")
                 return result.text_content
-
-            # If MarkItDown fails, check for custom handlers
-            if suffix in self.CUSTOM_FORMATS:
-                logger.debug(f"Using custom handler for {suffix}")
-                return self._convert_with_custom_handler(file_path, suffix)
 
             # For media files, just return a link
             media_extensions = [".mov", ".mp4", ".avi", ".wmv", ".flv", ".mkv"]
@@ -85,6 +100,8 @@ class MarkItDown:
                 return f"[Media: {file_path.name}](attachments/{file_path.name})"
 
             # If we get here, no handler could process it
+            raise ConversionError(f"Format not supported: {suffix}")
+        except UnsupportedFormatException:
             raise ConversionError(f"Format not supported: {suffix}")
         except Exception as e:
             logger.debug(f"Conversion failed: {str(e)}", exc_info=True)
@@ -113,11 +130,27 @@ class MarkItDown:
 
         for encoding in encodings:
             try:
-                df = pd.read_csv(file_path, encoding=encoding)
-                table = df.to_markdown(index=False, tablefmt="pipe")
+                # First validate CSV structure using csv module
+                with open(file_path, 'r', encoding=encoding) as f:
+                    reader = csv.reader(f)
+                    header = next(reader)
+                    expected_cols = len(header)
+                    for i, row in enumerate(reader, start=2):
+                        if len(row) != expected_cols:
+                            raise ConversionError(f"CSV file is malformed: Line {i} has {len(row)} columns, expected {expected_cols}")
+
+                # If validation passes, read with pandas
+                df = pd.read_csv(file_path, encoding=encoding, engine='python', skip_blank_lines=True)
+                
+                # Use github format to ensure proper header separator
+                table = df.to_markdown(index=False, tablefmt="github")
                 table = re.sub(r"\s+\|\s+", " | ", table)
                 table = re.sub(r"\n\s*\n+", "\n\n", table)
                 return table
+            except pd.errors.ParserError as e:
+                raise ConversionError(f"CSV file is malformed: {str(e)}")
+            except pd.errors.EmptyDataError as e:
+                raise ConversionError(f"CSV file is empty: {str(e)}")
             except UnicodeDecodeError as e:
                 last_error = e
                 continue
@@ -144,8 +177,10 @@ class MarkItDown:
                 data = json.load(f)
             pretty = json.dumps(data, indent=2)
             return f"```json\n{pretty}\n```"
-        except Exception as e:
+        except json.JSONDecodeError as e:
             raise ConversionError(f"Failed to parse JSON file: {str(e)}")
+        except Exception as e:
+            raise ConversionError(f"Failed to process JSON file: {str(e)}")
 
     def _convert_pdf(self, file_path: Path) -> str:
         """Convert PDF to markdown using PyMuPDF.
@@ -194,29 +229,18 @@ class MarkItDown:
 
             # Only include text content if we have some
             text = text.strip()
-            text_block = (
-                f"""```pdf
+            return f"""```pdf
 {text}
 ```"""
-                if text
-                else "[PDF content could not be extracted]"
-            )
-
-            return f"""<!-- EMBEDDED PDF: {file_path.name} -->
-<details>
-<summary>📄 {file_path.name} ({size_kb}KB, {page_count} pages)</summary>
-
-{text_block}
-
-[View PDF](attachments/{file_path.name})
-</details>"""
-
         except Exception as e:
             raise ConversionError(f"Failed to convert PDF: {str(e)}")
 
-    def cleanup(self) -> None:
+    def cleanup(self):
         """Clean up temporary files."""
-        if self.temp_dir.exists():
-            import shutil
+        import shutil
 
-            shutil.rmtree(self.temp_dir)
+        try:
+            if self.temp_dir.exists():
+                shutil.rmtree(self.temp_dir)
+        except Exception as e:
+            logger.warning(f"Failed to clean up temp directory: {str(e)}")
