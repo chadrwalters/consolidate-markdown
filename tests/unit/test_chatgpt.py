@@ -20,6 +20,7 @@ from consolidate_markdown.processors.chatgpt import ChatGPTProcessor
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
+
 @pytest.fixture
 def sample_conversation() -> Dict[str, Any]:
     """Create a sample conversation for testing."""
