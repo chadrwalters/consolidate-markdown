@@ -116,10 +116,8 @@ startxref
     assert result.skipped == 0
     assert result.images_processed == 1
     assert result.images_generated == 1
-    assert (
-        result.documents_processed == 2
-    )  # Updated to match actual behavior - PDF is processed twice
-    assert result.documents_generated == 2  # Updated to match actual behavior
+    assert result.documents_processed == 1
+    assert result.documents_generated == 1
     assert result.errors == []
 
     # Verify output files
