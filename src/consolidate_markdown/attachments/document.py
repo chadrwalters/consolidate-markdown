@@ -131,17 +131,21 @@ class MarkItDown:
         for encoding in encodings:
             try:
                 # First validate CSV structure using csv module
-                with open(file_path, 'r', encoding=encoding) as f:
+                with open(file_path, "r", encoding=encoding) as f:
                     reader = csv.reader(f)
                     header = next(reader)
                     expected_cols = len(header)
                     for i, row in enumerate(reader, start=2):
                         if len(row) != expected_cols:
-                            raise ConversionError(f"CSV file is malformed: Line {i} has {len(row)} columns, expected {expected_cols}")
+                            raise ConversionError(
+                                f"CSV file is malformed: Line {i} has {len(row)} columns, expected {expected_cols}"
+                            )
 
                 # If validation passes, read with pandas
-                df = pd.read_csv(file_path, encoding=encoding, engine='python', skip_blank_lines=True)
-                
+                df = pd.read_csv(
+                    file_path, encoding=encoding, engine="python", skip_blank_lines=True
+                )
+
                 # Use github format to ensure proper header separator
                 table = df.to_markdown(index=False, tablefmt="github")
                 table = re.sub(r"\s+\|\s+", " | ", table)
@@ -221,9 +225,7 @@ class MarkItDown:
                     text += page.get_text() + "\n\n"
 
             # Format as markdown with metadata
-            page_count = len(doc)
-            size_kb = file_path.stat().st_size // 1024
-
+            # Note: Removed unused variables page_count and size_kb
             # Close the document
             doc.close()
 

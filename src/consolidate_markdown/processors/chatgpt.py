@@ -5,7 +5,7 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from rich.progress import Progress, TaskID
 
@@ -201,7 +201,7 @@ class ChatGPTProcessor(SourceProcessor):
         date_str = create_time.strftime("%Y%m%d")
         safe_title = title.replace(" ", "_").replace("/", "_")
         filename = f"{date_str} - {safe_title}.md"
-        
+
         return self.source_config.dest_dir / filename
 
     def _convert_to_markdown(
@@ -448,6 +448,7 @@ class ChatGPTProcessor(SourceProcessor):
         """Extract text from a PDF file."""
         try:
             import pdfminer.high_level
+
             text = pdfminer.high_level.extract_text(str(file_path))
             return text.strip() or "[PDF: No text content found]"
         except ImportError:
@@ -525,11 +526,13 @@ class ChatGPTProcessor(SourceProcessor):
                             # Create header row
                             table_lines = [
                                 f"| {' | '.join(str(h) for h in headers)} |",
-                                f"| {' | '.join('-' * len(str(h)) for h in headers)} |"
+                                f"| {' | '.join('-' * len(str(h)) for h in headers)} |",
                             ]
                             # Add data rows
                             for row in rows:
-                                table_lines.append(f"| {' | '.join(str(cell) for cell in row)} |")
+                                table_lines.append(
+                                    f"| {' | '.join(str(cell) for cell in row)} |"
+                                )
                             content_parts.append("\n".join(table_lines))
                     elif part_type == "file":
                         # If message has attachments, skip inline file processing
@@ -567,20 +570,32 @@ class ChatGPTProcessor(SourceProcessor):
                             logger.warning(error_msg)
                             result.add_error(error_msg, self._processor_type)
                             continue
-                            
+
                         image_path = Path(image_path)
                         if not image_path.exists():
                             error_msg = f"Image file not found: {image_path}"
                             logger.warning(error_msg)
                             result.add_error(error_msg, self._processor_type)
                             continue
-                            
+
                         if config.global_config.no_image:
-                            content_parts.append(f"<!-- EMBEDDED PDF: {image_path.name} -->")
+                            content_parts.append(
+                                f"<!-- EMBEDDED PDF: {image_path.name} -->"
+                            )
                         else:
-                            content_parts.append(f"<!-- EMBEDDED IMAGE: {image_path.name} -->")
+                            content_parts.append(
+                                f"<!-- EMBEDDED IMAGE: {image_path.name} -->"
+                            )
                         result.documents_processed += 1
-                    elif part_type not in ["text", "code", "mermaid", "math", "table", "file", "image"]:
+                    elif part_type not in [
+                        "text",
+                        "code",
+                        "mermaid",
+                        "math",
+                        "table",
+                        "file",
+                        "image",
+                    ]:
                         error_msg = f"Unsupported content type: {part_type}"
                         logger.warning(error_msg)
                         result.add_error(error_msg, self._processor_type)
@@ -590,7 +605,7 @@ class ChatGPTProcessor(SourceProcessor):
             for attachment in attachments:
                 file_path = attachment.get("file_path", "")
                 name = attachment.get("name", "")
-                
+
                 if not file_path:
                     error_msg = "Attachment missing required 'file_path' field"
                     logger.warning(error_msg)
@@ -606,15 +621,19 @@ class ChatGPTProcessor(SourceProcessor):
 
                 mime_type = attachment.get("mime_type", "")
                 attachment_name = name or file_path.name
-                
+
                 if mime_type == "application/pdf":
                     content_parts.append(f"<!-- EMBEDDED PDF: {attachment_name} -->")
                     result.documents_processed += 1
                 elif mime_type.startswith("image/"):
                     if config.global_config.no_image:
-                        content_parts.append(f"<!-- EMBEDDED PDF: {attachment_name} -->")
+                        content_parts.append(
+                            f"<!-- EMBEDDED PDF: {attachment_name} -->"
+                        )
                     else:
-                        content_parts.append(f"<!-- EMBEDDED IMAGE: {attachment_name} -->")
+                        content_parts.append(
+                            f"<!-- EMBEDDED IMAGE: {attachment_name} -->"
+                        )
                     result.documents_processed += 1
                 else:
                     content_parts.append(f"[File: {attachment_name}]")

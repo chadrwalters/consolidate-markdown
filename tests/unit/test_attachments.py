@@ -1,12 +1,6 @@
-"""Test attachment processing."""
-from pathlib import Path
-
-import pytest
-
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-
 import logging
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -20,6 +14,11 @@ from consolidate_markdown.attachments.processor import (
 from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import GlobalConfig
 from consolidate_markdown.processors.base import ProcessingResult
+
+# Constants
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
+"""Test attachment processing."""
 
 
 def test_image_processing_jpg(tmp_path):

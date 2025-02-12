@@ -1,13 +1,15 @@
 """Test processors."""
+
 from pathlib import Path
 
 import pytest
 
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
+
+# Constants
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 def test_bear_basic_note(tmp_path):

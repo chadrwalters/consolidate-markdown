@@ -5,9 +5,12 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
+
 from consolidate_markdown.attachments.processor import AttachmentProcessor
 from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import (
+    DEFAULT_OPENAI_BASE_URL,
+    DEFAULT_OPENROUTER_BASE_URL,
     Config,
     GlobalConfig,
     ModelsConfig,
@@ -15,10 +18,6 @@ from consolidate_markdown.config import (
 )
 from consolidate_markdown.processors.chatgpt import ChatGPTProcessor
 from consolidate_markdown.processors.result import ProcessingResult
-from consolidate_markdown.config import (
-    DEFAULT_OPENAI_BASE_URL,
-    DEFAULT_OPENROUTER_BASE_URL,
-)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
@@ -85,7 +84,7 @@ def sample_conversations() -> List[Dict[str, Any]]:
             "create_time": "2024-02-01T14:00:00Z",
             "model": "gpt-4",
             "messages": [{"role": "user", "content": "Yet another test"}],
-        }
+        },
     ]
 
 
@@ -228,13 +227,21 @@ def test_conversation_with_attachments(
     )
 
     # Update sample conversation to include file paths using absolute paths
-    sample_conversation_with_attachments["messages"][0]["content"][1]["image"] = str(image_path)
+    sample_conversation_with_attachments["messages"][0]["content"][1]["image"] = str(
+        image_path
+    )
     sample_conversation_with_attachments["messages"][0]["attachments"] = [
         {"name": "test.png", "mime_type": "image/png", "file_path": str(image_path)},
     ]
-    sample_conversation_with_attachments["messages"][1]["content"][1]["file_path"] = str(pdf_path)
+    sample_conversation_with_attachments["messages"][1]["content"][1][
+        "file_path"
+    ] = str(pdf_path)
     sample_conversation_with_attachments["messages"][1]["attachments"] = [
-        {"name": "test.pdf", "mime_type": "application/pdf", "file_path": str(pdf_path)},
+        {
+            "name": "test.pdf",
+            "mime_type": "application/pdf",
+            "file_path": str(pdf_path),
+        },
     ]
 
     # Write the conversation file
@@ -347,7 +354,7 @@ def test_filename_format(config: Config, temp_output_dir: Path):
             "create_time": "2024-01-03T00:00:00Z",
             "model": "gpt-4",
             "messages": [{"role": "user", "content": "Yet another test"}],
-        }
+        },
     ]
 
     # Write conversations to file
@@ -1117,13 +1124,14 @@ def test_error_handling(config: Config, temp_output_dir: Path):
 
     # Test invalid conversation format
     result = ProcessingResult()
-    processor._process_conversation("not a dict", config, result)
+    invalid_conv: Dict[str, Any] = {"raw_data": "not a dict"}  # Type-safe test data
+    processor._process_conversation(invalid_conv, config, result)
     assert result.skipped == 1
     assert len(result.errors) == 1
-    assert "Invalid conversation data" in result.errors[0]
+    assert "Missing required fields" in result.errors[0]
 
     # Test missing required fields
-    incomplete_conv = {
+    incomplete_conv: Dict[str, Any] = {
         "title": "Missing Fields",
         # missing create_time and messages
     }
@@ -1134,10 +1142,10 @@ def test_error_handling(config: Config, temp_output_dir: Path):
     assert "Missing required fields" in result.errors[0]
 
     # Test malformed timestamps
-    bad_timestamp_conv = {
+    bad_timestamp_conv: Dict[str, Any] = {
         "title": "Bad Timestamp",
         "create_time": "not-a-timestamp",
-        "messages": []
+        "messages": [],
     }
     result = ProcessingResult()
     processor._process_conversation(bad_timestamp_conv, config, result)
@@ -1146,13 +1154,13 @@ def test_error_handling(config: Config, temp_output_dir: Path):
     assert "Invalid create_time format" in result.errors[0]
 
     # Test invalid message structure
-    bad_message_conv = {
+    bad_message_conv: Dict[str, Any] = {
         "title": "Bad Message",
         "create_time": "2024-02-01T12:00:00Z",
         "messages": [
             {"role": "user"},  # missing content
-            {"content": "test"}  # missing role
-        ]
+            {"content": "test"},  # missing role
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(bad_message_conv, config, result)
@@ -1171,8 +1179,8 @@ def test_content_types(config: Config, temp_output_dir: Path):
         "messages": [
             {"role": "system", "content": "Test system message"},
             {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi there"}
-        ]
+            {"role": "assistant", "content": "Hi there"},
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(system_conv, config, result)
@@ -1185,8 +1193,11 @@ def test_content_types(config: Config, temp_output_dir: Path):
         "create_time": "2024-02-01T12:00:00Z",
         "messages": [
             {"role": "user", "content": "Show me some code"},
-            {"role": "assistant", "content": "Here's some Python code:\n```python\nprint('hello')\n```"}
-        ]
+            {
+                "role": "assistant",
+                "content": "Here's some Python code:\n```python\nprint('hello')\n```",
+            },
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(code_conv, config, result)
@@ -1199,8 +1210,8 @@ def test_content_types(config: Config, temp_output_dir: Path):
         "create_time": "2024-02-01T12:00:00Z",
         "messages": [
             {"role": "user", "content": "Hello 👋"},
-            {"role": "assistant", "content": "こんにちは! 안녕하세요!"}
-        ]
+            {"role": "assistant", "content": "こんにちは! 안녕하세요!"},
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(unicode_conv, config, result)
@@ -1221,10 +1232,10 @@ def test_attachment_error_handling(config: Config, temp_output_dir: Path):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": "Here's an image:"},
-                    {"type": "image", "image": "/nonexistent/path/image.png"}
-                ]
+                    {"type": "image", "image": "/nonexistent/path/image.png"},
+                ],
             }
-        ]
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(conv_with_bad_path, config, result)
@@ -1240,14 +1251,16 @@ def test_attachment_error_handling(config: Config, temp_output_dir: Path):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": "Here's a file:"},
-                    {"type": "unsupported", "file": "test.xyz"}
-                ]
+                    {"type": "unsupported", "file": "test.xyz"},
+                ],
             }
-        ]
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(conv_with_bad_type, config, result)
-    assert result.processed == 1  # Conversation still processes but skips bad attachment
+    assert (
+        result.processed == 1
+    )  # Conversation still processes but skips bad attachment
     assert len(result.errors) > 0
 
 
@@ -1266,13 +1279,11 @@ def test_nested_content(config: Config, temp_output_dir: Path):
                     {
                         "type": "text",
                         "text": "Level 2",
-                        "items": [
-                            {"type": "text", "text": "Level 3"}
-                        ]
-                    }
-                ]
+                        "items": [{"type": "text", "text": "Level 3"}],
+                    },
+                ],
             }
-        ]
+        ],
     }
     result = ProcessingResult()
     processor._process_conversation(nested_conv, config, result)
@@ -1283,7 +1294,7 @@ def test_nested_content(config: Config, temp_output_dir: Path):
 def test_concurrent_processing(config: Config, temp_output_dir: Path):
     """Test concurrent processing of conversations."""
     import concurrent.futures
-    
+
     processor = ChatGPTProcessor(config.sources[0])
     conversations = [
         {
@@ -1291,12 +1302,12 @@ def test_concurrent_processing(config: Config, temp_output_dir: Path):
             "create_time": "2024-02-01T12:00:00Z",
             "messages": [
                 {"role": "user", "content": f"Message {i}"},
-                {"role": "assistant", "content": f"Response {i}"}
-            ]
+                {"role": "assistant", "content": f"Response {i}"},
+            ],
         }
         for i in range(5)
     ]
-    
+
     result = ProcessingResult()
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [
@@ -1304,6 +1315,6 @@ def test_concurrent_processing(config: Config, temp_output_dir: Path):
             for conv in conversations
         ]
         concurrent.futures.wait(futures)
-    
+
     assert result.processed == 5
     assert result.errors == []

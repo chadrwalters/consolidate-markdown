@@ -1,6 +1,6 @@
 [run]
 source = src/consolidate_markdown
-omit = 
+omit =
     tests/*
     */__init__.py
 
