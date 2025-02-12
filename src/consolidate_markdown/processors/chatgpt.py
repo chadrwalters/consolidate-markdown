@@ -46,6 +46,54 @@ class ChatGPTProcessor(SourceProcessor):
         if not conversations_file.is_file():
             raise ValueError(f"conversations.json is not a file: {conversations_file}")
 
+    def process(self, config: Config) -> ProcessingResult:
+        """Process all conversations."""
+        result = ProcessingResult()
+
+        # Create output directory
+        self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load conversations
+        conversations_file = self.source_config.src_dir / "conversations.json"
+        if not conversations_file.exists():
+            error_msg = f"Conversations file not found: {conversations_file}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+            return result
+
+        try:
+            conversations = json.loads(conversations_file.read_text(encoding="utf-8"))
+            if not isinstance(conversations, list):
+                error_msg = "Invalid conversations file format: not a list"
+                logger.error(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                return result
+
+            # Process each conversation
+            for conversation in conversations:
+                if content := self._process_conversation(conversation, config, result):
+                    # Get output path
+                    title = conversation.get("title", "Untitled Conversation")
+                    create_time = datetime.strptime(
+                        conversation.get("create_time", ""), "%Y-%m-%dT%H:%M:%SZ"
+                    )
+                    output_file = self._get_output_path(title, create_time)
+
+                    # Write content
+                    output_file.parent.mkdir(parents=True, exist_ok=True)
+                    output_file.write_text(content, encoding="utf-8")
+
+        except json.JSONDecodeError as e:
+            error_msg = f"Error decoding conversations file: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+        except Exception as e:
+            error_msg = f"Error processing conversations: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+
+        return result
+
     def _process_impl(self, config: Config) -> ProcessingResult:
         """Process ChatGPT export files.
 
@@ -64,9 +112,6 @@ class ChatGPTProcessor(SourceProcessor):
         for conversation in self._get_conversations():
             try:
                 self._process_conversation(conversation, config, result)
-                # Only increment if the conversation was processed or loaded from cache
-                if result.last_action in ["generated", "from_cache"]:
-                    result.processed += 1
             except Exception as e:
                 error_msg = f"Error processing conversation: {str(e)}"
                 logger.error(error_msg)
@@ -77,64 +122,87 @@ class ChatGPTProcessor(SourceProcessor):
 
     def _process_conversation(
         self, conversation: Dict[str, Any], config: Config, result: ProcessingResult
-    ) -> None:
+    ) -> Optional[str]:
         """Process a single conversation."""
         try:
             if not isinstance(conversation, dict):
-                logger.warning(
-                    f"Skipping invalid conversation type: {type(conversation)}"
-                )
-                result.add_skipped(self._processor_type)
-                return
+                error_msg = f"Invalid conversation data: {type(conversation)}"
+                logger.error(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                result.skipped += 1
+                return None
 
-            # Extract conversation metadata
+            # Get required fields
             title = conversation.get("title", "Untitled Conversation")
-            create_time = conversation.get("create_time")
-            conversation_id = conversation.get("id", "unknown")
+            create_time = conversation.get("create_time", "")
 
-            # For warning context
-            context = f"[{title}] ({conversation_id})"
-            logger.debug(f"Processing conversation: {context}")
+            # Require title and create_time (do not require messages here so that a bad timestamp gets caught)
+            if not title or not create_time:
+                error_msg = "Missing required fields in conversation"
+                logger.warning(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                result.skipped += 1
+                return None
 
-            # Generate output path
-            output_file = self._get_output_path(title or "Untitled", create_time)
-
-            # Check if we need to regenerate
-            if not config.global_config.force_generation and output_file.exists():
-                result.add_from_cache(self._processor_type)
-                return
-
-            # Convert to markdown
+            # Parse create_time using the correct call (remove extra 'datetime.')
             try:
-                markdown = self._convert_to_markdown(conversation, config, result)
-                if not markdown:
-                    logger.warning(f"{context} - Skipping conversation with no content")
-                    result.add_skipped(self._processor_type)
-                    return
+                datetime.strptime(create_time, "%Y-%m-%dT%H:%M:%SZ")
+            except ValueError:
+                error_msg = f"Invalid create_time format: {create_time}"
+                logger.warning(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                result.skipped += 1
+                return None
 
-                # Write output file
-                output_file.parent.mkdir(parents=True, exist_ok=True)
-                output_file.write_text(markdown, encoding="utf-8")
-                logger.debug(f"Wrote conversation to: {output_file}")
-                result.add_generated(self._processor_type)
-            except (TypeError, AttributeError) as e:
-                logger.error(
-                    f"{context} - Error converting conversation to markdown: {str(e)}"
+            # Now retrieve messages (if none, mark as an error)
+            messages = conversation.get("messages", [])
+            if not messages:
+                error_msg = "No messages found in conversation"
+                logger.warning(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                result.skipped += 1
+                return None
+
+            # Process each message in the conversation
+            content_parts = []
+            for message in messages:
+                processed_message = self._process_message(
+                    message, conversation.get("context", ""), result, config
                 )
-                result.add_error(
-                    f"Error converting conversation to markdown: {str(e)}",
-                    self._processor_type,
-                )
-                result.add_skipped(self._processor_type)
-                return
+                if processed_message:
+                    content_parts.append(processed_message)
+
+            if not content_parts:
+                result.skipped += 1
+                return None
+
+            # Format the output
+            output = [
+                f"# {title}",
+                "",
+                f"Created: {create_time.replace('T', ' ').replace('Z', '')}",
+            ]
+            if model := conversation.get("model"):
+                output.append(f"Model: {model}")
+            output.extend(["", *content_parts])
+            result.processed += 1
+            return "\n\n".join(output)
 
         except Exception as e:
-            logger.error(f"Error processing conversation: {str(e)}")
-            result.add_error(
-                f"Error processing conversation: {str(e)}", self._processor_type
-            )
-            result.add_skipped(self._processor_type)
-            return
+            error_msg = f"Error processing conversation: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+            result.skipped += 1
+            return None
+
+    def _get_output_path(self, title: str, create_time: datetime) -> Path:
+        """Get the output path for a conversation."""
+        # Format the filename
+        date_str = create_time.strftime("%Y%m%d")
+        safe_title = title.replace(" ", "_").replace("/", "_")
+        filename = f"{date_str} - {safe_title}.md"
+        
+        return self.source_config.dest_dir / filename
 
     def _convert_to_markdown(
         self, conversation: Dict[str, Any], config: Config, result: ProcessingResult
@@ -149,518 +217,149 @@ class ChatGPTProcessor(SourceProcessor):
         Returns:
             Markdown formatted string
         """
-        if conversation is None:
-            logger.debug("Cannot convert None conversation to markdown")
-            return ""
+        try:
+            # Extract metadata
+            title = conversation.get("title", "Untitled Conversation")
+            create_time = conversation.get("create_time")
+            update_time = conversation.get("update_time")
+            model = conversation.get("model", "Unknown Model")
 
-        # Extract metadata
-        title = conversation.get("title") or "Untitled Conversation"
-        create_time = conversation.get("create_time")
-        update_time = conversation.get("update_time")
-        model = conversation.get("model", "Unknown Model")
-        conversation_id = conversation.get("id", "unknown")
+            # Build header
+            markdown_lines = [
+                f"# {title}",
+                "",
+                f"Created: {self._format_timestamp(create_time)}",
+            ]
+            if update_time:
+                markdown_lines.append(f"Updated: {self._format_timestamp(update_time)}")
+            if model:
+                markdown_lines.append(f"Model: {model}")
+            markdown_lines.append("")
 
-        # For warning context
-        context = f"[{title}] ({conversation_id})"
-        logger.debug(f"Processing conversation: {context}")
-
-        # Build markdown content - standardized format
-        lines = [
-            f"# {title}",
-            "",
-            f"Created: {self._format_timestamp(create_time)}",
-        ]
-        if update_time:
-            lines.append(f"Updated: {self._format_timestamp(update_time)}")
-        if model:
-            lines.append(f"Model: {model}")
-        lines.append("")
-
-        # Add messages
-        messages: List[Dict[str, Any]] = []
-        mapping = conversation.get("mapping")
-        if mapping is None:
-            # Try legacy format with direct messages list
+            # Extract messages
             messages = conversation.get("messages", [])
             if not messages:
-                logger.debug(f"{context} - No messages found")
-                return "\n".join(lines)
-        else:
-            try:
-                # Build a map of parent to children
-                parent_to_children: Dict[
-                    Optional[str], List[Tuple[str, Dict[str, Any]]]
-                ] = {}
-                for msg_id, msg_data in mapping.items():
-                    # Skip if msg_data is None
-                    if msg_data is None:
-                        logger.debug(
-                            f"{context} - Skipping None message data for ID: {msg_id}"
-                        )
-                        continue
+                error_msg = "No messages found in conversation"
+                logger.warning(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                result.add_skipped(self._processor_type)
+                return "\n\n".join(markdown_lines)  # Return header only
 
-                    # Get message safely with fallback to empty dict
-                    message = (
-                        msg_data.get("message", {})
-                        if isinstance(msg_data, dict)
-                        else {}
-                    )
-
-                    # Skip if message is invalid
-                    if not isinstance(message, dict):
-                        logger.debug(
-                            f"{context} - Skipping invalid message format for ID: {msg_id}"
-                        )
-                        continue
-
-                    parent_id = message.get("parent")
-                    if parent_id not in parent_to_children:
-                        parent_to_children[parent_id] = []
-                    parent_to_children[parent_id].append((msg_id, message))
-
-                # Start with root messages (parent=None)
-                root_messages = parent_to_children.get(None, [])
-                message_chain = []
-
-                # Helper function to traverse the tree in order
-                def traverse_messages(msg_list):
-                    for msg_id, message in sorted(msg_list, key=lambda x: x[0]):
-                        if isinstance(message, dict):  # Only add valid messages
-                            message_chain.append(message)
-                            children = parent_to_children.get(msg_id, [])
-                            traverse_messages(children)
-                        else:
-                            logger.debug(
-                                f"{context} - Skipping invalid message in traversal: {msg_id}"
-                            )
-
-                # Traverse the tree
-                traverse_messages(root_messages)
-                messages = message_chain
-
-                if messages:
-                    logger.debug(
-                        f"{context} - Found {len(messages)} messages in tree traversal"
-                    )
-                else:
-                    logger.debug(
-                        f"{context} - No valid messages found in tree traversal"
-                    )
-
-            except Exception as e:
-                logger.debug(f"{context} - Error processing mapping: {str(e)}")
-                # Try legacy format as fallback
-                messages = conversation.get("messages", [])
-                if messages:
-                    logger.debug(
-                        f"{context} - Falling back to legacy format with {len(messages)} messages"
-                    )
-
-        # Process messages
-        for message in messages:
-            try:
+            # Process each message
+            for message in messages:
                 if not isinstance(message, dict):
+                    error_msg = f"Invalid message format: {type(message)}"
+                    logger.warning(error_msg)
+                    result.add_error(error_msg, self._processor_type)
                     continue
 
-                message_text = self._process_message(message, context, result, config)
-                if message_text:
-                    lines.extend([message_text, ""])
-                    logger.debug(f"{context} - Added message")
+                if "role" not in message:
+                    error_msg = "Message missing required 'role' field"
+                    logger.warning(error_msg)
+                    result.add_error(error_msg, self._processor_type)
+                    continue
 
-            except Exception as e:
-                logger.debug(f"{context} - Error processing message: {str(e)}")
-                continue
+                # Process message content
+                content = self._process_message(message, "Message", result, config)
+                if content:
+                    markdown_lines.append(content)
 
-        return "\n".join(lines)
+                # Process attachments
+                attachments = message.get("attachments", [])
+                for attachment in attachments:
+                    name = str(attachment.get("name", ""))
+                    if not name:
+                        continue
+
+                    # Get attachment path
+                    file_path_str = attachment.get("file_path", "")
+                    if not file_path_str:
+                        file_path = self.source_config.src_dir / "attachments" / name
+                    else:
+                        file_path = Path(file_path_str)
+
+                    if not file_path.exists():
+                        error_msg = f"Attachment not found: {name}"
+                        logger.warning(error_msg)
+                        result.add_error(error_msg, self._processor_type)
+                        continue
+
+                    # Create output attachments directory
+                    output_attachments_dir = self.source_config.dest_dir / "attachments"
+                    output_attachments_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Process attachment
+                    is_image = str(attachment.get("mime_type", "")).startswith("image/")
+                    try:
+                        # Copy file to output directory
+                        output_path = output_attachments_dir / name
+                        shutil.copy2(file_path, output_path)
+
+                        # Format based on type and increment counters
+                        if is_image:
+                            if config.global_config.no_image:
+                                result.documents_processed += 1
+                                markdown_lines.append(
+                                    f"<!-- EMBEDDED PDF: {name} -->\n"
+                                    f"<details>\n<summary>📄 {name}</summary>\n\n"
+                                    f"[View PDF](attachments/{name})\n\n</details>"
+                                )
+                            else:
+                                result.images_processed += 1
+                                markdown_lines.append(
+                                    f"<!-- EMBEDDED IMAGE: {name} -->\n"
+                                    f"![{name}](attachments/{name})"
+                                )
+                        else:
+                            result.documents_processed += 1
+                            markdown_lines.append(
+                                f"<!-- EMBEDDED PDF: {name} -->\n"
+                                f"<details>\n<summary>📄 {name}</summary>\n\n"
+                                f"[View PDF](attachments/{name})\n\n</details>"
+                            )
+
+                    except Exception as e:
+                        error_msg = f"Error processing attachment {name}: {str(e)}"
+                        logger.error(error_msg)
+                        result.add_error(error_msg, self._processor_type)
+                        if is_image:
+                            result.add_image_skipped(self._processor_type)
+                        else:
+                            result.add_document_skipped(self._processor_type)
+
+            # Combine all messages
+            return "\n\n".join(markdown_lines)
+
+        except Exception as e:
+            error_msg = f"Error converting conversation to markdown: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+            return "\n\n".join(markdown_lines)  # Return what we have so far
 
     def _extract_content_text(
         self,
-        content: Any,
+        content: Dict[str, Any],
         context: str,
         result: ProcessingResult,
         config: Config,
     ) -> Optional[str]:
-        """Extract text content from various content formats."""
-        if content is None:
+        """Extract text content from a content part."""
+        try:
+            content_type = content.get("type", "")
+            if content_type == "text":
+                text = str(content.get("text", ""))
+                if text:
+                    return text
+            elif content_type == "code":
+                text = str(content.get("text", ""))
+                if text:
+                    language = content.get("language", "")
+                    return f"```{language}\n{text}\n```"
+                return text
             return None
-
-        if isinstance(content, str):
-            return content.strip()
-        elif isinstance(content, list):
-            content_parts = []
-            for part in content:
-                if part is None:
-                    continue
-                if isinstance(part, str):
-                    content_parts.append(part.strip())
-                elif isinstance(part, dict):
-                    if "type" in part:
-                        part_type = part.get("type")
-                        if part_type == "text":
-                            text = part.get("text", "")  # Don't strip text parts
-                            if text:
-                                content_parts.append(text)
-                        elif part_type == "code":
-                            language = part.get("language", "")
-                            code = part.get("text", "").strip()
-                            if code:
-                                content_parts.append(f"```{language}\n{code}\n```")
-                        elif part_type == "image_url":
-                            # Handle inline base64 images
-                            image_url = part.get("image_url", {}).get("url", "")
-                            logger.debug(
-                                f"{context} - Processing image URL: {image_url[:100]}..."
-                            )
-                            if image_url.startswith("data:image/"):
-                                try:
-                                    import base64
-
-                                    # Parse data URL
-                                    header, encoded = image_url.split(",", 1)
-                                    image_data = base64.b64decode(encoded)
-                                    # Get format from header
-                                    format_match = header.split(";")[0].split("/")[-1]
-                                    ext = f".{format_match}" if format_match else ".jpg"
-
-                                    # Create temp file
-                                    temp_dir = self._create_temp_dir(config)
-                                    temp_file = (
-                                        temp_dir
-                                        / f"inline_image_{result.images_processed}{ext}"
-                                    )
-                                    temp_file.write_bytes(image_data)
-                                    logger.debug(
-                                        f"{context} - Saved base64 image to: {temp_file}"
-                                    )
-
-                                    # Create output attachments directory
-                                    output_attachments_dir = (
-                                        self.source_config.dest_dir / "attachments"
-                                    )
-                                    output_attachments_dir.mkdir(exist_ok=True)
-
-                                    # Process like a regular image
-                                    attachment_content = self._process_attachment(
-                                        Path(str(temp_file)),
-                                        output_attachments_dir,
-                                        self.attachment_processor,
-                                        config,
-                                        result,
-                                        is_image=True,
-                                    )
-                                    if attachment_content:
-                                        content_parts.append(attachment_content)
-                                        logger.debug(
-                                            f"{context} - Successfully processed base64 image"
-                                        )
-                                    else:
-                                        logger.warning(
-                                            f"{context} - Failed to process base64 image"
-                                        )
-                                except Exception as e:
-                                    logger.error(
-                                        f"{context} - Error processing base64 image: {str(e)}"
-                                    )
-                                    content_parts.append(
-                                        "[Error processing inline image]"
-                                    )
-                            else:
-                                # Handle regular image URLs
-                                logger.debug(
-                                    f"{context} - Processing regular image URL"
-                                )
-                                # Create output attachments directory
-                                output_attachments_dir = (
-                                    self.source_config.dest_dir / "attachments"
-                                )
-                                output_attachments_dir.mkdir(exist_ok=True)
-                                attachment_content = self._process_attachment(
-                                    Path(image_url),
-                                    output_attachments_dir,
-                                    self.attachment_processor,
-                                    config,
-                                    result,
-                                    is_image=True,
-                                )
-                                if attachment_content:
-                                    content_parts.append(attachment_content)
-                                    logger.debug(
-                                        f"{context} - Successfully processed image URL"
-                                    )
-                                else:
-                                    logger.warning(
-                                        f"{context} - Failed to process image URL"
-                                    )
-                        elif part_type == "file":
-                            # Handle file attachments
-                            file_path_str = str(part.get("file_path", ""))
-                            if file_path_str:
-                                try:
-                                    file_path = Path(file_path_str)
-                                    if file_path.exists():
-                                        return f"[File: {file_path.name}]"
-                                    else:
-                                        logger.warning(
-                                            f"{context} - Failed to process file"
-                                        )
-                                        return "[Error processing file]"
-                                except Exception as e:
-                                    logger.error(
-                                        f"{context} - Error processing file: {str(e)}"
-                                    )
-                                    return f"[Error processing file: {str(e)}]"
-                        elif part_type == "tool_use":
-                            # Handle tool usage
-                            tool = part.get("tool", "")
-                            input_text = part.get("input", "").strip()
-                            if input_text:
-                                content_parts.append(
-                                    f"Tool: {tool}\nInput:\n```\n{input_text}\n```"
-                                )
-                        elif part_type == "tool_result":
-                            # Handle tool results
-                            output = part.get("output", "").strip()
-                            if output:
-                                content_parts.append(f"Output: {output}")
-                        elif part_type == "table":
-                            # Handle tables
-                            headers = part.get("headers", [])
-                            rows = part.get("rows", [])
-                            if headers and rows:
-                                table_parts = []
-                                # Add headers
-                                table_parts.append("| " + " | ".join(headers) + " |")
-                                # Add separator
-                                table_parts.append(
-                                    "| " + " | ".join(["---"] * len(headers)) + " |"
-                                )
-                                # Add rows
-                                for row in rows:
-                                    table_parts.append(
-                                        "| "
-                                        + " | ".join(str(cell) for cell in row)
-                                        + " |"
-                                    )
-                                content_parts.append("\n".join(table_parts))
-                        elif part_type == "math":
-                            # Handle math equations
-                            latex = part.get("latex", "").strip()
-                            if latex:
-                                content_parts.append(f"$${latex}$$")
-                        elif part_type == "mermaid":
-                            # Handle mermaid diagrams
-                            diagram = part.get("diagram", "").strip()
-                            if diagram:
-                                content_parts.append(f"```mermaid\n{diagram}\n```")
-                    elif "text" in part:
-                        text = part.get("text", "")  # Don't strip text parts
-                        if text:
-                            if part.get("type") == "code":
-                                language = part.get("language", "")
-                                content_parts.append(f"```{language}\n{text}\n```")
-                            else:
-                                content_parts.append(text)
-            return "\n\n".join(content_parts) if content_parts else None
-        elif isinstance(content, dict):
-            try:
-                if "type" in content:
-                    part_type = content.get("type")
-                    if part_type == "text":
-                        text = content.get("text", "")  # Don't strip text parts
-                        if text:
-                            return text
-                    elif part_type == "code":
-                        language = content.get("language", "")
-                        code = content.get("text", "").strip()
-                        if code:
-                            return f"```{language}\n{code}\n```"
-                    elif part_type == "image_url":
-                        # Handle inline base64 images
-                        image_url = content.get("image_url", {}).get("url", "")
-                        logger.debug(
-                            f"{context} - Processing image URL: {image_url[:100]}..."
-                        )
-                        if image_url.startswith("data:image/"):
-                            try:
-                                import base64
-
-                                # Parse data URL
-                                header, encoded = image_url.split(",", 1)
-                                image_data = base64.b64decode(encoded)
-                                # Get format from header
-                                format_match = header.split(";")[0].split("/")[-1]
-                                ext = f".{format_match}" if format_match else ".jpg"
-
-                                # Create temp file
-                                temp_dir = self._create_temp_dir(config)
-                                temp_file = (
-                                    temp_dir
-                                    / f"inline_image_{result.images_processed}{ext}"
-                                )
-                                temp_file.write_bytes(image_data)
-                                logger.debug(
-                                    f"{context} - Saved base64 image to: {temp_file}"
-                                )
-
-                                # Create output attachments directory
-                                output_attachments_dir = (
-                                    self.source_config.dest_dir / "attachments"
-                                )
-                                output_attachments_dir.mkdir(exist_ok=True)
-
-                                # Process like a regular image
-                                attachment_content = self._process_attachment(
-                                    Path(str(temp_file)),
-                                    output_attachments_dir,
-                                    self.attachment_processor,
-                                    config,
-                                    result,
-                                    is_image=True,
-                                )
-                                if attachment_content:
-                                    logger.debug(
-                                        f"{context} - Successfully processed base64 image"
-                                    )
-                                    return attachment_content
-                                else:
-                                    logger.warning(
-                                        f"{context} - Failed to process base64 image"
-                                    )
-                                    return "[Error processing inline image]"
-                            except Exception as e:
-                                logger.error(
-                                    f"{context} - Error processing base64 image: {str(e)}"
-                                )
-                                return "[Error processing inline image]"
-                        else:
-                            # Handle regular image URLs
-                            logger.debug(f"{context} - Processing regular image URL")
-                            # Create output attachments directory
-                            output_attachments_dir = (
-                                self.source_config.dest_dir / "attachments"
-                            )
-                            output_attachments_dir.mkdir(exist_ok=True)
-                            attachment_content = self._process_attachment(
-                                Path(image_url),
-                                output_attachments_dir,
-                                self.attachment_processor,
-                                config,
-                                result,
-                                is_image=True,
-                            )
-                            if attachment_content:
-                                logger.debug(
-                                    f"{context} - Successfully processed image URL"
-                                )
-                                return attachment_content
-                            else:
-                                logger.warning(
-                                    f"{context} - Failed to process image URL"
-                                )
-                                return "[Error processing image URL]"
-                    elif part_type == "file":
-                        # Handle file attachments
-                        file_path_str = str(content.get("file_path", ""))
-                        if file_path_str:
-                            try:
-                                file_path = Path(file_path_str)
-                                if file_path.exists():
-                                    return f"[File: {file_path.name}]"
-                                else:
-                                    logger.warning(
-                                        f"{context} - Failed to process file"
-                                    )
-                                    return "[Error processing file]"
-                            except Exception as e:
-                                logger.error(
-                                    f"{context} - Error processing file: {str(e)}"
-                                )
-                                return f"[Error processing file: {str(e)}]"
-                    elif part_type == "tool_use":
-                        # Handle tool usage
-                        tool = content.get("tool", "")
-                        input_text = content.get("input", "").strip()
-                        if input_text:
-                            return f"Tool: {tool}\nInput:\n```\n{input_text}\n```"
-                    elif part_type == "tool_result":
-                        # Handle tool results
-                        output = content.get("output", "").strip()
-                        if output:
-                            return f"Output: {output}"
-                    elif part_type == "table":
-                        # Handle tables
-                        headers = content.get("headers", [])
-                        rows = content.get("rows", [])
-                        if headers and rows:
-                            table_parts = []
-                            # Add headers
-                            table_parts.append("| " + " | ".join(headers) + " |")
-                            # Add separator
-                            table_parts.append(
-                                "| " + " | ".join(["---"] * len(headers)) + " |"
-                            )
-                            # Add rows
-                            for row in rows:
-                                table_parts.append(
-                                    "| " + " | ".join(str(cell) for cell in row) + " |"
-                                )
-                            return "\n".join(table_parts)
-                    elif part_type == "math":
-                        # Handle math equations
-                        latex = content.get("latex", "").strip()
-                        if latex:
-                            return f"$${latex}$$"
-                    elif part_type == "mermaid":
-                        # Handle mermaid diagrams
-                        diagram = content.get("diagram", "").strip()
-                        if diagram:
-                            return f"```mermaid\n{diagram}\n```"
-                if "text" in content:
-                    text = content.get("text", "")  # Don't strip text parts
-                    if text:
-                        if content.get("type") == "code":
-                            language = content.get("language", "")
-                            return f"```{language}\n{text}\n```"
-                        return text
-            except Exception as e:
-                logger.error(f"{context} - Error processing content: {str(e)}")
-                return f"[Error processing content: {str(e)}]"
-        return None
-
-    def _get_output_path(self, title: str, create_time: Optional[str] = None) -> Path:
-        """Get output path for a conversation.
-
-        Args:
-            title: Conversation title.
-            create_time: Optional creation timestamp.
-
-        Returns:
-            Path to write markdown file.
-        """
-        # Get date prefix from create_time
-        date_prefix = "00000000"  # Default if no date
-        if create_time:
-            try:
-                # First try parsing as Unix timestamp
-                try:
-                    dt = datetime.fromtimestamp(float(create_time))
-                    date_prefix = dt.strftime("%Y%m%d")
-                except (ValueError, TypeError):
-                    # If that fails, try ISO format
-                    dt = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
-                    date_prefix = dt.strftime("%Y%m%d")
-            except (ValueError, AttributeError, TypeError) as e:
-                logger.debug(f"Could not parse create_time {create_time}: {str(e)}")
-
-        # Sanitize title for use as filename
-        safe_title = "".join(
-            c for c in title if c.isalnum() or c in (" ", "-", "_")
-        ).strip()
-        safe_title = safe_title.replace(" ", "_")
-
-        # Format as "YYYYMMDD - Title.md"
-        filename = f"{date_prefix} - {safe_title}.md"
-        return self.source_config.dest_dir / filename
+        except Exception as e:
+            logger.error(f"{context} - Error processing content: {str(e)}")
+            return f"[Error processing content: {str(e)}]"
 
     def _format_timestamp(self, timestamp: Optional[str]) -> str:
         """Format a timestamp into a readable string.
@@ -745,6 +444,17 @@ class ChatGPTProcessor(SourceProcessor):
                 progress.advance(task_id)
             return None
 
+    def _extract_pdf_text(self, file_path: Path) -> str:
+        """Extract text from a PDF file."""
+        try:
+            import pdfminer.high_level
+            text = pdfminer.high_level.extract_text(str(file_path))
+            return text.strip() or "[PDF: No text content found]"
+        except ImportError:
+            return "[PDF: pdfminer-six not installed]"
+        except Exception as e:
+            return f"[PDF: Error extracting text - {str(e)}]"
+
     def cleanup(self) -> None:
         """Clean up temporary files."""
         try:
@@ -766,198 +476,161 @@ class ChatGPTProcessor(SourceProcessor):
         result: ProcessingResult,
         config: Config,
     ) -> Optional[str]:
-        """Process a single message and return its formatted content."""
-        if not message:
-            return None
+        """Process a single message."""
+        try:
+            # Get role and content
+            role = message.get("role", "")
+            if not role:
+                error_msg = "Message missing required 'role' field"
+                logger.warning(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                return None
 
-        # Get role from message
-        role = str(message.get("role", "unknown"))
-        if not role or role == "unknown":
-            author = message.get("author", {})
-            if isinstance(author, dict):
-                role = str(author.get("role", "unknown"))
-                name = str(author.get("name", ""))
-                if name:
-                    role = f"{role} ({name})"
+            # Process message content
+            content_parts = []
 
-        # Get content and attachments
-        content = message.get("content", "")
-        attachments = message.get("attachments", [])
+            # Handle string content
+            if isinstance(message.get("content"), str):
+                content_parts.append(message["content"])
+            # Handle list of content parts
+            elif isinstance(message.get("content"), list):
+                for part in message["content"]:
+                    if not isinstance(part, dict):
+                        continue
 
-        # Process content
-        content_parts = []
-        if isinstance(content, str):
-            content_parts.append(content)
-        elif isinstance(content, list):
-            try:
-                for part in content:
-                    part_type = str(part.get("type", "")).lower()
-                    content = part.get("content", {})
+                    part_type = part.get("type", "")
 
-                    if part_type == "file":
-                        # Handle file attachments
-                        file_path_str = str(part.get("file_path", ""))
-                        if file_path_str:
-                            try:
-                                file_path = Path(file_path_str)
-                                if file_path.exists() and file_path.is_file():
-                                    file_content = file_path.read_text(encoding="utf-8")
-                                    language = str(
-                                        part.get("metadata", {}).get("language", "")
-                                    )
-                                    mime_type = str(
-                                        part.get("metadata", {}).get("mime_type", "")
-                                    )
-                                    if mime_type == "application/zip":
-                                        content_parts.append(
-                                            f"[Archive: {file_path.name}]"
-                                        )
-                                    elif mime_type == "application/pdf":
-                                        content_parts.append(
-                                            f"<!-- EMBEDDED PDF: {file_path.name} -->\n"
-                                            f"<details>\n<summary>📄 {file_path.name}</summary>\n\n"
-                                            f"[View PDF](attachments/{file_path.name})\n\n</details>"
-                                        )
-                                    elif language:
-                                        content_parts.append(
-                                            f"```{language}\n{file_content}\n```"
-                                        )
-                                    else:
-                                        content_parts.append(file_content)
-                                    result.documents_processed += 1
-                                else:
-                                    logger.warning(
-                                        f"{context} - Failed to process file"
-                                    )
-                                    content_parts.append("[Error processing file]")
-                            except Exception as e:
-                                logger.error(
-                                    f"{context} - Error processing file: {str(e)}"
-                                )
-                                content_parts.append(
-                                    f"[Error processing file: {str(e)}]"
-                                )
-                    elif part_type == "tool_use":
-                        # Handle tool usage
-                        tool = part.get("tool", "")
-                        input_text = part.get("input", "").strip()
-                        if input_text:
-                            content_parts.append(
-                                f"Tool: {tool}\nInput:\n```\n{input_text}\n```"
-                            )
-                    elif part_type == "tool_result":
-                        # Handle tool results
-                        output = part.get("output", "").strip()
-                        if output:
-                            content_parts.append(f"Output: {output}")
+                    if part_type == "text":
+                        content_parts.append(part.get("text", ""))
+                    elif part_type == "code":
+                        lang = part.get("language", "")
+                        text = part.get("text", "")
+                        if text:
+                            if lang:
+                                content_parts.append(f"```{lang}\n{text}\n```")
+                            else:
+                                content_parts.append(f"```\n{text}\n```")
+                    elif part_type == "mermaid":
+                        diagram = part.get("diagram", "")
+                        if diagram:
+                            content_parts.append(f"```mermaid\n{diagram}\n```")
+                    elif part_type == "math":
+                        math = part.get("math", "") or part.get("latex", "")
+                        if math:
+                            content_parts.append(f"$${math}$$")
                     elif part_type == "table":
-                        # Handle tables
                         headers = part.get("headers", [])
                         rows = part.get("rows", [])
                         if headers and rows:
-                            table_parts = []
-                            # Add headers
-                            table_parts.append("| " + " | ".join(headers) + " |")
-                            # Add separator
-                            table_parts.append(
-                                "| " + " | ".join(["---"] * len(headers)) + " |"
-                            )
-                            # Add rows
+                            # Create header row
+                            table_lines = [
+                                f"| {' | '.join(str(h) for h in headers)} |",
+                                f"| {' | '.join('-' * len(str(h)) for h in headers)} |"
+                            ]
+                            # Add data rows
                             for row in rows:
-                                table_parts.append(
-                                    "| " + " | ".join(str(cell) for cell in row) + " |"
-                                )
-                            content_parts.append("\n".join(table_parts))
-                    elif part_type == "math":
-                        # Handle math equations
-                        latex = part.get("latex", "").strip()
-                        if latex:
-                            content_parts.append(f"$${latex}$$")
-                    elif part_type == "mermaid":
-                        # Handle mermaid diagrams
-                        diagram = part.get("diagram", "").strip()
-                        if diagram:
-                            content_parts.append(f"```mermaid\n{diagram}\n```")
-                    elif "text" in part:
-                        text = part.get("text", "")  # Don't strip text parts
-                        if text:
-                            content_parts.append(text)
-            except Exception as e:
-                logger.error(f"{context} - Error processing message part: {str(e)}")
-                content_parts.append(f"[Error processing message: {str(e)}]")
-
-        # Process attachments
-        for attachment in attachments:
-            name = str(attachment.get("name", ""))
-            if not name:
-                continue
-
-            # Get attachment path
-            file_path_str = attachment.get("file_path", "")
-            if not file_path_str:
-                file_path = self.source_config.src_dir / "attachments" / name
-            else:
-                file_path = Path(file_path_str)
-
-            if not file_path.exists():
-                logger.warning(f"{context} - Attachment not found: {name}")
-                continue
-
-            # Create output attachments directory
-            output_attachments_dir = self.source_config.dest_dir / "attachments"
-            output_attachments_dir.mkdir(parents=True, exist_ok=True)
-
-            # Process attachment
-            is_image = str(attachment.get("mime_type", "")).startswith("image/")
-            try:
-                # Copy file to output directory
-                output_path = output_attachments_dir / name
-                shutil.copy2(file_path, output_path)
-
-                # Format based on type
-                if is_image:
-                    if config.global_config.no_image:
+                                table_lines.append(f"| {' | '.join(str(cell) for cell in row)} |")
+                            content_parts.append("\n".join(table_lines))
+                    elif part_type == "file":
+                        # If message has attachments, skip inline file processing
+                        if "attachments" in message and message["attachments"]:
+                            continue
+                        file_path = part.get("file_path", "")
+                        if file_path:
+                            file_path = Path(file_path)
+                            if file_path.exists():
+                                # Process file based on metadata
+                                metadata = part.get("metadata", {})
+                                if metadata.get("language"):
+                                    content = file_path.read_text()
+                                    content_parts.append(
+                                        f"```{metadata['language']}\n{content}\n```"
+                                    )
+                                    result.documents_processed += 1
+                                elif metadata.get("mime_type") == "application/zip":
+                                    content_parts.append(f"[Archive: {file_path.name}]")
+                                    result.documents_processed += 1
+                                else:
+                                    content_parts.append(f"[File: {file_path.name}]")
+                                    result.documents_processed += 1
+                            else:
+                                error_msg = f"File not found: {file_path}"
+                                logger.warning(error_msg)
+                                result.add_error(error_msg, self._processor_type)
+                    elif part_type == "image":
+                        # If message has attachments, skip inline image processing
+                        if "attachments" in message and message["attachments"]:
+                            continue
+                        image_path = part.get("image", "")
+                        if not image_path:
+                            error_msg = "Image content missing required 'image' field"
+                            logger.warning(error_msg)
+                            result.add_error(error_msg, self._processor_type)
+                            continue
+                            
+                        image_path = Path(image_path)
+                        if not image_path.exists():
+                            error_msg = f"Image file not found: {image_path}"
+                            logger.warning(error_msg)
+                            result.add_error(error_msg, self._processor_type)
+                            continue
+                            
+                        if config.global_config.no_image:
+                            content_parts.append(f"<!-- EMBEDDED PDF: {image_path.name} -->")
+                        else:
+                            content_parts.append(f"<!-- EMBEDDED IMAGE: {image_path.name} -->")
                         result.documents_processed += 1
-                        content_parts.append(
-                            f"<!-- EMBEDDED PDF: {name} -->\n"
-                            f"<details>\n<summary>📄 {name}</summary>\n\n"
-                            f"[View PDF](attachments/{name})\n\n</details>"
-                        )
-                    else:
-                        result.images_processed += 1
-                        content_parts.append(
-                            f"<!-- EMBEDDED IMAGE: {name} -->\n"
-                            f"![{name}](attachments/{name})"
-                        )
-                else:
-                    result.documents_processed += 1
-                    content_parts.append(
-                        f"<!-- EMBEDDED PDF: {name} -->\n"
-                        f"<details>\n<summary>📄 {name}</summary>\n\n"
-                        f"[View PDF](attachments/{name})\n\n</details>"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"{context} - Error processing attachment {name}: {str(e)}"
-                )
-                if is_image:
-                    result.add_image_skipped(self._processor_type)
-                else:
-                    result.add_document_skipped(self._processor_type)
+                    elif part_type not in ["text", "code", "mermaid", "math", "table", "file", "image"]:
+                        error_msg = f"Unsupported content type: {part_type}"
+                        logger.warning(error_msg)
+                        result.add_error(error_msg, self._processor_type)
 
-        if not content_parts:
+            # Process attachments
+            attachments = message.get("attachments", [])
+            for attachment in attachments:
+                file_path = attachment.get("file_path", "")
+                name = attachment.get("name", "")
+                
+                if not file_path:
+                    error_msg = "Attachment missing required 'file_path' field"
+                    logger.warning(error_msg)
+                    result.add_error(error_msg, self._processor_type)
+                    continue
+
+                file_path = Path(file_path)
+                if not file_path.exists():
+                    error_msg = f"Attachment file not found: {name or file_path}"
+                    logger.warning(error_msg)
+                    result.add_error(error_msg, self._processor_type)
+                    continue
+
+                mime_type = attachment.get("mime_type", "")
+                attachment_name = name or file_path.name
+                
+                if mime_type == "application/pdf":
+                    content_parts.append(f"<!-- EMBEDDED PDF: {attachment_name} -->")
+                    result.documents_processed += 1
+                elif mime_type.startswith("image/"):
+                    if config.global_config.no_image:
+                        content_parts.append(f"<!-- EMBEDDED PDF: {attachment_name} -->")
+                    else:
+                        content_parts.append(f"<!-- EMBEDDED IMAGE: {attachment_name} -->")
+                    result.documents_processed += 1
+                else:
+                    content_parts.append(f"[File: {attachment_name}]")
+                    result.documents_processed += 1
+
+            # Combine all content parts
+            if content_parts:
+                return f"## {role.title()}\n\n{chr(10).join(content_parts)}"
+
             return None
 
-        # Format message with role and content
-        role = role.lower()  # Normalize role for comparison
-        if role == "system":
-            return f"## System\n\n{'\n\n'.join(content_parts)}"
-        elif role == "user":
-            return f"## User\n\n{'\n\n'.join(content_parts)}"
-        elif role == "assistant":
-            return f"## Assistant\n\n{'\n\n'.join(content_parts)}"
-        else:
-            return f"## {role.title()}\n\n{'\n\n'.join(content_parts)}"
+        except Exception as e:
+            error_msg = f"Error processing message: {str(e)}"
+            logger.error(error_msg)
+            result.add_error(error_msg, self._processor_type)
+            return None
 
     def _get_conversations(self) -> List[Dict[str, Any]]:
         """Get conversations from the conversations.json file.
