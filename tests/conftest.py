@@ -1,5 +1,6 @@
 import copy
 import os
+import warnings
 from pathlib import Path
 from typing import Generator
 from unittest.mock import patch
@@ -21,7 +22,8 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    """Configure custom markers."""
+    """Configure pytest."""
+    # Add custom markers
     config.addinivalue_line(
         "markers", "live_api: mark test as requiring live API access"
     )

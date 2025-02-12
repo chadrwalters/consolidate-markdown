@@ -1,3 +1,10 @@
+"""Test attachment processing."""
+from pathlib import Path
+
+import pytest
+
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
 import logging
 from io import BytesIO
 from unittest.mock import Mock, patch
@@ -52,7 +59,7 @@ def test_image_processing_heic(tmp_path):
 
 def test_document_processing(tmp_path):
     """Test processing document attachments"""
-    source_file = tmp_path / "test.pdf"
+    source_file = FIXTURES_DIR / "attachments" / "documents" / "test.pdf"
     # Create a minimal valid PDF file
     minimal_pdf = b"""%PDF-1.4
 1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj

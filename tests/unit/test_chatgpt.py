@@ -18,6 +18,7 @@ from consolidate_markdown.config import (
 )
 from consolidate_markdown.processors.chatgpt import ChatGPTProcessor
 
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 @pytest.fixture
 def sample_conversation() -> Dict[str, Any]:
@@ -225,7 +226,7 @@ def test_conversation_with_attachments(
     )
 
     # Create test PDF file
-    pdf_path = images_dir / "test.pdf"
+    pdf_path = FIXTURES_DIR / "attachments" / "documents" / "test.pdf"
     pdf_path.write_bytes(
         b"%PDF-1.4\n%\x93\x8c\x8b\x9e\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
     )
@@ -1026,8 +1027,8 @@ def test_process_conversation_with_attachments(tmp_path: Path) -> None:
     )
 
     # Create test document
-    test_pdf = src_attachments_dir / "test.pdf"
-    test_pdf.write_bytes(
+    pdf_path = FIXTURES_DIR / "attachments" / "documents" / "test.pdf"
+    pdf_path.write_bytes(
         b"%PDF-1.4\n%\x93\x8c\x8b\x9e\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
     )
 
@@ -1050,7 +1051,7 @@ def test_process_conversation_with_attachments(tmp_path: Path) -> None:
                         {
                             "name": "test.pdf",
                             "mime_type": "application/pdf",
-                            "file_path": str(test_pdf),
+                            "file_path": str(pdf_path),
                         },
                     ],
                 }
