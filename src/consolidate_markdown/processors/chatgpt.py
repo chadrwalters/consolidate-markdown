@@ -5,8 +5,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from dateutil import tz
 
+from dateutil import tz
 from rich.progress import Progress, TaskID
 
 from consolidate_markdown.attachments.processor import AttachmentProcessor
