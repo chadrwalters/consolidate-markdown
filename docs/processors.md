@@ -57,16 +57,24 @@ dest_dir = "output/bookmarks"
 ### 4. ChatGPT Export Processor
 
 #### Features
-- Processes ChatGPT conversation exports
-- Extracts code blocks
-- Handles multi-modal content
-- Preserves conversation metadata
+- Processes pre-converted ChatGPT markdown files
+- Preserves YYYYMMDD_Title.md naming format
+- Simple directory-to-directory copy operation
+- Maintains file organization
+
+#### Pre-processing Requirement
+The ChatGPT export processor requires conversations to be pre-processed using the `convert_chats.py` script:
+
+1. Export conversations from ChatGPT (conversations.json)
+2. Place `convert_chats.py` in the same directory as conversations.json
+3. Run the script to generate markdown files in `markdown_chats` directory
+4. Configure the processor to use this directory as source
 
 #### Configuration
 ```toml
 [[sources]]
 type = "chatgptexport"
-src_dir = "~/Downloads/chatgpt_exports"
+src_dir = "~/Downloads/chatgpt_exports/markdown_chats"  # Pre-processed markdown directory
 dest_dir = "output/chatgpt"
 ```
 

@@ -125,17 +125,18 @@ class Runner:
                             logger.info(f"Completed source: {source.type}")
 
                         except FileNotFoundError as e:
-                            # Skip if this is just a missing conversations.json for Claude
+                            # Skip if this is just a missing source file for Claude
                             if (
-                                "conversations.json" in str(e)
+                                isinstance(e, FileNotFoundError)
                                 and source.type == "claude"
                             ):
+                                logger.info(f"Skipping Claude source: {str(e)}")
                                 progress.update(
                                     source_task,
                                     advance=1,
                                     description=f"[yellow]Skipped {source.type}",
                                 )
-                                logger.info(f"Skipped {source.type}: {str(e)}")
+                                continue
                             else:
                                 raise
 

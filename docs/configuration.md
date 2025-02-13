@@ -258,6 +258,31 @@ dest_dir = "./output/claude"
 options = { key = "value" }
 ```
 
+### ChatGPT Export Configuration
+
+ChatGPT exports require a pre-processing step before they can be processed:
+
+1. Export your conversations from ChatGPT (this will create a conversations.json file)
+2. Copy the `tools/convert_chats.py` script to your export directory
+3. Run the script to generate markdown files:
+   ```bash
+   cd /path/to/export/directory
+   python3 convert_chats.py
+   ```
+4. Configure the source directory to point to where the markdown_chats directory was created:
+
+```toml
+[[sources]]
+type = "chatgptexport"
+src_dir = "/path/to/export/directory"  # Parent directory of markdown_chats
+dest_dir = "/path/to/output/chatgpt"
+```
+
+The processor will:
+1. Look for a markdown_chats directory in src_dir
+2. Copy all .md files to dest_dir
+3. Preserve file names in YYYYMMDD_Title.md format
+
 ## Processor Types
 
 ### Claude Exports

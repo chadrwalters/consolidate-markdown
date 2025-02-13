@@ -111,3 +111,23 @@ For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details
+
+### ChatGPT Export Processing
+
+Processing ChatGPT exports is a two-step process:
+
+1. Pre-processing:
+   - Export your conversations from ChatGPT (this creates conversations.json)
+   - Copy `tools/convert_chats.py` to your export directory
+   - Run the script: `python3 convert_chats.py`
+   - This creates a `markdown_chats` directory with your conversations
+
+2. Configure the processor:
+   ```toml
+   [[sources]]
+   type = "chatgptexport"
+   src_dir = "/path/to/export/directory"  # Parent of markdown_chats
+   dest_dir = "/path/to/output/chatgpt"
+   ```
+
+The processor will copy all markdown files from `markdown_chats` to your destination directory, preserving file names in the format: YYYYMMDD_Title.md

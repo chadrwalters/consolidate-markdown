@@ -226,6 +226,7 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
         self._progress: Optional[Progress] = None
         self._task_id: Optional[TaskID] = None
         self.__processor_type = source_config.type
+        self.logger = logging.getLogger(__name__)
         self.validate()
 
         # Initialize attachment processor
