@@ -58,3 +58,27 @@ users.json
 .cursor/rules/**/*.summary.json
 .cursor/rules/**/*.summary.md
 .cursor/rules/summaries/
+
+# Gmail to Bear specific
+credentials.json
+token.json
+token.pickle
+*.token
+config.ini
+processed_emails.txt
+*.pem
+*.key
+MagicMock/
+
+# Sensitive data
+.env
+.secrets
+
+# Cache files
+.cm/cache/
+
+# Log files
+.cm/logs/
+
+# Configuration files
+config.toml
