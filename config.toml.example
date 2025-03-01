@@ -15,8 +15,6 @@ anthropic_model = "claude-3-opus-20240229"
 
 # Source directories
 [source]
-# Directory containing ChatGPT export files
-chatgpt_dir = "/path/to/ChatGPT/export"
 # Directory containing Claude export files
 claude_dir = "/path/to/Claude/export"
 # Directory containing Bear notes export

@@ -6,7 +6,6 @@ A tool for consolidating various data sources into markdown files.
 
 This tool processes data from multiple sources and converts them into markdown files. Supported sources include:
 
-- ChatGPT conversations
 - Claude conversations
 - Bear notes
 - Gmail emails
@@ -53,7 +52,6 @@ python -m consolidate_markdown
 Or use specific processors:
 
 ```bash
-python -m consolidate_markdown --processor chatgpt
 python -m consolidate_markdown --processor claude
 python -m consolidate_markdown --processor bear
 python -m consolidate_markdown --processor gmail
@@ -72,7 +70,7 @@ pytest
 ### Running Specific Tests
 
 ```bash
-pytest tests/unit/test_chatgpt_processor.py
+pytest tests/unit/test_claude_processor.py
 ```
 
 ## License

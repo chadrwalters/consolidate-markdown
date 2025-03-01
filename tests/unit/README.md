@@ -4,22 +4,17 @@ This directory contains unit tests that reproduce and verify fixes for issues fo
 
 ## Issues Being Tested
 
-1. **ChatGPT Processor Issues** (`test_chatgpt_processor_issues.py`)
-   - `NoneType` object has no attribute `replace` error when title is None
-   - Missing content in message
-   - None content in message
-
-2. **Claude Processor Issues** (`test_claude_processor_issues.py`)
+1. **Claude Processor Issues** (`test_claude_processor_issues.py`)
    - Invalid text attachment with missing type
    - Invalid text attachment with missing name
    - Empty conversation with no messages
 
-3. **XBookmarks Processor Issues** (`test_xbookmarks_processor_issues.py`)
+2. **XBookmarks Processor Issues** (`test_xbookmarks_processor_issues.py`)
    - Missing index file in bookmark directory
    - Special directories like "temp" and "markitdown"
    - Empty bookmark directory
 
-4. **Image Processor Issues** (`test_image_processor_issues.py`)
+3. **Image Processor Issues** (`test_image_processor_issues.py`)
    - GIF image format handling
    - Missing attachment
    - Unsupported image format
@@ -39,7 +34,7 @@ Or run individual test files with pytest:
 pytest -xvs tests/unit/test_*_issues.py
 
 # Run a specific test file
-pytest -xvs tests/unit/test_chatgpt_processor_issues.py
+pytest -xvs tests/unit/test_claude_processor_issues.py
 ```
 
 ## Expected Results

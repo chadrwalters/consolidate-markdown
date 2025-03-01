@@ -33,14 +33,6 @@ class TestSummaryGeneration:
         result = ProcessingResult()
 
         # Add stats for different processors
-        chatgpt_stats = ProcessorStats(processor_type="chatgptexport")
-        chatgpt_stats.processed = 10
-        chatgpt_stats.regenerated = 5
-        chatgpt_stats.from_cache = 5
-        chatgpt_stats.gpt_new_analyses = 3
-        chatgpt_stats.gpt_cache_hits = 7
-        result.processor_stats["chatgptexport"] = chatgpt_stats
-
         bear_stats = ProcessorStats(processor_type="bear")
         bear_stats.processed = 15
         bear_stats.regenerated = 8
@@ -76,7 +68,6 @@ class TestSummaryGeneration:
             # Verify all processor columns are present
             expected_columns = [
                 "Metric",
-                "ChatGPT",
                 "Bear Notes",
                 "X Bookmarks",
                 "Claude",
@@ -123,7 +114,6 @@ class TestSummaryGeneration:
 
     def test_processor_specific_errors(self, result, mock_console):
         """Test processor-specific error display."""
-        result.processor_stats["chatgptexport"].errors.append("ChatGPT error")
         result.processor_stats["bear"].errors.append("Bear error")
 
         with patch("consolidate_markdown.output.console", mock_console):
@@ -139,7 +129,6 @@ class TestSummaryGeneration:
             error_panel = error_calls[0][0][0]
             # Verify processor-specific errors are displayed
             panel_content = str(error_panel.renderable)
-            assert "ChatGPT error" in panel_content
             assert "Bear error" in panel_content
 
     def test_zero_stats_display(self, mock_console):

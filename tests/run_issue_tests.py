@@ -13,7 +13,6 @@ def run_tests():
 
     # List of test files to run
     test_files = [
-        "unit/test_chatgpt_processor_issues.py",
         "unit/test_claude_processor_issues.py",
         "unit/test_xbookmarks_processor_issues.py",
         "unit/test_image_processor_issues.py",
