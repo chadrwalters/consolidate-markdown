@@ -189,9 +189,9 @@ class TestGPTProcessor:
             processor = GPTProcessor(openai_config)
 
             # Add an alias that maps to an unsupported model
-            processor.config.models.alternate_models["unsupported"] = (
-                "unsupported-model"
-            )
+            processor.config.models.alternate_models[
+                "unsupported"
+            ] = "unsupported-model"
 
             # Try to set with alias that maps to unsupported model
             with pytest.raises(GPTError, match="is not supported by provider"):
