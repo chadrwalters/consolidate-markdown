@@ -33,12 +33,12 @@ class Runner:
         """
         self.config = config
         self.summary = ProcessingResult()
-        self.selected_processor: Optional[str] = (
-            None  # Type of processor to run (optional)
-        )
-        self.processing_limit: Optional[int] = (
-            None  # Max items to process per processor
-        )
+        self.selected_processor: Optional[
+            str
+        ] = None  # Type of processor to run (optional)
+        self.processing_limit: Optional[
+            int
+        ] = None  # Max items to process per processor
 
         # Create a single shared cache manager for all processors
         self.cache_manager = CacheManager(config.global_config.cm_dir)

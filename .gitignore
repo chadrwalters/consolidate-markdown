@@ -82,3 +82,7 @@ MagicMock/
 
 # Configuration files
 config.toml
+
+.repo*
+
+local-research/
