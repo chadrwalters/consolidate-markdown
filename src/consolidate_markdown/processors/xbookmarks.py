@@ -51,14 +51,13 @@ class XBookmarksProcessor(SourceProcessor):
                 # Look for index file
                 index_file = bookmark_dir / self.source_config.index_filename
                 if not index_file.exists():
-                    # Special case: don't count 'images' directory in skip count
-                    if bookmark_dir.name != "images":
+                    # Special case: don't count special directories in skip count
+                    special_dirs = ["images", "markitdown", "temp"]
+                    if bookmark_dir.name not in special_dirs:
                         logger.warning(f"No index file found in {bookmark_dir.name}")
                         result.add_skipped(self._processor_type)
                     else:
-                        logger.debug(
-                            f"Skipping special images directory: {bookmark_dir.name}"
-                        )
+                        logger.debug(f"Skipping special directory: {bookmark_dir.name}")
                     continue
 
                 # Check if we need to process this bookmark

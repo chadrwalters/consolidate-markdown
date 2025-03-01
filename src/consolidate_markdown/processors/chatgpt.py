@@ -36,13 +36,18 @@ class ChatGPTProcessor(SourceProcessor):
         return "chatgpt"
 
     @property
-    def attachment_processor(self) -> Optional[AttachmentProcessor]:
-        """Get the attachment processor."""
+    def attachment_processor(self) -> AttachmentProcessor:
+        """Get the attachment processor instance."""
+        if self._attachment_processor is None:
+            self._attachment_processor = AttachmentProcessor(
+                self.source_config.dest_dir
+            )
+        assert self._attachment_processor is not None
         return self._attachment_processor
 
     @attachment_processor.setter
     def attachment_processor(self, value: Optional[AttachmentProcessor]) -> None:
-        """Set the attachment processor."""
+        """Set the attachment processor instance."""
         self._attachment_processor = value
 
     def validate(self) -> None:
@@ -112,22 +117,40 @@ class ChatGPTProcessor(SourceProcessor):
     ) -> None:
         """Process a single conversation."""
         try:
-            # Get conversation metadata
+            # Extract conversation details
             title = conversation.get("title", "Untitled")
-            create_time = conversation.get("create_time", 0)
-            model = conversation.get("model", "unknown")
+            # Handle None title
+            if title is None:
+                title = "Untitled"
 
-            # Format create time
-            if isinstance(create_time, (int, float)):
-                create_time = datetime.fromtimestamp(create_time, tz=tz.tzutc())
-            elif isinstance(create_time, str):
+            # Handle create_time properly
+            create_time_str = conversation.get("create_time", "")
+            create_time = None
+
+            # Handle different types of create_time values
+            if isinstance(create_time_str, (int, float)):
+                create_time = datetime.fromtimestamp(create_time_str, tz=tz.tzutc())
+            elif isinstance(create_time_str, str) and create_time_str:
                 try:
-                    create_time = datetime.strptime(create_time, "%Y-%m-%dT%H:%M:%SZ")
-                    create_time = create_time.replace(tzinfo=tz.tzutc())
+                    # Parse ISO format date string
+                    create_time = datetime.fromisoformat(
+                        create_time_str.replace("Z", "+00:00")
+                    )
                 except ValueError:
-                    create_time = datetime.now(tz=tz.tzutc())
-            else:
+                    # Try parsing as a timestamp
+                    try:
+                        if create_time_str.replace(".", "", 1).isdigit():
+                            create_time = datetime.fromtimestamp(
+                                float(create_time_str), tz=tz.tzutc()
+                            )
+                    except (ValueError, TypeError):
+                        create_time = datetime.now(tz=tz.tzutc())
+
+            # Default to current time if all parsing fails
+            if create_time is None:
                 create_time = datetime.now(tz=tz.tzutc())
+
+            model = conversation.get("model", "unknown")
 
             # Format filename
             formatted_title = re.sub(r'[<>:"/\\|?*]', "", title.replace(" ", "_"))
@@ -145,7 +168,10 @@ class ChatGPTProcessor(SourceProcessor):
                 # Process messages
                 messages = conversation.get("messages", [])
                 for message in messages:
-                    self._process_message(message, f, config, result)
+                    # Get message content
+                    content = self._process_message(message, f, config, result)
+                    if content:
+                        f.write(content + "\n\n")
 
             result.add_generated(self._processor_type)
             result.processed += 1
@@ -208,8 +234,9 @@ class ChatGPTProcessor(SourceProcessor):
         Returns:
             The output path for the conversation
         """
-        # Format the date prefix
-        date_prefix = create_time.strftime("%Y%m%d")
+        # Ensure title is not None
+        if title is None:
+            title = "Untitled"
 
         # Clean the title for use in filename
         # First replace special characters with underscores
@@ -223,7 +250,7 @@ class ChatGPTProcessor(SourceProcessor):
         clean_title = clean_title.strip("_")
 
         # Combine date and title
-        filename = f"{date_prefix}_{clean_title}.md"
+        filename = f"{create_time.strftime('%Y%m%d')} - {clean_title}.md"
 
         return self.source_config.dest_dir / filename
 
@@ -283,7 +310,7 @@ class ChatGPTProcessor(SourceProcessor):
                     continue
 
                 # Process message content
-                content = self._process_message(message, "Message", result, config)
+                content = self._process_message(message, "Message", config, result)
                 if content:
                     markdown_lines.append(content)
 
@@ -398,16 +425,30 @@ class ChatGPTProcessor(SourceProcessor):
 
         try:
             # First try parsing as Unix timestamp (float)
-            try:
-                dt = datetime.fromtimestamp(float(timestamp))
-                return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
-            except (ValueError, TypeError):
-                # If that fails, try ISO format
-                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+            if isinstance(timestamp, (int, float)) or (
+                isinstance(timestamp, str) and timestamp.replace(".", "", 1).isdigit()
+            ):
+                try:
+                    dt = datetime.fromtimestamp(
+                        float(timestamp) if isinstance(timestamp, str) else timestamp
+                    )
+                    return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+                except (ValueError, TypeError):
+                    pass
+
+            # If that fails, try ISO format (only for string timestamps)
+            if isinstance(timestamp, str):
+                try:
+                    dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+                except (ValueError, AttributeError):
+                    pass
+
+            # If all parsing fails, return the original
+            return str(timestamp)
         except (ValueError, AttributeError, TypeError) as e:
             self.logger.debug(f"Could not parse timestamp {timestamp}: {str(e)}")
-            return timestamp  # Return original if parsing fails
+            return str(timestamp)  # Return original if parsing fails
 
     def _process_message(
         self,
@@ -415,7 +456,7 @@ class ChatGPTProcessor(SourceProcessor):
         f: Any,
         config: Config,
         result: ProcessingResult,
-    ) -> None:
+    ) -> Optional[str]:
         """Process a single message."""
         try:
             # Get role and content
@@ -424,7 +465,7 @@ class ChatGPTProcessor(SourceProcessor):
                 error_msg = "Message missing required 'role' field"
                 self.logger.warning(error_msg)
                 result.add_error(error_msg, self._processor_type)
-                return
+                return None
 
             # Debug log the message structure
             self.logger.debug(f"Processing message with role: {role}")
@@ -440,7 +481,7 @@ class ChatGPTProcessor(SourceProcessor):
                 error_msg = "Message missing required 'content' field"
                 self.logger.warning(error_msg)
                 result.add_error(error_msg, self._processor_type)
-                return
+                return None
 
             # Handle string content
             if isinstance(message_content, str):
@@ -492,98 +533,37 @@ class ChatGPTProcessor(SourceProcessor):
                     elif part_type == "quote":
                         text = part.get("text", "")
                         if text:
-                            content_parts.append(f"> {text}")
-                    elif part_type == "file":
-                        # If message has attachments, skip inline file processing
-                        if "attachments" in message and message["attachments"]:
-                            continue
-                        file_path = part.get("file_path", "")
-                        if file_path:
-                            file_path = Path(file_path)
-                            if file_path.exists():
-                                # Process file based on metadata
-                                metadata = part.get("metadata", {})
-                                if metadata.get("language"):
-                                    content = file_path.read_text()
-                                    content_parts.append(
-                                        f"```{metadata['language']}\n{content}\n```"
-                                    )
-                                    result.documents_processed += 1
-                                elif metadata.get("mime_type") == "application/zip":
-                                    content_parts.append(f"[Archive: {file_path.name}]")
-                                    result.documents_processed += 1
-                                else:
-                                    content_parts.append(f"[File: {file_path.name}]")
-                                    result.documents_processed += 1
-                        else:
-                            error_msg = f"File not found: {file_path}"
-                            self.logger.warning(error_msg)
-                            result.add_error(error_msg, self._processor_type)
-                    elif part_type == "image":
-                        # If message has attachments, skip inline image processing
-                        if "attachments" in message and message["attachments"]:
-                            continue
-                        file_path = part.get("file_path", "")
-                        if file_path:
-                            file_path = Path(file_path)
-                            if file_path.exists():
-                                # Process image based on metadata
-                                metadata = part.get("metadata", {})
-                                if metadata.get("mime_type", "").startswith("image/"):
-                                    # Create output attachments directory
-                                    output_attachments_dir = (
-                                        self.source_config.dest_dir / "attachments"
-                                    )
-                                    output_attachments_dir.mkdir(
-                                        parents=True, exist_ok=True
-                                    )
+                            # Format as markdown quote
+                            quoted_lines = [f"> {line}" for line in text.split("\n")]
+                            content_parts.append("\n".join(quoted_lines))
+                    else:
+                        # Handle unknown content type
+                        self.logger.debug(f"Unknown content type: {part_type}")
+                        text = part.get("text", "")
+                        if text:
+                            content_parts.append(text)
 
-                                    # Copy image to output directory
-                                    output_path = (
-                                        output_attachments_dir / file_path.name
-                                    )
-                                    shutil.copy2(file_path, output_path)
+            # Format role name for display
+            role_display = role.capitalize()
+            if role == "assistant":
+                role_display = "Assistant"
+            elif role == "user":
+                role_display = "User"
+            elif role == "system":
+                role_display = "System"
 
-                                    # Add image reference to markdown
-                                    if config.global_config.no_image:
-                                        result.documents_processed += 1
-                                        content_parts.append(
-                                            f"<!-- EMBEDDED IMAGE: {file_path.name} -->\n"
-                                            f"[Image: {file_path.name}](attachments/{file_path.name})"
-                                        )
-                                    else:
-                                        result.images_processed += 1
-                                        content_parts.append(
-                                            f"<!-- EMBEDDED IMAGE: {file_path.name} -->\n"
-                                            f"![{file_path.name}](attachments/{file_path.name})"
-                                        )
-                                else:
-                                    error_msg = f"Invalid image MIME type: {metadata.get('mime_type')}"
-                                    self.logger.warning(error_msg)
-                                    result.add_error(error_msg, self._processor_type)
-                        else:
-                            error_msg = f"Image not found: {file_path}"
-                            self.logger.warning(error_msg)
-                            result.add_error(error_msg, self._processor_type)
-
-            # Format message with role prefix
+            # Combine all content parts
             if content_parts:
-                formatted_content = "\n\n".join(content_parts)
-                if role == "user":
-                    f.write(f"## User\n\n{formatted_content}\n\n")
-                elif role == "assistant":
-                    f.write(f"## Assistant\n\n{formatted_content}\n\n")
-                elif role == "system":
-                    f.write(f"## System\n\n{formatted_content}\n\n")
-                else:
-                    f.write(f"## {role.title()}\n\n{formatted_content}\n\n")
+                combined_content = "\n\n".join(content_parts)
+                return f"## {role_display}\n\n{combined_content}"
             else:
-                self.logger.debug("No content parts to format")
+                return f"## {role_display}\n\n[No content]"
 
         except Exception as e:
             error_msg = f"Error processing message: {str(e)}"
             self.logger.error(error_msg)
             result.add_error(error_msg, self._processor_type)
+            return None
 
     def _get_conversations(self) -> List[Dict[str, Any]]:
         """Get conversations from conversations.json.
@@ -613,8 +593,11 @@ class ChatGPTProcessor(SourceProcessor):
 
     def _generate_filename(self, title: str, create_time: datetime) -> str:
         """Generate a filename from create time and title."""
-        # Format date as YYYYMMDD
-        date_str = create_time.strftime("%Y%m%d")
+        # Ensure title is not None
+        if title is None:
+            title = "Untitled"
+
+        date_str = create_time.strftime("%Y-%m-%d")
 
         # Clean title by replacing spaces with underscores and removing special characters
         clean_title = re.sub(r"[^\w\s-]", "", title)
