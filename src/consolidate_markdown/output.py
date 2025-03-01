@@ -230,9 +230,7 @@ def print_summary(result: ProcessingResult) -> None:
             else (
                 "X Bookmarks"
                 if proc == "xbookmarks"
-                else "Claude"
-                if proc == "claude"
-                else proc.title()
+                else "Claude" if proc == "claude" else proc.title()
             )
         )
         table.add_column(display_name, justify="right")
