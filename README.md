@@ -1,133 +1,80 @@
-# consolidate-markdown
+# Consolidate Markdown
 
-A tool to consolidate markdown files from various sources into a single location.
+A tool for consolidating various data sources into markdown files.
 
-## Features
+## Overview
 
-- Consolidate markdown files from multiple sources
-- GPT-powered image analysis and description
-- PDF text extraction using pdfminer-six
-- Configurable output formats
-- Caching for improved performance
-- Detailed logging and error reporting
+This tool processes data from multiple sources and converts them into markdown files. Supported sources include:
+
+- ChatGPT conversations
+- Claude conversations
+- Bear notes
+- Gmail emails
+- Images (with metadata)
+- XBookmarks
 
 ## Installation
 
-```bash
-# Using UV (recommended)
-uv pip install .
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/chadrwalters/consolidate-markdown.git
+   cd consolidate-markdown
+   ```
 
-# Using pip (alternative)
-pip install consolidate-markdown
-```
+2. Create a virtual environment and install dependencies:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   uv pip install -e .
+   ```
+
+3. Copy the example configuration file and edit it with your settings:
+   ```bash
+   cp config.toml.example config.toml
+   ```
+
+## Configuration
+
+Edit the `config.toml` file to configure:
+
+- Output directory
+- API keys (if needed)
+- Source directories for each data type
+- Logging level
 
 ## Usage
 
-1. Create a configuration file (e.g., `config.toml`):
-
-```toml
-[global]
-cm_dir = ".cm"
-no_image = false
-force = false
-api_provider = "openrouter"  # or "openai"
-openrouter_key = "your_key_here"  # Required for OpenRouter
-openai_key = "your_key_here"      # Required for OpenAI
-
-[[sources]]
-type = "bear"
-src_dir = "~/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/Local Files/Note Files"
-dest_dir = "output/bear"
-options = { model = "google/gemini-pro-vision-1.0" }  # Optional: specify model
-
-[[sources]]
-type = "xbookmarks"
-src_dir = "~/Library/Containers/com.apple.Safari/Data/Library/Safari/Bookmarks.plist"
-dest_dir = "output/bookmarks"
-```
-
-2. Run the tool:
+Run the main script:
 
 ```bash
-consolidate-markdown --config config.toml
+python -m consolidate_markdown
 ```
 
-## Options
-
-- `--config PATH`: Path to configuration file (default: config.toml)
-- `--no-image`: Skip image analysis
-- `--force`: Force regeneration of all files
-- `--debug`: Enable debug logging
-- `--processor TYPE`: Run only the specified processor type (bear, xbookmarks, chatgptexport)
-- `--limit N`: Process only the N most recent items from each source
-
-## Examples
+Or use specific processors:
 
 ```bash
-# Process all sources
-consolidate-markdown --config config.toml
-
-# Process only Bear notes
-consolidate-markdown --config config.toml --processor bear
-
-# Process last 5 items from each source
-consolidate-markdown --config config.toml --limit 5
-
-# Process last 2 Bear notes only
-consolidate-markdown --config config.toml --processor bear --limit 2
-
-# Force regeneration of all files
-consolidate-markdown --config config.toml --force
+python -m consolidate_markdown --processor chatgpt
+python -m consolidate_markdown --processor claude
+python -m consolidate_markdown --processor bear
+python -m consolidate_markdown --processor gmail
+python -m consolidate_markdown --processor image
+python -m consolidate_markdown --processor xbookmarks
 ```
 
-## Documentation
+## Development
 
-- [Configuration Guide](docs/configuration.md)
-- [Architecture Overview](docs/architecture.md)
+### Running Tests
 
-## Model Performance
+```bash
+pytest
+```
 
-The tool supports multiple vision models through OpenRouter, each with different strengths and performance characteristics. Our latest model analysis (February 2024) shows:
+### Running Specific Tests
 
-- **GPT-4 Vision**: Best overall performance for both technical and UI content
-- **Google Gemini Pro Vision**: Strong technical understanding, excellent value
-- **Yi Vision**: Good balance of capabilities and speed
-- **DeepInfra BLIP**: Reliable for basic tasks, competitive speed
-
-For detailed performance analysis, benchmarks, and recommendations, see our [Model Performance Analysis](docs/model_performance.md).
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes following our standards:
-   - Use UV for dependency management
-   - Run pre-commit hooks before committing
-   - Ensure all tests pass with `uv run pytest`
-4. Submit a pull request
-
-For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+```bash
+pytest tests/unit/test_chatgpt_processor.py
+```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details
-
-### ChatGPT Export Processing
-
-Processing ChatGPT exports is a two-step process:
-
-1. Pre-processing:
-   - Export your conversations from ChatGPT (this creates conversations.json)
-   - Copy `tools/convert_chats.py` to your export directory
-   - Run the script: `python3 convert_chats.py`
-   - This creates a `markdown_chats` directory with your conversations
-
-2. Configure the processor:
-   ```toml
-   [[sources]]
-   type = "chatgptexport"
-   src_dir = "/path/to/export/directory"  # Parent of markdown_chats
-   dest_dir = "/path/to/output/chatgpt"
-   ```
-
-The processor will copy all markdown files from `markdown_chats` to your destination directory, preserving file names in the format: YYYYMMDD_Title.md
+[MIT License](LICENSE)
