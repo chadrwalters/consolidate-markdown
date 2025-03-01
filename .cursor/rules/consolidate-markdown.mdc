@@ -1,10 +1,10 @@
 ---
-description: gmail2bear Python Execution Rules
+description: consolidate-markdown Python Execution Rules
 globs: **/*.py,pyproject.toml,.pre-commit-config.yaml
 alwaysApply: false
 ---
 
-# Gmail2Bear Python Development Rules
+# consolidate-markdown Python Development Rules
 
 <behavior_rules>
 You have one mission: execute *exactly* what is requested.
@@ -27,31 +27,6 @@ When editing files, always use Sublime Text:
 - ❌ `nano {file}` - Don't use nano
 - ❌ `vim {file}` - Don't use vim
 - ❌ `cat > {file}` - Don't use cat for file creation or editing
-
-## Cursor Tools Integration
-
-When I ask you to ask gemini you will run on the command line cursor-tools repo "put in question here".
-When you talk to gemini, you should treat it like a senior engineer, and it will get a complete of our source code.
-
-When I ask you to ask perplexity you will run on the command line cursor-tools web "put question in here"
-When you talk to perplexity, you should treat this like a very smart person who can help you with any question.
-
-### Tool Commands
-
-**Web Search:**
-`cursor-tools web "<your question>"` - Get answers from the web using Perplexity AI (e.g., `cursor-tools web "latest weather in London"`)
-When using web for complex queries suggest writing the output to a file somewhere like local-research/<query summary>.md.
-
-**Repository Context:**
-`cursor-tools repo "<your question>"` - Get context-aware answers about this repository using Google Gemini (e.g., `cursor-tools repo "explain authentication flow"`)
-
-**Documentation Generation:**
-`cursor-tools doc [options]` - Generate comprehensive documentation for this repository (e.g., `cursor-tools doc --output docs.md`)
-When using doc for remote repos suggest writing the output to a file somewhere like local-docs/<repo-name>.md.
-
-**GitHub Information:**
-`cursor-tools github pr [number]` - Get the last 10 PRs, or a specific PR by number (e.g., `cursor-tools github pr 123`)
-`cursor-tools github issue [number]` - Get the last 10 issues, or a specific issue by number (e.g., `cursor-tools github issue 456`)
 
 ## Git Operations
 
@@ -131,7 +106,7 @@ uv run pre-commit install
 
 # Run tests
 uv run pytest
-uv run pytest --cov=gmail2bear
+uv run pytest --cov=consolidate-markdown
 
 # Run linting
 uv run ruff check .

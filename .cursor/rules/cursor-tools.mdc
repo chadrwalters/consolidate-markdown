@@ -1,5 +1,5 @@
 ---
-description: Global Rulesgem
+description: Global Rules
 globs: *
 alwaysApply: true
 ---
@@ -14,6 +14,12 @@ cursor-tools is installed on this machine and it is available to you to execute.
 <cursor-tools Integration>
 # Instructions
 Use the following commands to get AI assistance:
+
+When I ask you to ask gemini you will run on the command line cursor-tools repo "put in question here".
+When you talk to gemini, you should treat it like a senior engineer, and it will get a complete of our source code.
+
+When I ask you to ask perplexity you will run on the command line cursor-tools web "put question in here"
+When you talk to perplexity, you should treat this like a very smart person who can help you with any question.
 
 **Direct Model Queries:**
 `cursor-tools ask "<your question>" --provider <provider> --model <model>` - Ask any model from any provider a direct question (e.g., `cursor-tools ask "What is the capital of France?" --provider openai --model o3-mini`). Note that this command is generally less useful than other commands like `repo` or `plan` because it does not include any context from your codebase or repository.
