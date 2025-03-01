@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
@@ -5,7 +7,7 @@ from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 
 
 @pytest.fixture
-def xbookmarks_config(tmp_path) -> Config:
+def xbookmarks_config(tmp_path: Path) -> Config:
     """Create test configuration for XBookmarks processor."""
     src_dir = tmp_path / "xbookmarks_export"
     src_dir.mkdir(parents=True)
@@ -32,7 +34,7 @@ def xbookmarks_config(tmp_path) -> Config:
     return Config(global_config=global_config, sources=[source_config])
 
 
-def test_missing_index_file(xbookmarks_config):
+def test_missing_index_file(xbookmarks_config: Config) -> None:
     """Test handling of missing index file in bookmark directory."""
     # Create a bookmark directory without an index file
     bookmark_dir = xbookmarks_config.sources[0].src_dir / "missing_index"
@@ -53,7 +55,7 @@ def test_missing_index_file(xbookmarks_config):
     assert len(output_files) == 0
 
 
-def test_special_directories(xbookmarks_config):
+def test_special_directories(xbookmarks_config: Config) -> None:
     """Test handling of special directories like 'images' and 'markitdown'."""
     # Create special directories
     special_dirs = ["images", "markitdown", "temp"]
@@ -81,7 +83,7 @@ def test_special_directories(xbookmarks_config):
     assert len(output_files) == 1
 
 
-def test_empty_bookmark_directory(xbookmarks_config):
+def test_empty_bookmark_directory(xbookmarks_config: Config) -> None:
     """Test handling of empty bookmark directory."""
     # Create an empty bookmark directory
     empty_dir = xbookmarks_config.sources[0].src_dir / "empty_bookmark"

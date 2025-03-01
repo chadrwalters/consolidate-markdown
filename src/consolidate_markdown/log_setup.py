@@ -1,13 +1,13 @@
 """Logging configuration."""
 
-import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-from typing import Optional
+import logging  # Standard library
+from logging.handlers import RotatingFileHandler  # Standard library
+from pathlib import Path  # Standard library
+from typing import Any, Dict, List, Optional  # Standard library
 
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.progress import Progress
+from rich.console import Console  # External dependency: rich
+from rich.logging import RichHandler  # External dependency: rich
+from rich.progress import Progress  # External dependency: rich
 
 from .config import Config
 
@@ -33,7 +33,13 @@ def set_progress(progress: Optional[Progress]) -> None:
 class ProgressAwareHandler(RichHandler):
     """RichHandler that's aware of progress bars."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the handler.
+
+        Args:
+            *args: Positional arguments to pass to RichHandler
+            **kwargs: Keyword arguments to pass to RichHandler
+        """
         super().__init__(*args, **kwargs)
         self.console = console
 
@@ -121,8 +127,9 @@ def setup_logging(config: Config) -> None:
 class SummaryLogger:
     """Track processing statistics and generate summary."""
 
-    def __init__(self):
-        self.stats = {
+    def __init__(self) -> None:
+        """Initialize the summary logger."""
+        self.stats: Dict[str, Any] = {
             "processed": 0,
             "generated": 0,
             "from_cache": 0,
@@ -140,10 +147,14 @@ class SummaryLogger:
             "gpt_skipped": 0,
             "errors": [],
         }
-        self.source_stats = {}
+        self.source_stats: Dict[str, Dict[str, Any]] = {}
 
-    def _init_source_stats(self, source_type: str):
-        """Initialize stats for a new source type."""
+    def _init_source_stats(self, source_type: str) -> None:
+        """Initialize stats for a new source type.
+
+        Args:
+            source_type: The source type to initialize stats for
+        """
         self.source_stats[source_type] = {
             "processed": 0,
             "generated": 0,
@@ -163,8 +174,12 @@ class SummaryLogger:
             "errors": [],
         }
 
-    def add_from_cache(self, source_type: str):
-        """Record a note loaded from cache."""
+    def add_from_cache(self, source_type: str) -> None:
+        """Record a note loaded from cache.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["processed"] += 1
         self.stats["from_cache"] += 1
         if source_type not in self.source_stats:
@@ -172,8 +187,12 @@ class SummaryLogger:
         self.source_stats[source_type]["processed"] += 1
         self.source_stats[source_type]["from_cache"] += 1
 
-    def add_generated(self, source_type: str):
-        """Record a generated note."""
+    def add_generated(self, source_type: str) -> None:
+        """Record a generated note.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["processed"] += 1
         self.stats["generated"] += 1
         if source_type not in self.source_stats:
@@ -181,15 +200,23 @@ class SummaryLogger:
         self.source_stats[source_type]["processed"] += 1
         self.source_stats[source_type]["generated"] += 1
 
-    def add_skipped(self, source_type: str):
-        """Record a skipped note."""
+    def add_skipped(self, source_type: str) -> None:
+        """Record a skipped note.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["skipped"] += 1
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["skipped"] += 1
 
-    def add_document_generated(self, source_type: str):
-        """Record a generated document."""
+    def add_document_generated(self, source_type: str) -> None:
+        """Record a generated document.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["documents_processed"] += 1
         self.stats["documents_generated"] += 1
         if source_type not in self.source_stats:
@@ -197,8 +224,12 @@ class SummaryLogger:
         self.source_stats[source_type]["documents_processed"] += 1
         self.source_stats[source_type]["documents_generated"] += 1
 
-    def add_document_from_cache(self, source_type: str):
-        """Record a document loaded from cache."""
+    def add_document_from_cache(self, source_type: str) -> None:
+        """Record a document loaded from cache.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["documents_processed"] += 1
         self.stats["documents_from_cache"] += 1
         if source_type not in self.source_stats:
@@ -206,15 +237,23 @@ class SummaryLogger:
         self.source_stats[source_type]["documents_processed"] += 1
         self.source_stats[source_type]["documents_from_cache"] += 1
 
-    def add_document_skipped(self, source_type: str):
-        """Record a skipped document."""
+    def add_document_skipped(self, source_type: str) -> None:
+        """Record a skipped document.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["documents_skipped"] += 1
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["documents_skipped"] += 1
 
-    def add_image_generated(self, source_type: str):
-        """Record a generated image."""
+    def add_image_generated(self, source_type: str) -> None:
+        """Record a generated image.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["images_processed"] += 1
         self.stats["images_generated"] += 1
         if source_type not in self.source_stats:
@@ -222,8 +261,12 @@ class SummaryLogger:
         self.source_stats[source_type]["images_processed"] += 1
         self.source_stats[source_type]["images_generated"] += 1
 
-    def add_image_from_cache(self, source_type: str):
-        """Record an image loaded from cache."""
+    def add_image_from_cache(self, source_type: str) -> None:
+        """Record an image loaded from cache.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["images_processed"] += 1
         self.stats["images_from_cache"] += 1
         if source_type not in self.source_stats:
@@ -231,50 +274,86 @@ class SummaryLogger:
         self.source_stats[source_type]["images_processed"] += 1
         self.source_stats[source_type]["images_from_cache"] += 1
 
-    def add_image_skipped(self, source_type: str):
-        """Record a skipped image."""
+    def add_image_skipped(self, source_type: str) -> None:
+        """Record a skipped image.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["images_skipped"] += 1
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["images_skipped"] += 1
 
-    def add_gpt_generated(self, source_type: str):
-        """Record a generated GPT analysis."""
+    def add_gpt_generated(self, source_type: str) -> None:
+        """Record a generated GPT analysis.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["gpt_generated"] += 1
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["gpt_generated"] += 1
 
-    def add_gpt_from_cache(self, source_type: str):
-        """Record a GPT analysis loaded from cache."""
+    def add_gpt_from_cache(self, source_type: str) -> None:
+        """Record a GPT analysis loaded from cache.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["gpt_from_cache"] += 1
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["gpt_from_cache"] += 1
 
-    def add_gpt_skipped(self, source_type: str):
-        """Record a skipped GPT analysis."""
+    def add_gpt_skipped(self, source_type: str) -> None:
+        """Record a skipped GPT analysis.
+
+        Args:
+            source_type: The source type to record for
+        """
         self.stats["gpt_skipped"] += 1
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["gpt_skipped"] += 1
 
-    def add_error(self, source_type: str, error: str):
-        """Record an error."""
+    def add_error(self, source_type: str, error: str) -> None:
+        """Record an error.
+
+        Args:
+            source_type: The source type to record for
+            error: The error message
+        """
         self.stats["errors"].append(error)
         if source_type not in self.source_stats:
             self._init_source_stats(source_type)
         self.source_stats[source_type]["errors"].append(error)
 
     @property
-    def errors(self) -> list[str]:
-        """Get all errors."""
+    def errors(self) -> List[str]:
+        """Get all errors.
+
+        Returns:
+            List of error messages
+        """
         return self.stats["errors"]
 
     def _format_category_stats(
         self, name: str, total: int, generated: int, from_cache: int, skipped: int
-    ) -> list[str]:
-        """Format statistics for a category."""
+    ) -> List[str]:
+        """Format statistics for a category.
+
+        Args:
+            name: The category name
+            total: Total items processed
+            generated: Items generated
+            from_cache: Items loaded from cache
+            skipped: Items skipped
+
+        Returns:
+            List of formatted lines
+        """
         lines = []
         if total > 0 or skipped > 0:
             lines.append(f"{name} ({total + skipped} total)")
@@ -288,7 +367,11 @@ class SummaryLogger:
         return lines
 
     def get_summary(self) -> str:
-        """Generate end-of-run summary."""
+        """Generate end-of-run summary.
+
+        Returns:
+            Formatted summary string
+        """
         lines = []
 
         # Per-source summaries

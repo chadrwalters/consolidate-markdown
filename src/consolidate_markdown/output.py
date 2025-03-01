@@ -1,13 +1,15 @@
-import logging
-import shutil
-import tempfile
-from pathlib import Path
-from typing import Optional
+"""Output generation and formatting utilities."""
 
-from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
+import logging  # Standard library
+import shutil  # Standard library
+import tempfile  # Standard library
+from pathlib import Path  # Standard library
+from typing import Optional  # Standard library
+
+from rich import box  # External dependency: rich
+from rich.console import Console  # External dependency: rich
+from rich.panel import Panel  # External dependency: rich
+from rich.table import Table  # External dependency: rich
 
 from .processors.result import ProcessingResult
 

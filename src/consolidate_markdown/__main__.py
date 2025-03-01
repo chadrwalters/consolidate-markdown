@@ -7,11 +7,13 @@ import sys
 from pathlib import Path
 
 from consolidate_markdown.config import load_config
+from consolidate_markdown.exceptions import ConfigurationError, DependencyError
 from consolidate_markdown.log_setup import setup_logging
 from consolidate_markdown.output import print_deletion_message, print_summary
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 from consolidate_markdown.runner import Runner
+from consolidate_markdown.utils import validate_api_keys, validate_external_dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Limit the number of items to process per source",
     )
+    parser.add_argument(
+        "--skip-dependency-check",
+        action="store_true",
+        help="Skip checking for external dependencies",
+    )
     return parser.parse_args()
 
 
@@ -87,6 +94,24 @@ def main() -> None:
 
     # Set up logging
     setup_logging(config)
+
+    # Validate external dependencies unless explicitly skipped
+    if not args.skip_dependency_check:
+        try:
+            logger.debug("Checking external dependencies...")
+            validate_external_dependencies()
+        except DependencyError as e:
+            logger.error(f"Dependency check failed: {str(e)}")
+            logger.error("Use --skip-dependency-check to bypass this check if needed.")
+            sys.exit(1)
+
+    # Validate API keys
+    try:
+        logger.debug("Validating API keys...")
+        validate_api_keys(config)
+    except ConfigurationError as e:
+        logger.error(f"API key validation failed: {str(e)}")
+        sys.exit(1)
 
     # Create output directories
     config.global_config.cm_dir.mkdir(parents=True, exist_ok=True)

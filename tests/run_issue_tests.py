@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def run_tests():
+def run_tests() -> int:
     """Run all issue tests."""
     # Get the directory of this script
     script_dir = Path(__file__).parent

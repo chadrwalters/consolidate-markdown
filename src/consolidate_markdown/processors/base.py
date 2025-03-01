@@ -2,17 +2,19 @@ import logging
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional, TypeVar
 
 from rich.progress import Progress, TaskID
 
 from ..attachments.gpt import GPTProcessor
 from ..attachments.processor import AttachmentMetadata, AttachmentProcessor
-from ..cache import CacheManager
+from ..cache import CacheManager, quick_hash
 from ..config import Config, SourceConfig
+from ..utils import apply_limit, ensure_directory, should_process_from_cache
 from .result import ProcessingResult
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 class AttachmentHandlerMixin:
@@ -34,7 +36,7 @@ class AttachmentHandlerMixin:
         metadata: AttachmentMetadata,
         config: Config,
         result: ProcessingResult,
-        cache_manager=None,
+        cache_manager: Optional[CacheManager] = None,
     ) -> str:
         """Format an image with optional GPT description."""
         size_kb = metadata.size / 1024
@@ -108,7 +110,7 @@ class AttachmentHandlerMixin:
 <details>
 <summary>📄 {alt_text or doc_path.name} ({size_kb:.0f}KB)</summary>
 
-{metadata.markdown_content or f'[View PDF]({relative_path})'}
+{metadata.markdown_content or f"[View PDF]({relative_path})"}
 
 </details>"""
 
@@ -252,103 +254,82 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
         self._progress = progress
         self._task_id = task_id
 
-    @property
-    def _processor_type(self) -> str:
-        """Get the processor type.
+    def set_limit(self, limit: Optional[int]) -> None:
+        """Set a limit on the number of items to process.
+
+        Args:
+            limit: Maximum number of items to process, or None for no limit
+        """
+        self.item_limit = limit
+
+    def _apply_limit(self, items: List[T]) -> List[T]:
+        """Apply the item limit to a list.
+
+        Args:
+            items: The list to limit
 
         Returns:
-            The processor type string
+            The limited list
         """
-        return self.__processor_type
-
-    def validate(self) -> None:
-        """Validate source configuration.
-
-        Raises:
-            ValueError: If source configuration is invalid.
-        """
-        self.validate_called = True
-        # Check source directory exists and is readable
-        if not self.source_config.src_dir.exists():
-            raise ValueError(
-                f"Source directory does not exist: {self.source_config.src_dir}"
-            )
-        if not self.source_config.src_dir.is_dir():
-            raise ValueError(
-                f"Source path is not a directory: {self.source_config.src_dir}"
-            )
-
-        # Check destination parent directory exists
-        dest_parent = self.source_config.dest_dir.parent
-        if not dest_parent.exists():
-            raise ValueError(
-                f"Destination parent directory does not exist: {dest_parent}"
-            )
+        return apply_limit(items, self.item_limit)
 
     def _ensure_dest_dir(self) -> None:
-        """Ensure destination directory exists."""
-        self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
+        """Ensure the destination directory exists."""
+        ensure_directory(self.source_config.dest_dir)
 
     def _normalize_path(self, path: Path) -> Path:
-        """Handle paths with spaces and special characters."""
-        return Path(str(path).replace("\\", "/"))
+        """Normalize a path for consistent handling.
+
+        Args:
+            path: The path to normalize
+
+        Returns:
+            Normalized path
+        """
+        return path
 
     def _create_temp_dir(self, config: Config) -> Path:
-        """Create a temporary directory for processing."""
+        """Create a temporary directory for processing.
+
+        Args:
+            config: The configuration to use
+
+        Returns:
+            Path to the temporary directory
+        """
         if self._temp_dir is None:
-            # Create a unique temp dir for this processor instance
             self._temp_dir = config.global_config.cm_dir / "temp"
             self._temp_dir.mkdir(parents=True, exist_ok=True)
         return self._temp_dir
 
-    def _cleanup_temp_dir(self):
-        """Clean up temporary directory after processing."""
+    def _cleanup_temp_dir(self) -> None:
+        """Clean up the temporary directory."""
         if self._temp_dir and self._temp_dir.exists():
-            try:
-                shutil.rmtree(self._temp_dir)
-            except Exception as e:
-                logger.warning(f"Failed to clean up temp dir {self._temp_dir}: {e}")
+            shutil.rmtree(self._temp_dir, ignore_errors=True)
             self._temp_dir = None
 
-    def _apply_limit(self, items: List[Path]) -> List[Path]:
-        """Apply item limit to sorted items.
+    def process(self, config: Config) -> ProcessingResult:
+        """Process the source.
 
         Args:
-            items: List of paths to sort and limit.
+            config: The configuration to use
 
         Returns:
-            Limited list of paths, sorted by modification time (newest first).
+            The processing result
         """
-        if not items or self.item_limit is None:
-            return items
-        items.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        return items[: self.item_limit]
+        # Clear cache if force flag is set
+        if config.global_config.force_generation:
+            self.cache_manager.clear_cache()
 
-    def process(self, config: Config) -> ProcessingResult:
-        """Process the source."""
-        try:
-            # Ensure output directory exists
-            self._ensure_dest_dir()
+        # Ensure destination directory exists
+        self._ensure_dest_dir()
 
-            # Create temp directory if needed
-            self._create_temp_dir(config)
-
-            # Process the source
-            result = self._process_impl(config)
-
-            # Add processor type to all stats
-            for key in result.processor_stats:
-                result.processor_stats[key].processor_type = self._processor_type
-
-            return result
-
-        finally:
-            # Clean up temp directory
-            self._cleanup_temp_dir()
+        # Process the source
+        return self._process_impl(config)
 
     @abstractmethod
     def _process_impl(self, config: Config) -> ProcessingResult:
-        """Process implementation to be provided by subclasses.
+        """Process the source implementation.
 
         Args:
             config: The configuration to use
@@ -358,15 +339,93 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
         """
         pass
 
+    def validate(self) -> None:
+        """Validate source configuration.
+
+        Raises:
+            ValueError: If source configuration is invalid.
+        """
+        if not self.source_config.src_dir.exists():
+            raise ValueError(
+                f"Source directory does not exist: {self.source_config.src_dir}"
+            )
+        self.validate_called = True
+
+    @property
+    def _processor_type(self) -> str:
+        """Get the processor type.
+
+        Returns:
+            The processor type string
+        """
+        return self.__processor_type
+
+    def process_file_with_cache(
+        self,
+        file_path: Path,
+        content: str,
+        output_path: Path,
+        config: Config,
+        result: ProcessingResult,
+        attachment_dir: Optional[Path] = None,
+        process_func: Optional[Callable[[str], str]] = None,
+    ) -> None:
+        """Process a file with caching.
+
+        Args:
+            file_path: Path to the file
+            content: Content of the file
+            output_path: Path to write the output
+            config: Configuration
+            result: Processing result
+            attachment_dir: Optional directory containing attachments
+            process_func: Optional function to process the content
+        """
+        # Check if we need to process this file
+        should_process, cached = should_process_from_cache(
+            file_path,
+            content,
+            self.cache_manager,
+            config.global_config.force_generation,
+            attachment_dir,
+        )
+
+        if not should_process and cached and "processed_content" in cached:
+            logger.debug(f"Using cached version of {file_path.name}")
+            result.add_from_cache(self._processor_type)
+            result.processed += 1  # Increment processed count for cached content
+
+            # Write cached content
+            output_path.write_text(cached["processed_content"], encoding="utf-8")
+            return
+
+        # Process file from scratch
+        logger.debug(f"Processing {file_path.name} from scratch")
+
+        processed_content = content
+        if process_func:
+            processed_content = process_func(content)
+
+        # Write processed content
+        output_path.write_text(processed_content, encoding="utf-8")
+
+        # Update cache
+        self.cache_manager.update_note_cache(
+            str(file_path),
+            quick_hash(content),
+            output_path.stat().st_mtime,
+            result.gpt_new_analyses,
+            processed_content,
+        )
+
+        # Add to result stats
+        result.add_generated(self._processor_type)
+        result.processed += 1  # Increment processed count for newly generated content
+
     def cleanup(self) -> None:
         """Clean up temporary files."""
-        try:
-            if self._attachment_processor is not None:
-                self._attachment_processor.cleanup()
-                self._attachment_processor = None
-        except Exception as e:
-            logger.error(f"Error during cleanup: {str(e)}")
+        self._cleanup_temp_dir()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Ensure cleanup is called when object is destroyed."""
         self.cleanup()

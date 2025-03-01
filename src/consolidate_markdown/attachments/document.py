@@ -8,16 +8,21 @@ We use PyMuPDF (fitz) instead of Microsoft's MarkItDown for PDF processing becau
 4. Active maintenance and comprehensive documentation
 """
 
-import csv
-import json
-import logging
-import re
-from pathlib import Path
+import csv  # Standard library
+import json  # Standard library
+import logging  # Standard library
+import re  # Standard library
+from pathlib import Path  # Standard library
+from typing import cast  # Standard library
 
-import fitz  # PyMuPDF for better PDF handling
-import pandas as pd
-from markitdown import MarkItDown as MicrosoftMarkItDown
-from markitdown._markitdown import UnsupportedFormatException
+import fitz  # External dependency: pymupdf
+import pandas as pd  # External dependency: pandas
+from markitdown import (
+    MarkItDown as MicrosoftMarkItDown,  # External dependency: markitdown
+)
+from markitdown._markitdown import (
+    UnsupportedFormatException,  # External dependency: markitdown
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +96,8 @@ class MarkItDown:
             logger.debug(f"MarkItDown result: {result}")
             if result and hasattr(result, "text_content"):
                 logger.debug(f"Text content: {result.text_content}")
-                return result.text_content
+                # Cast to str to satisfy mypy
+                return cast(str, result.text_content)
 
             # For media files, just return a link
             media_extensions = [".mov", ".mp4", ".avi", ".wmv", ".flv", ".mkv"]
@@ -150,7 +156,8 @@ class MarkItDown:
                 table = df.to_markdown(index=False, tablefmt="github")
                 table = re.sub(r"\s+\|\s+", " | ", table)
                 table = re.sub(r"\n\s*\n+", "\n\n", table)
-                return table
+                # Cast to str to satisfy mypy
+                return cast(str, table)
             except pd.errors.ParserError as e:
                 raise ConversionError(f"CSV file is malformed: {str(e)}")
             except pd.errors.EmptyDataError as e:
@@ -237,7 +244,7 @@ class MarkItDown:
         except Exception as e:
             raise ConversionError(f"Failed to convert PDF: {str(e)}")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up temporary files."""
         import shutil
 

@@ -1,7 +1,6 @@
 """Process X bookmarks."""
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -101,14 +100,9 @@ class XBookmarksProcessor(SourceProcessor):
                 # Process bookmark
                 logger.debug(f"Processing {bookmark_dir}")
 
-                # Create output media directory
-                output_media_dir = self.source_config.dest_dir / "media"
-                output_media_dir.mkdir(exist_ok=True)
-
                 # Process media files
                 media_content = self._process_media(
                     bookmark_dir,
-                    self.attachment_processor,
                     config,
                     bookmark_result,
                 )
@@ -170,64 +164,46 @@ class XBookmarksProcessor(SourceProcessor):
     def _process_media(
         self,
         bookmark_dir: Path,
-        attachment_processor: AttachmentProcessor,
         config: Config,
         result: ProcessingResult,
     ) -> str:
-        """Process media files in the bookmark directory."""
-        content = ""
+        """Process media files in the bookmark directory.
+
+        Args:
+            bookmark_dir: The directory containing the bookmark files
+            config: The application configuration
+            result: The processing result object to update
+
+        Returns:
+            Formatted markdown content for all media files
+        """
         media_dir = bookmark_dir / "media"
         if not media_dir.exists() or not media_dir.is_dir():
-            return content
+            logger.debug(f"No media directory found in {bookmark_dir}")
+            return ""
 
         # Create output media directory
         output_media_dir = self.source_config.dest_dir / "media"
         output_media_dir.mkdir(exist_ok=True)
 
-        # Process each media file
+        # Get all image files
+        image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".heic"}
         media_files = [
             f
             for f in media_dir.iterdir()
-            if f.is_file() and f.suffix.lower() in {".jpg", ".jpeg", ".png", ".gif"}
+            if f.is_file() and f.suffix.lower() in image_extensions
         ]
 
-        media_content = ""
-        for media_file in media_files:
-            try:
-                temp_path, metadata = attachment_processor.process_file(
-                    media_file,
-                    force=config.global_config.force_generation,
-                    result=result,
-                )
+        if not media_files:
+            logger.debug(f"No media files found in {media_dir}")
+            return ""
 
-                # Copy processed file to output directory
-                output_path = output_media_dir / media_file.name
-                shutil.copy2(temp_path, output_path)
+        logger.info(f"Processing {len(media_files)} media files from {media_dir}")
 
-                if metadata.is_image:
-                    if config.global_config.force_generation:
-                        result.add_image_generated(self._processor_type)
-                    else:
-                        result.add_image_from_cache(self._processor_type)
-
-                    size_kb = metadata.size // 1024
-                    dimensions = metadata.dimensions or (0, 0)
-
-                    media_content += f"""
-<!-- EMBEDDED IMAGE: {media_file.name} -->
-<details>
-<summary>🖼️ {media_file.name} ({dimensions[0]}x{dimensions[1]}, {size_kb}KB)</summary>
-
-[Image will be analyzed in Phase 4]
-
-</details>
-"""
-
-            except Exception as e:
-                logger.error(f"Error processing media file {media_file}: {str(e)}")
-                result.add_image_skipped(self._processor_type)
-
-        return content + media_content if media_content else content
+        # Process all media files and collect their markdown representations
+        return self._process_attachment_files(
+            media_files, output_media_dir, config, result, is_image=True
+        )
 
     def _process_attachments(
         self,
@@ -237,50 +213,90 @@ class XBookmarksProcessor(SourceProcessor):
         config: Config,
         result: ProcessingResult,
     ) -> str:
-        """Process non-media attachments in the bookmark directory."""
-        # Find all non-media files (excluding index and media files)
-        skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif", ".svg"}
+        """Process non-media attachments in the bookmark directory.
+
+        Args:
+            content: The current content of the bookmark
+            bookmark_dir: The directory containing the bookmark files
+            attachment_processor: The processor for handling attachments
+            config: The application configuration
+            result: The processing result object to update
+
+        Returns:
+            Formatted markdown content for all non-media attachments
+        """
+        # Skip media files and markdown files
+        skip_exts = {".md", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".heic"}
         attachments = [
             f
             for f in bookmark_dir.iterdir()
             if f.is_file() and f.suffix.lower() not in skip_exts
         ]
 
-        # Process each attachment
-        attachment_content = ""
-        for attachment in attachments:
+        if not attachments:
+            logger.debug(f"No attachments found in {bookmark_dir}")
+            return ""
+
+        logger.info(f"Processing {len(attachments)} attachments from {bookmark_dir}")
+
+        # Create output attachments directory
+        output_attachments_dir = self.source_config.dest_dir / "attachments"
+        output_attachments_dir.mkdir(exist_ok=True)
+
+        # Process all attachment files and collect their markdown representations
+        return self._process_attachment_files(
+            attachments, output_attachments_dir, config, result, is_image=False
+        )
+
+    def _process_attachment_files(
+        self,
+        files: list[Path],
+        output_dir: Path,
+        config: Config,
+        result: ProcessingResult,
+        is_image: bool = True,
+    ) -> str:
+        """Process a list of attachment files and return their markdown representation.
+
+        Args:
+            files: List of file paths to process
+            output_dir: Directory to save processed files
+            config: The application configuration
+            result: The processing result object to update
+            is_image: Whether the files are images (True) or documents (False)
+
+        Returns:
+            Formatted markdown content for all processed files
+        """
+        content = ""
+
+        for file_path in files:
             try:
-                temp_path, metadata = attachment_processor.process_file(
-                    attachment,
-                    force=config.global_config.force_generation,
-                    result=result,
+                # Use the _process_attachment method from AttachmentHandlerMixin
+                formatted_content = self._process_attachment(
+                    file_path,
+                    output_dir,
+                    self.attachment_processor,
+                    config,
+                    result,
+                    is_image=is_image,
+                    progress=self._progress,
+                    task_id=self._task_id,
                 )
 
-                if not metadata.is_image:
-                    if config.global_config.force_generation:
-                        result.add_document_generated(self._processor_type)
-                    else:
-                        result.add_document_from_cache(self._processor_type)
-
-                    size_kb = metadata.size // 1024
-                    doc_content = (
-                        metadata.markdown_content
-                        or "[Document content will be converted in Phase 4]"
-                    )
-
-                    attachment_content += f"""
-
-<!-- EMBEDDED DOCUMENT: {attachment.name} -->
-<details>
-<summary>📄 {attachment.name} ({size_kb}KB)</summary>
-
-{doc_content}
-
-</details>
-"""
+                if formatted_content:
+                    content += formatted_content + "\n\n"
+                    logger.debug(f"Successfully processed {file_path.name}")
+                else:
+                    logger.warning(f"No content generated for {file_path.name}")
 
             except Exception as e:
-                logger.error(f"Error processing attachment {attachment}: {str(e)}")
-                result.add_document_skipped(self._processor_type)
+                error_msg = f"Error processing {'image' if is_image else 'document'} {file_path}: {str(e)}"
+                logger.error(error_msg)
+                result.add_error(error_msg, self._processor_type)
+                if is_image:
+                    result.add_image_skipped(self._processor_type)
+                else:
+                    result.add_document_skipped(self._processor_type)
 
-        return content + attachment_content if attachment_content else content
+        return content.strip()

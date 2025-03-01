@@ -1,11 +1,13 @@
-import logging
-import platform
-import shutil
-import subprocess
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
+"""Image processing utilities."""
 
-from PIL import Image
+import logging  # Standard library
+import platform  # Standard library
+import shutil  # Standard library
+import subprocess  # Standard library
+from pathlib import Path  # Standard library
+from typing import Any, Dict, List, Tuple  # Standard library
+
+from PIL import Image  # External dependency: pillow
 
 from ..log_setup import logger
 

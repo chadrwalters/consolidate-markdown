@@ -101,13 +101,68 @@ class ProcessingResult:
     def add_error(self, error: str, processor_type: Optional[str] = None) -> None:
         """Add an error message.
 
+        This method adds an error message to the result and optionally associates it
+        with a specific processor type. It formats the error message to be more
+        user-friendly by removing excessive technical details when displayed to users.
+
         Args:
             error: The error message
             processor_type: Optional processor type to associate with the error
         """
-        self.errors.append(error)
+        # Format the error message to be more user-friendly
+        user_friendly_error = self._format_error_for_user(error)
+
+        # Add to global errors list
+        self.errors.append(user_friendly_error)
+
+        # Add to processor-specific errors if processor_type is provided
         if processor_type:
-            self.get_processor_stats(processor_type).errors.append(error)
+            self.get_processor_stats(processor_type).errors.append(user_friendly_error)
+
+    def _format_error_for_user(self, error: str) -> str:
+        """Format an error message to be more user-friendly.
+
+        This method processes error messages to make them more readable and
+        actionable for users by:
+        1. Removing excessive stack traces
+        2. Providing context about the error type
+        3. Suggesting possible solutions when applicable
+
+        Args:
+            error: The original error message
+
+        Returns:
+            A user-friendly formatted error message
+        """
+        # Truncate very long error messages
+        if len(error) > 500:
+            error = error[:497] + "..."
+
+        # Check for common error patterns and provide more helpful messages
+        if "API key" in error.lower() or "apikey" in error.lower():
+            return f"API Key Error: {error} - Please check your API key configuration in config.toml or environment variables."
+
+        if "permission" in error.lower() or "access denied" in error.lower():
+            return (
+                f"Permission Error: {error} - Please check file/directory permissions."
+            )
+
+        if "not found" in error.lower() or "no such file" in error.lower():
+            return f"File Not Found: {error} - Please verify the file path exists."
+
+        if "timeout" in error.lower() or "timed out" in error.lower():
+            return f"Timeout Error: {error} - The operation took too long to complete. Try again or check your network connection."
+
+        if "network" in error.lower() or "connection" in error.lower():
+            return f"Network Error: {error} - Please check your internet connection."
+
+        if "command" in error.lower() and (
+            "not found" in error.lower() or "missing" in error.lower()
+        ):
+            return f"Missing Dependency: {error} - Please install the required external tool."
+
+        # If no specific pattern matches, return the original error with a generic prefix
+        return f"Error: {error}"
 
     def merge(self, other: "ProcessingResult") -> None:
         """Merge another result into this one.

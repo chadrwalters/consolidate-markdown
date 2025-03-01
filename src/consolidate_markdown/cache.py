@@ -5,7 +5,7 @@ import json
 import logging
 import threading
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def quick_hash(content: str) -> str:
 class CacheManager:
     """Manages caching of processed files and GPT analyses."""
 
-    def __init__(self, cm_dir: Path):
+    def __init__(self, cm_dir: Path) -> None:
         """Initialize cache manager with .cm directory path."""
         self.cache_dir = cm_dir / "cache"
         self.notes_file = self.cache_dir / "notes.json"
@@ -27,7 +27,7 @@ class CacheManager:
         self.gpt_lock = threading.Lock()
         self._init_cache()
 
-    def _init_cache(self):
+    def _init_cache(self) -> None:
         """Create cache directory and files if they don't exist."""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -37,10 +37,10 @@ class CacheManager:
         if not self.gpt_file.exists():
             self.gpt_file.write_text("{}")
 
-    def _load_cache(self, cache_file: Path) -> Dict:
+    def _load_cache(self, cache_file: Path) -> Dict[str, Any]:
         """Load a cache file, handling errors."""
         try:
-            cache_data = json.loads(cache_file.read_text())
+            cache_data = cast(Dict[str, Any], json.loads(cache_file.read_text()))
             logger.debug(
                 f"Loaded cache from {cache_file.name} ({len(cache_data)} entries)"
             )
@@ -51,7 +51,7 @@ class CacheManager:
             )
             return {}
 
-    def _save_cache(self, cache_file: Path, data: Dict):
+    def _save_cache(self, cache_file: Path, data: Dict) -> None:
         """Save cache data, handling errors."""
         try:
             cache_file.write_text(json.dumps(data, indent=2))
@@ -101,7 +101,7 @@ class CacheManager:
         timestamp: float,
         gpt_analyses: int = 0,
         processed_content: Optional[str] = None,
-    ):
+    ) -> None:
         """Update note cache with new hash, timestamp, GPT analysis count and processed content."""
         with self.notes_lock:
             cache = self._load_cache(self.notes_file)
@@ -126,7 +126,7 @@ class CacheManager:
                 logger.debug(f"Cache hit for GPT analysis: {image_hash}")
             return result
 
-    def update_gpt_cache(self, image_hash: str, analysis: str):
+    def update_gpt_cache(self, image_hash: str, analysis: str) -> None:
         """Cache GPT analysis result."""
         with self.gpt_lock:
             cache = self._load_cache(self.gpt_file)
@@ -134,7 +134,7 @@ class CacheManager:
             cache[image_hash] = analysis
             self._save_cache(self.gpt_file, cache)
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all cache files (used by --force)."""
         logger.info("Clearing cache due to --force flag")
         with self.notes_lock:
