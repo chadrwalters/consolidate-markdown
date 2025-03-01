@@ -3,8 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from src.consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
+from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 
 
 @pytest.fixture
@@ -57,9 +56,7 @@ def mock_source_config(test_dirs):
 @pytest.fixture
 def processor(mock_source_config):
     """Create a XBookmarksProcessor instance with mocked dependencies."""
-    with patch(
-        "src.consolidate_markdown.processors.xbookmarks.CacheManager"
-    ) as mock_cache:
+    with patch("consolidate_markdown.processors.xbookmarks.CacheManager") as mock_cache:
         # Return a mock cache manager instance
         mock_cache.return_value = MagicMock()
 

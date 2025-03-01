@@ -18,7 +18,36 @@ T = TypeVar("T")
 
 
 class AttachmentHandlerMixin:
-    """Mixin class for handling attachments in processors."""
+    """Mixin class for handling attachments in processors.
+
+    This class provides methods for processing attachments and formatting them as comments
+    in markdown files. Instead of copying attachment files to the output directory, it now
+    embeds information about the attachments as comments in the markdown output.
+
+    This approach creates a flat output directory structure with only markdown files and
+    no physical attachment files or subdirectories, which has several benefits:
+    - Simplified output directory structure
+    - Reduced disk space usage (no duplicate files)
+    - Preserved attachment metadata
+    - Better compatibility with version control systems
+
+    The comment format for images is:
+    ```
+    <!-- ATTACHMENT: IMAGE: filename.jpg (dimensions, size) -->
+    <!-- GPT Description: description text -->
+    ![description]()
+    ```
+
+    The comment format for documents is:
+    ```
+    <!-- ATTACHMENT: DOCUMENT: filename.pdf (size) -->
+    <!-- Content: document content -->
+    [filename]()
+    ```
+
+    For SVG images, the SVG content may be embedded directly within <details> tags
+    in the markdown for inline display, while still using comment-based metadata.
+    """
 
     @property
     @abstractmethod
@@ -38,7 +67,33 @@ class AttachmentHandlerMixin:
         result: ProcessingResult,
         cache_manager: Optional[CacheManager] = None,
     ) -> str:
-        """Format an image with optional GPT description."""
+        """Format an image as a comment-based reference with optional GPT description.
+
+        Instead of creating a link to a copied image file, this method generates a comment
+        containing information about the image (filename, dimensions, size) and includes
+        the GPT description as a separate comment. It also adds an empty markdown image
+        syntax for better compatibility with markdown viewers.
+
+        For SVG images, the SVG content may be embedded directly within <details> tags
+        in the markdown for inline display, while still using comment-based metadata.
+
+        The comment format is:
+        ```
+        <!-- ATTACHMENT: IMAGE: filename.jpg (dimensions, size) -->
+        <!-- GPT Description: description text -->
+        ![description]()
+        ```
+
+        Args:
+            image_path: Path to the image file
+            metadata: Metadata about the image
+            config: Configuration
+            result: Processing result
+            cache_manager: Optional cache manager
+
+        Returns:
+            Markdown representation of the image as comments
+        """
         size_kb = metadata.size / 1024
         dimensions = metadata.dimensions or (0, 0)
         is_svg = image_path.suffix.lower() == ".svg"
@@ -69,29 +124,14 @@ class AttachmentHandlerMixin:
 
         # Handle SVG files - embed content directly
         if is_svg and hasattr(metadata, "inlined_content"):
-            return f"""<!-- EMBEDDED SVG: {image_path.name} -->
-{metadata.inlined_content}
+            return f"""<!-- ATTACHMENT: SVG: {image_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB) -->
+<!-- GPT Description: {description.strip()} -->
+![{description.strip()}]()"""
 
-<details>
-<summary>🖼️ {image_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
-
-{description}
-
-</details>"""
-
-        # Add standard markdown image link and details section
-        relative_path = Path("attachments") / image_path.name
-        return f"""
-![{image_path.name}]({relative_path})
-
-<!-- EMBEDDED IMAGE: {image_path.name} -->
-<details>
-<summary>🖼️ {image_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB)</summary>
-
-{description}
-
-</details>
-"""
+        # Add comment-based image reference instead of markdown image link
+        return f"""<!-- ATTACHMENT: IMAGE: {image_path.name} ({dimensions[0]}x{dimensions[1]}, {size_kb:.0f}KB) -->
+<!-- GPT Description: {description.strip()} -->
+![{description.strip()}]()"""
 
     def _format_document(
         self,
@@ -100,39 +140,53 @@ class AttachmentHandlerMixin:
         alt_text: Optional[str] = None,
         result: Optional[ProcessingResult] = None,
     ) -> str:
-        """Format a document attachment."""
+        """Format a document as a comment-based reference.
+
+        Instead of creating a link to a copied document file, this method generates a comment
+        containing information about the document (filename, size) and includes the document
+        content as a separate comment. It also adds an empty markdown link syntax for better
+        compatibility with markdown viewers.
+
+        The comment format is:
+        ```
+        <!-- ATTACHMENT: DOCUMENT: filename.pdf (size) -->
+        <!-- Content: document content -->
+        [filename]()
+        ```
+
+        Args:
+            doc_path: Path to the document file
+            metadata: Metadata about the document
+            alt_text: Optional alternative text for the document
+            result: Optional processing result
+
+        Returns:
+            Markdown representation of the document as comments
+        """
         size_kb = metadata.size / 1024
 
         # Handle PDFs differently
         if doc_path.suffix.lower() == ".pdf":
-            relative_path = Path("attachments") / doc_path.name
-            return f"""<!-- EMBEDDED PDF: {doc_path.name} -->
-<details>
-<summary>📄 {alt_text or doc_path.name} ({size_kb:.0f}KB)</summary>
-
-{metadata.markdown_content or f"[View PDF]({relative_path})"}
-
-</details>"""
+            content = metadata.markdown_content or "PDF content not extracted"
+            link_text = alt_text or doc_path.name
+            return f"""<!-- ATTACHMENT: PDF: {doc_path.name} ({size_kb:.0f}KB) -->
+<!-- Content: {content.strip()} -->
+[{link_text}]()"""
 
         # Handle other documents
         content = (
             metadata.markdown_content
             or "[Document content will be converted in Phase 4]"
         )
-
-        return f"""<!-- EMBEDDED DOCUMENT: {doc_path.name} -->
-<details>
-<summary>📄 {alt_text or doc_path.name} ({size_kb:.0f}KB)</summary>
-
-{content}
-
-</details>
-"""
+        link_text = alt_text or doc_path.name
+        return f"""<!-- ATTACHMENT: DOCUMENT: {doc_path.name} ({size_kb:.0f}KB) -->
+<!-- Content: {content.strip()} -->
+[{link_text}]()"""
 
     def _process_attachment(
         self,
         attachment_path: Path,
-        output_dir: Path,
+        output_dir: Path,  # Kept for compatibility but not used for file operations
         attachment_processor: AttachmentProcessor,
         config: Config,
         result: ProcessingResult,
@@ -141,7 +195,32 @@ class AttachmentHandlerMixin:
         progress: Optional[Progress] = None,
         task_id: Optional[TaskID] = None,
     ) -> Optional[str]:
-        """Process a single attachment and return its markdown representation."""
+        """Process an attachment and generate a comment-based representation.
+
+        This method processes an attachment file (image or document) and generates
+        a comment-based representation of the attachment instead of copying the file
+        to the output directory.
+
+        The processing steps are:
+        1. Process the attachment using the AttachmentProcessor to extract metadata
+        2. For images, generate a comment with image information and optional GPT description
+        3. For documents, generate a comment with document information and content
+        4. Return the comment-based representation as a string
+
+        Args:
+            attachment_path: Path to the attachment file
+            output_dir: Output directory (kept for compatibility but not used for file operations)
+            attachment_processor: Processor for handling attachments
+            config: Configuration
+            result: Processing result
+            alt_text: Optional alternative text for the attachment
+            is_image: Whether the attachment is an image
+            progress: Optional progress bar
+            task_id: Optional task ID for progress reporting
+
+        Returns:
+            Markdown representation of the attachment as comments, or None if processing failed
+        """
         try:
             if not attachment_path.exists():
                 logger.warning(f"Attachment not found: {attachment_path}")
@@ -162,20 +241,14 @@ class AttachmentHandlerMixin:
                 f"Processed {attachment_path.name}: is_image={metadata.is_image}, markdown_content_length={len(metadata.markdown_content) if metadata.markdown_content else 0}"
             )
 
-            # Copy processed file to output directory
-            output_path = output_dir / attachment_path.name
-            if temp_path.suffix != attachment_path.suffix:
-                # If the extension changed (e.g. svg -> jpg), update the output path
-                output_path = output_path.with_suffix(temp_path.suffix)
-            shutil.copy2(temp_path, output_path)
-
-            # Format based on type
+            # No longer copying files to output directory
+            # Just format based on type
             if metadata.is_image:
                 result.add_image_generated(
                     self._processor_type
                 )  # Always count as generated for now
                 formatted = self._format_image(
-                    output_path,
+                    attachment_path,  # Use original path since we're not copying
                     metadata,
                     config,
                     result,
@@ -188,7 +261,7 @@ class AttachmentHandlerMixin:
                     self._processor_type
                 )  # Always count as generated for now
                 formatted = self._format_document(
-                    output_path, metadata, alt_text, result
+                    attachment_path, metadata, alt_text, result
                 )
 
             logger.info(

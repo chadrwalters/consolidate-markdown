@@ -14,7 +14,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AttachmentMetadata:
-    """Metadata for an attachment."""
+    """Metadata for an attachment.
+
+    This class stores metadata about an attachment file, including its path, size,
+    type, dimensions (for images), and content (for documents). This metadata is used
+    to generate comment-based representations of attachments in markdown files.
+    """
 
     path: Path
     is_image: bool
@@ -30,9 +35,32 @@ class AttachmentMetadata:
 
 
 class AttachmentProcessor:
-    """Process attachments and manage temporary files."""
+    """Process attachments and manage temporary files.
+
+    This class handles the processing of attachment files (images and documents),
+    extracting metadata and converting them to appropriate formats if needed.
+
+    For images, it can:
+    - Extract dimensions and size
+    - Convert HEIC to JPG
+    - Convert SVG to PNG for GPT analysis
+    - Handle various image formats
+
+    For documents, it can:
+    - Extract content using MarkItDown
+    - Extract size and other metadata
+    - Handle various document formats
+
+    The processed attachments are not copied to the output directory; instead,
+    their metadata is used to generate comment-based representations in markdown files.
+    """
 
     def __init__(self, cm_dir: Path):
+        """Initialize the attachment processor.
+
+        Args:
+            cm_dir: The consolidate markdown directory for temporary files
+        """
         self.cm_dir = cm_dir
         self.temp_dir = cm_dir / "temp"
         self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +73,28 @@ class AttachmentProcessor:
         force: bool = False,
         result: Optional[ProcessingResult] = None,
     ) -> Tuple[Path, AttachmentMetadata]:
-        """Process a file and return its temporary path and metadata."""
+        """Process a file and return its temporary path and metadata.
+
+        This method processes an attachment file, extracting metadata and converting
+        it to an appropriate format if needed. The processed file is stored in a
+        temporary directory, and its metadata is returned.
+
+        For images, it extracts dimensions and size, and converts HEIC to JPG and
+        SVG to PNG for GPT analysis if needed.
+
+        For documents, it extracts content using MarkItDown and other metadata.
+
+        Args:
+            file_path: Path to the attachment file
+            force: Whether to force processing even if the file has been processed before
+            result: Optional processing result for tracking statistics
+
+        Returns:
+            A tuple containing the path to the processed file and its metadata
+
+        Raises:
+            FileNotFoundError: If the attachment file does not exist
+        """
         if not file_path.exists():
             raise FileNotFoundError(f"Attachment not found: {file_path}")
 

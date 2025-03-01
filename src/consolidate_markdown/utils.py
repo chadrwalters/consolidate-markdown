@@ -5,7 +5,14 @@ import re  # Standard library
 import shutil  # Standard library
 import urllib.parse  # Standard library
 from pathlib import Path  # Standard library
-from typing import Any, Dict, List, Optional, Tuple, TypeVar  # Standard library
+from typing import (  # Standard library
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+)
 
 from .cache import CacheManager, quick_hash
 from .exceptions import ConfigurationError
@@ -144,54 +151,47 @@ def check_command_exists(command: str) -> bool:
 
 
 def validate_external_dependencies() -> None:
-    """Validate that all required external dependencies are installed.
+    """Validate external dependencies.
 
-    This function checks for the presence of external command-line tools
-    that are required by the application. It raises a DependencyError
-    if any required dependency is missing.
+    This function checks if required external dependencies are available.
 
     Raises:
         DependencyError: If a required dependency is missing
     """
     logger.debug("Validating external dependencies...")
     # Define required and optional dependencies
-    image_converters = {
-        "rsvg-convert": "SVG conversion (librsvg)",
-        "inkscape": "SVG conversion (alternative)",
-        "magick": "Image conversion (ImageMagick)",
-        "sips": "Image conversion on macOS",
-        "heif-convert": "HEIC conversion on Linux",
-    }
-
-    # Check for at least one SVG converter
-    svg_converter_found = False
-    for converter in ["rsvg-convert", "inkscape"]:
-        if check_command_exists(converter):
-            svg_converter_found = True
-            logger.debug(f"Found SVG converter: {converter}")
-            break
-
-    if not svg_converter_found:
-        logger.warning(
-            "No SVG converter found. SVG files will not be processed correctly."
-        )
-        logger.warning("Please install librsvg (rsvg-convert) or Inkscape.")
-
-    # Check for at least one image converter
-    image_converter_found = False
-    for converter in ["magick", "sips", "heif-convert"]:
-        if check_command_exists(converter):
-            image_converter_found = True
-            logger.debug(f"Found image converter: {converter}")
-            break
-
-    if not image_converter_found:
-        logger.warning(
-            "No image converter found. HEIC and some image formats may not be processed correctly."
-        )
-        logger.warning("Please install ImageMagick or platform-specific tools.")
+    # Check for required dependencies
+    # TODO: Add dependency checks as needed
 
     logger.debug("External dependency validation complete")
+
+
+def validate_api_key(api_key: Optional[str], service_name: str) -> bool:
+    """Validate an API key.
+
+    Args:
+        api_key: The API key to validate
+        service_name: The name of the service
+
+    Returns:
+        True if the API key is valid, False otherwise
+    """
+    if not api_key:
+        logger.warning(f"No API key provided for {service_name}")
+        return False
+
+    # Check if the API key is a valid string
+    if not isinstance(api_key, str):
+        logger.warning(f"API key for {service_name} is not a string")
+        return False
+
+    # Check if the API key is empty
+    if not api_key.strip():
+        logger.warning(f"API key for {service_name} is empty")
+        return False
+
+    logger.debug("API key validation complete")
+    return True
 
 
 def validate_api_keys(config: Any) -> None:

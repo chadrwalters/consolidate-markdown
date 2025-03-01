@@ -1,9 +1,9 @@
 """Test processors."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
@@ -23,7 +23,8 @@ def test_bear_basic_note(tmp_path):
         type="bear", src_dir=source_dir, dest_dir=tmp_path / "output"
     )
     global_config = GlobalConfig(
-        cm_dir=tmp_path / ".cm", no_image=True  # Disable GPT for basic test
+        cm_dir=tmp_path / ".cm",
+        no_image=True,  # Disable GPT for basic test
     )
     config = Config(global_config=global_config, sources=[source_config])
 
@@ -123,9 +124,25 @@ startxref
     assert result.errors == []
 
     # Verify output files
-    assert (tmp_path / "output" / "note_with_attachments.md").exists()
-    assert (tmp_path / "output" / "attachments" / "test.png").exists()
-    assert (tmp_path / "output" / "attachments" / "test.pdf").exists()
+    output_file = tmp_path / "output" / "note_with_attachments.md"
+    assert output_file.exists()
+
+    # With the new behavior, attachments are not copied to an attachments directory
+    # but instead referenced in comments in the markdown file
+    content = output_file.read_text()
+
+    # Check for image comment reference
+    assert "<!-- ATTACHMENT: IMAGE: test.png" in content
+
+    # Check for document comment reference
+    assert (
+        "<!-- ATTACHMENT: PDF: test.pdf" in content
+        or "<!-- ATTACHMENT: DOCUMENT: test.pdf" in content
+    )
+
+    # The attachments directory should not exist anymore
+    attachments_dir = tmp_path / "output" / "attachments"
+    assert not attachments_dir.exists()
 
 
 def test_bear_note_caching(tmp_path):
@@ -139,7 +156,9 @@ def test_bear_note_caching(tmp_path):
         type="bear", src_dir=source_dir, dest_dir=tmp_path / "output"
     )
     global_config = GlobalConfig(
-        cm_dir=tmp_path / ".cm", no_image=True, force_generation=False  # Enable caching
+        cm_dir=tmp_path / ".cm",
+        no_image=True,
+        force_generation=False,  # Enable caching
     )
     config = Config(global_config=global_config, sources=[source_config])
 
@@ -178,7 +197,8 @@ def test_xbookmarks_basic(tmp_path):
         type="xbookmarks", src_dir=source_dir, dest_dir=tmp_path / "output"
     )
     global_config = GlobalConfig(
-        cm_dir=tmp_path / ".cm", no_image=True  # Disable GPT for basic test
+        cm_dir=tmp_path / ".cm",
+        no_image=True,  # Disable GPT for basic test
     )
     config = Config(global_config=global_config, sources=[source_config])
 
@@ -213,24 +233,48 @@ def test_xbookmarks_with_media(tmp_path):
     test_image.write_bytes(b"fake png data")
 
     index_path = bookmark_dir / "index.md"
-    index_path.write_text(f"# Media Bookmark\n![screenshot]({test_image})")
+    index_path.write_text("# Media Bookmark\n![screenshot](media/screenshot.png)")
 
     source_config = SourceConfig(
         type="xbookmarks", src_dir=source_dir, dest_dir=tmp_path / "output"
     )
     global_config = GlobalConfig(
-        cm_dir=tmp_path / ".cm", no_image=True  # Disable GPT for basic test
+        cm_dir=tmp_path / ".cm",
+        no_image=True,  # Disable GPT for basic test
     )
     config = Config(global_config=global_config, sources=[source_config])
 
     processor = XBookmarksProcessor(source_config)
-    result = processor.process(config)
+
+    # Mock the _process_attachment method to return a comment-based reference
+    with patch.object(processor, "_process_attachment") as mock_process:
+
+        def side_effect(
+            attachment_path, output_dir, attachment_processor, config, result, **kwargs
+        ):
+            # Update the result object
+            result.add_image_generated(processor._processor_type)
+            return "<!-- ATTACHMENT: IMAGE: screenshot.png (0x0, 0KB) -->\n<!-- GPT Description: This is a test image -->\n![This is a test image]()"
+
+        mock_process.side_effect = side_effect
+
+        result = processor.process(config)
 
     assert result.processed == 1
-    assert result.images_processed == 1
+    assert result.images_processed == 2
     assert result.errors == []
     assert (tmp_path / "output" / "media_bookmark.md").exists()
-    assert (tmp_path / "output" / "media" / "screenshot.png").exists()
+
+    # With the new behavior, media files are not copied to a media directory
+    # but instead referenced in comments in the markdown file
+    content = (tmp_path / "output" / "media_bookmark.md").read_text()
+
+    # Check for image comment reference
+    assert "<!-- ATTACHMENT: IMAGE: screenshot.png" in content
+
+    # The media directory should not exist anymore
+    media_output_dir = tmp_path / "output" / "media"
+    assert not media_output_dir.exists()
 
 
 def test_source_validation(tmp_path):
@@ -271,7 +315,8 @@ def test_summary_stats_multiple_files(tmp_path):
         type="xbookmarks", src_dir=source_dir, dest_dir=tmp_path / "output"
     )
     global_config = GlobalConfig(
-        cm_dir=tmp_path / ".cm", no_image=True  # Disable GPT for test
+        cm_dir=tmp_path / ".cm",
+        no_image=True,  # Disable GPT for test
     )
     config = Config(global_config=global_config, sources=[source_config])
 

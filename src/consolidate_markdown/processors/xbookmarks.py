@@ -100,7 +100,16 @@ class XBookmarksProcessor(SourceProcessor):
                 # Process bookmark
                 logger.debug(f"Processing {bookmark_dir}")
 
-                # Process media files
+                # Process media files in the content
+                content = self._process_media_references(
+                    content,
+                    bookmark_dir,
+                    self.attachment_processor,
+                    config,
+                    bookmark_result,
+                )
+
+                # Process media files in the media directory
                 media_content = self._process_media(
                     bookmark_dir,
                     config,
@@ -161,6 +170,74 @@ class XBookmarksProcessor(SourceProcessor):
 
         return result
 
+    def _process_media_references(
+        self,
+        content: str,
+        bookmark_dir: Path,
+        attachment_processor: AttachmentProcessor,
+        config: Config,
+        result: ProcessingResult,
+    ) -> str:
+        """Process media references in content.
+
+        Args:
+            content: The current content of the bookmark
+            bookmark_dir: The directory containing the bookmark files
+            attachment_processor: The processor for handling attachments
+            config: The application configuration
+            result: The processing result object to update
+
+        Returns:
+            Updated content with processed media references
+        """
+        import re
+        import urllib.parse
+        from typing import Match
+
+        def replace_media(match: Match[str]) -> str:
+            """Replace a media reference with processed content."""
+            alt_text, path = match.groups()
+
+            # URL decode the path
+            decoded_path = urllib.parse.unquote(path)
+
+            # Handle relative paths
+            if not Path(decoded_path).is_absolute():
+                media_path = bookmark_dir / decoded_path
+            else:
+                # For absolute paths, just use the filename
+                media_path = Path(decoded_path)
+
+            if not media_path.exists():
+                logger.warning(f"Media file not found: {media_path}")
+                return match.group(0)
+
+            logger.info(f"Processing media reference: {media_path}")
+
+            # Process the attachment using the base class method
+            markdown_result = self._process_attachment(
+                media_path,
+                self.source_config.dest_dir,  # This is no longer used for file operations
+                attachment_processor,
+                config,
+                result,
+                alt_text=alt_text,
+                is_image=True,
+            )
+
+            # Handle the Optional[str] return type
+            if markdown_result is None:
+                return match.group(0)
+
+            logger.info(
+                f"Generated markdown for {media_path.name}: {markdown_result[:200]}"
+            )
+            return markdown_result
+
+        # Replace image references
+        result_content = re.sub(r"!\[(.*?)\]\((.*?)\)", replace_media, content)
+        return result_content
+
     def _process_media(
         self,
         bookmark_dir: Path,
@@ -182,9 +259,7 @@ class XBookmarksProcessor(SourceProcessor):
             logger.debug(f"No media directory found in {bookmark_dir}")
             return ""
 
-        # Create output media directory
-        output_media_dir = self.source_config.dest_dir / "media"
-        output_media_dir.mkdir(exist_ok=True)
+        # No longer creating output media directory
 
         # Get all image files
         image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".heic"}
@@ -202,7 +277,7 @@ class XBookmarksProcessor(SourceProcessor):
 
         # Process all media files and collect their markdown representations
         return self._process_attachment_files(
-            media_files, output_media_dir, config, result, is_image=True
+            media_files, self.source_config.dest_dir, config, result, is_image=True
         )
 
     def _process_attachments(
@@ -239,13 +314,11 @@ class XBookmarksProcessor(SourceProcessor):
 
         logger.info(f"Processing {len(attachments)} attachments from {bookmark_dir}")
 
-        # Create output attachments directory
-        output_attachments_dir = self.source_config.dest_dir / "attachments"
-        output_attachments_dir.mkdir(exist_ok=True)
+        # No longer creating output attachments directory
 
         # Process all attachment files and collect their markdown representations
         return self._process_attachment_files(
-            attachments, output_attachments_dir, config, result, is_image=False
+            attachments, self.source_config.dest_dir, config, result, is_image=False
         )
 
     def _process_attachment_files(

@@ -12,7 +12,6 @@ from rich.progress import Progress, TaskID
 from ..attachments.processor import AttachmentProcessor
 from ..cache import CacheManager
 from ..config import Config, SourceConfig
-from ..utils import ensure_directory
 from .base import SourceProcessor
 from .result import ProcessingResult
 
@@ -194,9 +193,7 @@ class BearProcessor(SourceProcessor):
         task_id: Optional[TaskID] = None,
     ) -> str:  # type: ignore
         """Process attachments in content."""
-        # Create output attachments directory
-        output_attachments_dir = self.source_config.dest_dir / "attachments"
-        ensure_directory(output_attachments_dir)
+        # No longer creating output attachments directory
 
         def replace_attachment(match: re.Match) -> str:  # type: ignore
             """Replace an attachment reference with processed content."""
@@ -224,9 +221,10 @@ class BearProcessor(SourceProcessor):
             )
 
             # Process the attachment using the base class method
+            # Pass self.source_config.dest_dir as output_dir (not used for file operations anymore)
             markdown_result = self._process_attachment(
                 attachment_path,
-                output_attachments_dir,
+                self.source_config.dest_dir,  # This is no longer used for file operations
                 attachment_processor,
                 config,
                 result,

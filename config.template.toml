@@ -36,3 +36,13 @@ destDir = "./output/bear"         # Output directory for Bear notes
 type = "xbookmarks"
 srcDir = "~/Downloads/x_bookmarks" # Replace with your X bookmarks path
 destDir = "./output/x"             # Output directory for X bookmarks
+
+[[sources]]
+type = "claude"
+srcDir = "~/Downloads/claude_exports" # Replace with your Claude exports path
+destDir = "./output/claude"           # Output directory for Claude exports
+
+[[sources]]
+type = "chatgpt"
+srcDir = "~/Downloads/ChatGPT_exports" # Replace with your ChatGPT exports path
+destDir = "./output/chatgpt"           # Output directory for ChatGPT exports

@@ -3,7 +3,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
 from consolidate_markdown.processors.bear import BearProcessor
 
@@ -64,7 +63,9 @@ def test_gif_image_processing(image_config, gif_image, tmp_path):
 
     # Create the note file directly in the bear_notes directory
     note_file = bear_notes_dir / "test_note.md"
-    note_file.write_text("# Test Note\n\nThis is a test note with a GIF attachment.")
+    note_file.write_text(
+        "# Test Note\n\nThis is a test note with a GIF attachment.\n\n![GIF](test_note/unknown.gif)"
+    )
 
     # Create the attachment directory
     attachment_dir = bear_notes_dir / "test_note"
@@ -104,15 +105,17 @@ def test_gif_image_processing(image_config, gif_image, tmp_path):
         output_file = image_config.sources[0].dest_dir / "test_note.md"
         assert output_file.exists()
 
-        # Check that the GIF was copied to the attachments directory
-        attachments_dir = image_config.sources[0].dest_dir / "attachments"
-        print(f"Attachments directory exists: {attachments_dir.exists()}")
-        print(f"Files in attachments directory: {list(attachments_dir.glob('*'))}")
+        # With the new behavior, attachments are not copied to an attachments directory
+        # but instead referenced in comments in the markdown file
+        content = output_file.read_text()
 
-        # For now, let's just check that the attachments directory exists
-        assert attachments_dir.exists()
-        # We'll fix the GIF handling issue later
-        # assert list(attachments_dir.glob("*.gif"))
+        # Check for image comment reference
+        assert "<!-- ATTACHMENT: IMAGE: unknown.gif" in content
+        assert "This is a GIF image" in content  # GPT description should be included
+
+        # The attachments directory should not exist anymore
+        attachments_dir = image_config.sources[0].dest_dir / "attachments"
+        assert not attachments_dir.exists()
 
 
 def test_missing_attachment(image_config, tmp_path):
@@ -181,12 +184,13 @@ def test_unsupported_image_format(image_config, tmp_path):
     output_file = image_config.sources[0].dest_dir / "test_note.md"
     assert output_file.exists()
 
-    # Check that the unsupported file was copied to the attachments directory
-    attachments_dir = image_config.sources[0].dest_dir / "attachments"
-    assert attachments_dir.exists()
-    print(f"Attachments directory exists: {attachments_dir.exists()}")
-    print(f"Files in attachments directory: {list(attachments_dir.glob('*'))}")
+    # With the new behavior, attachments are not copied to an attachments directory
+    # but instead referenced in comments in the markdown file
 
-    # For now, just check that the output file exists and contains a reference to the attachment
+    # Check that the output file contains a reference to the attachment
     content = output_file.read_text()
     assert "test.xyz" in content
+
+    # The attachments directory should not exist anymore
+    attachments_dir = image_config.sources[0].dest_dir / "attachments"
+    assert not attachments_dir.exists()

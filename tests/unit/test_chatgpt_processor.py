@@ -7,10 +7,11 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from rich.progress import Progress
+
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
 from consolidate_markdown.processors.chatgpt import ChatGPTProcessor
 from consolidate_markdown.processors.result import ProcessingResult
-from rich.progress import Progress
 
 
 @pytest.fixture

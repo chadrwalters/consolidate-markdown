@@ -8,6 +8,7 @@ dependencies = [
   "tomli~=2.0.1",
   "tomli-w~=1.0.0",
   "pathlib~=1.0.1",
+  "ijson~=3.2.3",  # Streaming JSON parser for large files
 
   # API clients
   "openai~=1.0.0",
