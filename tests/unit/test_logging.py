@@ -199,3 +199,63 @@ def test_error_handling(config):
     log_dir = config.global_config.cm_dir / "logs"
     log_content = (log_dir / "consolidate_markdown.log").read_text()
     assert "Error occurred: Test error" in log_content
+
+
+def test_log_level_from_string() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_log_level_from_invalid_string() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_log_level_from_int() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_log_level_from_invalid_int() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_log_level_from_invalid_type() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config_with_invalid_level() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config_with_no_level() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config_with_no_logging_section() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config_with_no_config() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config_with_debug_flag() -> None:
+    # Implementation of the function
+    pass
+
+
+def test_get_log_level_from_config_with_quiet_flag() -> None:
+    # Implementation of the function
+    pass

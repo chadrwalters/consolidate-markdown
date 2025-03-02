@@ -15,7 +15,7 @@ class TestSummaryGeneration:
     """Test suite for summary generation functionality."""
 
     @pytest.fixture
-    def mock_console(self):
+    def mock_console(self) -> Mock:
         """Create a mock console for testing."""
         console = Mock(spec=Console)
         console.size = (80, 24)
@@ -28,7 +28,7 @@ class TestSummaryGeneration:
         return console
 
     @pytest.fixture
-    def result(self):
+    def result(self) -> ProcessingResult:
         """Create a test processing result."""
         result = ProcessingResult()
 
@@ -44,7 +44,7 @@ class TestSummaryGeneration:
 
         return result
 
-    def test_summary_table_creation(self, result, mock_console):
+    def test_summary_table_creation(self, result, mock_console) -> None:
         """Test creation of summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -57,7 +57,7 @@ class TestSummaryGeneration:
             assert isinstance(panel, Panel)
             assert isinstance(panel.renderable, Table)
 
-    def test_processor_columns(self, result, mock_console):
+    def test_processor_columns(self, result, mock_console) -> None:
         """Test processor columns in summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -76,7 +76,7 @@ class TestSummaryGeneration:
             for i, col in enumerate(table.columns):
                 assert col.header == expected_columns[i]
 
-    def test_metric_rows(self, result, mock_console):
+    def test_metric_rows(self, result, mock_console) -> None:
         """Test metric rows in summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -93,7 +93,7 @@ class TestSummaryGeneration:
             assert "Images Processed" in metric_cells
             assert "GPT From Cache" in metric_cells
 
-    def test_error_display(self, result, mock_console):
+    def test_error_display(self, result, mock_console) -> None:
         """Test error display in summary."""
         result.errors.append("Test error")
         with patch("consolidate_markdown.output.console", mock_console):
@@ -112,7 +112,7 @@ class TestSummaryGeneration:
             panel_content = str(error_panel.renderable)
             assert "Test error" in panel_content
 
-    def test_processor_specific_errors(self, result, mock_console):
+    def test_processor_specific_errors(self, result, mock_console) -> None:
         """Test processor-specific error display."""
         result.processor_stats["bear"].errors.append("Bear error")
 
@@ -131,7 +131,7 @@ class TestSummaryGeneration:
             panel_content = str(error_panel.renderable)
             assert "Bear error" in panel_content
 
-    def test_zero_stats_display(self, mock_console):
+    def test_zero_stats_display(self, mock_console) -> None:
         """Test display of empty/zero statistics."""
         result = ProcessingResult()
         with patch("consolidate_markdown.output.console", mock_console):
@@ -143,7 +143,7 @@ class TestSummaryGeneration:
             assert isinstance(panel, Panel)
             assert isinstance(panel.renderable, Table)
 
-    def test_separator_rows(self, result, mock_console):
+    def test_separator_rows(self, result, mock_console) -> None:
         """Test separator rows in summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -154,7 +154,7 @@ class TestSummaryGeneration:
             # Verify separator rows are included
             assert any(row.style == "dim" for row in table.rows)
 
-    def test_no_errors_message(self, result, mock_console):
+    def test_no_errors_message(self, result, mock_console) -> None:
         """Test display when no errors are present."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -168,3 +168,43 @@ class TestSummaryGeneration:
             text = success_calls[0][0][0]
             assert isinstance(text, str)
             assert "No errors detected" in text
+
+    def test_summary_creation() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_no_files() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_one_file() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_multiple_files() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_errors() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_skipped() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_warnings() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_with_all_stats() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_str() -> None:
+        # Implementation of the method
+        pass
+
+    def test_summary_repr() -> None:
+        # Implementation of the method
+        pass

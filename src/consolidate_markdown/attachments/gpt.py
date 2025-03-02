@@ -218,7 +218,7 @@ class GPTProcessor:
             result = response.choices[0].message.content
             if result is None:
                 raise GPTError("OpenAI API returned no content")
-            return result
+            return str(result)
 
         except Exception as e:
             raise GPTError(f"OpenAI API error: {str(e)}")
@@ -270,7 +270,7 @@ class GPTProcessor:
                 raise GPTError(
                     f"OpenRouter API returned no content for model {self.current_model}"
                 )
-            return result
+            return str(result)
 
         except Exception as e:
             raise GPTError(
