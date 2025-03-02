@@ -72,10 +72,18 @@ class BearProcessor(SourceProcessor):
                 total=len(note_files),
             )
 
+        # Log the total number of notes to process
+        logger.info(f"Processing {len(note_files)} Bear notes...")
+
+        # Track processing statistics
+        processed_count = 0
+        errors_count = 0
+
         # Process each markdown file
-        for note_file in note_files:
+        for i, note_file in enumerate(note_files):
             try:
-                logger.info(f"Processing Bear note: {note_file.name}")
+                # Log at debug level for individual notes
+                logger.debug(f"Processing Bear note: {note_file.name}")
                 note_result = ProcessingResult()  # Track stats for this note
 
                 # Count attachments for progress tracking
@@ -102,11 +110,22 @@ class BearProcessor(SourceProcessor):
                 )
 
                 result.merge(note_result)  # Merge note stats into overall stats
-                logger.info(
+                processed_count += 1
+
+                # Log success at debug level
+                logger.debug(
                     f"Successfully processed: {note_file.name} "
                     f"({note_result.images_processed} images, "
                     f"{note_result.documents_processed} documents)"
                 )
+
+                # Log batch progress every 10 notes or at the end
+                if (i + 1) % 10 == 0 or i + 1 == len(note_files):
+                    logger.info("-" * 30)
+                    logger.info(
+                        f"Processed {i + 1}/{len(note_files)} Bear notes "
+                        f"({processed_count} successful, {errors_count} errors)"
+                    )
 
                 # Update note progress
                 if self._progress:
@@ -116,14 +135,12 @@ class BearProcessor(SourceProcessor):
                 error_msg = f"Error processing {note_file.name}: {str(e)}"
                 logger.error(error_msg)
                 result.add_error(error_msg, self._processor_type)
+                errors_count += 1
                 if self._progress:
                     self._progress.update(note_task, advance=1)
 
-        logger.info(
-            f"Completed bear source: {result.processed} processed "
-            f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
-            f"{result.skipped} skipped"
-        )
+        # Use the standardized format_completion_summary method
+        logger.info(self.format_completion_summary(result))
 
         return result
 
@@ -216,7 +233,7 @@ class BearProcessor(SourceProcessor):
                     progress.advance(task_id)
                 return match.group(0)
 
-            logger.info(
+            logger.debug(
                 f"Processing attachment: {attachment_path} (is_image={is_image})"
             )
 
@@ -238,7 +255,7 @@ class BearProcessor(SourceProcessor):
             if markdown_result is None:
                 return match.group(0)
 
-            logger.info(
+            logger.debug(
                 f"Generated markdown for {attachment_path.name}: {markdown_result[:200]}"
             )
             return markdown_result

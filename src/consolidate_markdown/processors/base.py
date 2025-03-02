@@ -222,6 +222,8 @@ class AttachmentHandlerMixin:
             Markdown representation of the attachment as comments, or None if processing failed
         """
         try:
+            logger.info(f"Processing attachment: {attachment_path}")
+
             if not attachment_path.exists():
                 logger.warning(f"Attachment not found: {attachment_path}")
                 if progress and task_id is not None:
@@ -244,6 +246,7 @@ class AttachmentHandlerMixin:
             # No longer copying files to output directory
             # Just format based on type
             if metadata.is_image:
+                logger.info(f"Updating image statistics for {self._processor_type}")
                 result.add_image_generated(
                     self._processor_type
                 )  # Always count as generated for now
@@ -257,19 +260,20 @@ class AttachmentHandlerMixin:
                     ),  # Use processor's cache manager if available
                 )
             else:
+                logger.info(f"Updating document statistics for {self._processor_type}")
                 result.add_document_generated(
                     self._processor_type
                 )  # Always count as generated for now
                 formatted = self._format_document(
-                    attachment_path, metadata, alt_text, result
+                    attachment_path,  # Use original path since we're not copying
+                    metadata,
+                    alt_text,
+                    result,
                 )
-
-            logger.info(
-                f"Formatted {attachment_path.name} as {'image' if metadata.is_image else 'document'}"
-            )
 
             if progress and task_id is not None:
                 progress.advance(task_id)
+
             return formatted
 
         except Exception as e:
@@ -502,3 +506,56 @@ class SourceProcessor(AttachmentHandlerMixin, ABC):
     def __del__(self) -> None:
         """Ensure cleanup is called when object is destroyed."""
         self.cleanup()
+
+    def format_completion_summary(self, result: ProcessingResult) -> str:
+        """Format a standardized completion summary for the processor.
+
+        Args:
+            result: The processing result to summarize
+
+        Returns:
+            A formatted summary string
+        """
+        processor_name = self._processor_type.capitalize()
+
+        # Format the main statistics
+        summary = (
+            f"Completed {processor_name} source: "
+            f"{result.processed} processed "
+            f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
+            f"{result.skipped} skipped"
+        )
+
+        # Add document statistics if any were processed
+        if result.documents_processed > 0:
+            summary += (
+                f" | Documents: {result.documents_processed} processed "
+                f"[{result.documents_from_cache} from cache, {result.documents_generated} generated], "
+                f"{result.documents_skipped} skipped"
+            )
+
+        # Add image statistics if any were processed
+        if result.images_processed > 0:
+            summary += (
+                f" | Images: {result.images_processed} processed "
+                f"[{result.images_from_cache} from cache, {result.images_generated} generated], "
+                f"{result.images_skipped} skipped"
+            )
+
+        # Add GPT statistics if any were processed
+        if (
+            result.gpt_cache_hits > 0
+            or result.gpt_new_analyses > 0
+            or result.gpt_skipped > 0
+        ):
+            summary += (
+                f" | GPT: {result.gpt_cache_hits + result.gpt_new_analyses} processed "
+                f"[{result.gpt_cache_hits} from cache, {result.gpt_new_analyses} generated], "
+                f"{result.gpt_skipped} skipped"
+            )
+
+        # Add error count if any occurred
+        if result.errors:
+            summary += f" | Errors: {len(result.errors)}"
+
+        return summary

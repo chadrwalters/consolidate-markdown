@@ -41,10 +41,19 @@ class XBookmarksProcessor(SourceProcessor):
         bookmark_dirs = [d for d in self.source_config.src_dir.iterdir() if d.is_dir()]
         bookmark_dirs = self._apply_limit(bookmark_dirs)
 
+        # Log the total number of bookmarks to process
+        logger.info(f"Processing {len(bookmark_dirs)} X bookmarks...")
+
+        # Track processing statistics
+        processed_count = 0
+        errors_count = 0
+        skipped_count = 0
+
         # Process each bookmark directory
-        for bookmark_dir in bookmark_dirs:
+        for i, bookmark_dir in enumerate(bookmark_dirs):
             try:
-                logger.info(f"Processing X bookmark: {bookmark_dir.name}")
+                # Log at debug level for individual bookmarks
+                logger.debug(f"Processing X bookmark: {bookmark_dir.name}")
                 bookmark_result = ProcessingResult()
 
                 # Look for index file
@@ -53,8 +62,9 @@ class XBookmarksProcessor(SourceProcessor):
                     # Special case: don't count special directories in skip count
                     special_dirs = ["images", "markitdown", "temp"]
                     if bookmark_dir.name not in special_dirs:
-                        logger.warning(f"No index file found in {bookmark_dir.name}")
+                        logger.debug(f"No index file found in {bookmark_dir.name}")
                         result.add_skipped(self._processor_type)
+                        skipped_count += 1
                     else:
                         logger.debug(f"Skipping special directory: {bookmark_dir.name}")
                     continue
@@ -95,6 +105,7 @@ class XBookmarksProcessor(SourceProcessor):
                     )
 
                     result.merge(bookmark_result)
+                    processed_count += 1
                     continue
 
                 # Process bookmark
@@ -151,22 +162,31 @@ class XBookmarksProcessor(SourceProcessor):
                 )
 
                 result.merge(bookmark_result)
-                logger.info(
+                processed_count += 1
+
+                # Log success at debug level
+                logger.debug(
                     f"Successfully processed: {bookmark_dir.name} "
                     f"({bookmark_result.images_processed} images, "
                     f"{bookmark_result.documents_processed} documents)"
                 )
 
+                # Log batch progress every 20 bookmarks or at the end
+                if (i + 1) % 20 == 0 or i + 1 == len(bookmark_dirs):
+                    logger.info("-" * 30)
+                    logger.info(
+                        f"Processed {i + 1}/{len(bookmark_dirs)} X bookmarks "
+                        f"({processed_count} successful, {skipped_count} skipped, {errors_count} errors)"
+                    )
+
             except Exception as e:
                 error_msg = f"Error processing {bookmark_dir.name}: {str(e)}"
                 logger.error(error_msg)
                 result.add_error(error_msg, self._processor_type)
+                errors_count += 1
 
-        logger.info(
-            f"Completed X bookmarks source: {result.processed} processed "
-            f"[{result.from_cache} from cache, {result.regenerated} regenerated], "
-            f"{result.skipped} skipped"
-        )
+        # Use the standardized format_completion_summary method
+        logger.info(self.format_completion_summary(result))
 
         return result
 

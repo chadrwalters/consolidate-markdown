@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 from ..processors.result import ProcessingResult
 from .document import MarkItDown
 from .image import ImageProcessor
+from .logging import attachment_logger, log_media_processing_error
 
 logger = logging.getLogger(__name__)
 
@@ -37,35 +38,24 @@ class AttachmentMetadata:
 class AttachmentProcessor:
     """Process attachments and manage temporary files.
 
-    This class handles the processing of attachment files (images and documents),
-    extracting metadata and converting them to appropriate formats if needed.
-
-    For images, it can:
-    - Extract dimensions and size
-    - Convert HEIC to JPG
-    - Convert SVG to PNG for GPT analysis
-    - Handle various image formats
-
-    For documents, it can:
-    - Extract content using MarkItDown
-    - Extract size and other metadata
-    - Handle various document formats
-
-    The processed attachments are not copied to the output directory; instead,
-    their metadata is used to generate comment-based representations in markdown files.
+    This class handles the processing of attachment files, including images and documents.
+    It extracts metadata, converts files to appropriate formats if needed, and manages
+    temporary files.
     """
 
-    def __init__(self, cm_dir: Path):
-        """Initialize the attachment processor.
+    def __init__(self, output_dir: Path):
+        """Initialize the processor.
 
         Args:
-            cm_dir: The consolidate markdown directory for temporary files
+            output_dir: The output directory for processed files
         """
-        self.cm_dir = cm_dir
-        self.temp_dir = cm_dir / "temp"
+        self.output_dir = output_dir
+        self.temp_dir = output_dir / ".cm" / "temp"
         self.temp_dir.mkdir(parents=True, exist_ok=True)
-        self.markitdown = MarkItDown(cm_dir)
-        self.image_processor = ImageProcessor(cm_dir)
+
+        # Initialize processors for specific file types
+        self.image_processor = ImageProcessor(self.temp_dir.parent)
+        self.markitdown = MarkItDown(self.temp_dir.parent)
 
     def process_file(
         self,
@@ -96,13 +86,16 @@ class AttachmentProcessor:
             FileNotFoundError: If the attachment file does not exist
         """
         if not file_path.exists():
-            raise FileNotFoundError(f"Attachment not found: {file_path}")
+            error_msg = f"Attachment not found: {file_path}"
+            attachment_logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
 
         # Get basic metadata
         mime_type, _ = mimetypes.guess_type(str(file_path))
         size_bytes = file_path.stat().st_size
-        is_image = mime_type and mime_type.startswith("image/")
+        is_image = bool(mime_type and mime_type.startswith("image/"))
         is_svg = file_path.suffix.lower() == ".svg"
+        is_wav = file_path.suffix.lower() == ".wav"
 
         # SVGs are always treated as images
         if is_svg:
@@ -115,54 +108,53 @@ class AttachmentProcessor:
 
         # Calculate file hash for caching
         file_hash: Optional[str] = None
-        try:
-            import hashlib
 
-            with open(file_path, "rb") as f:
-                file_hash = hashlib.sha256(f.read()).hexdigest()
-        except Exception as e:
-            logger.warning(f"Failed to calculate file hash: {str(e)}")
-
-        # Initialize metadata
+        # Create metadata object
         metadata = AttachmentMetadata(
             path=file_path,
-            is_image=bool(is_image),
+            is_image=is_image,
             size=size_bytes,
-            mime_type=mime_type or "application/octet-stream",
+            mime_type=mime_type or "",
             created_time=created_time,
             modified_time=modified_time,
             file_hash=file_hash,
         )
 
-        # Process based on file type
-        temp_path: Optional[Path] = None
-        dimensions: Optional[Tuple[int, int]] = None
-        error_msg_doc: Optional[str] = None
+        # Create temporary path
+        temp_path = self.temp_dir / file_path.name
+        temp_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Process based on file type
+        error_msg_doc = None
         try:
-            if is_image:
-                # Process image
-                temp_path, img_metadata = self.image_processor.process_image(
+            attachment_logger.debug(f"Processing attachment: {file_path}")
+            attachment_logger.debug(f"File type: {'image' if is_image else 'document'}")
+            attachment_logger.debug(f"MIME type: {mime_type}")
+
+            if is_wav:
+                attachment_logger.debug(f"Processing WAV file: {file_path}")
+                # Special handling for WAV files
+                shutil.copy2(file_path, temp_path)
+                metadata.markdown_content = f"[Audio file: {file_path.name}]"
+                attachment_logger.debug(f"WAV file copied to: {temp_path}")
+            elif is_image:
+                # Process image files
+                attachment_logger.debug(f"Processing image file: {file_path}")
+                temp_path, image_metadata = self.image_processor.process_image(
                     file_path, force
                 )
-                dimensions = img_metadata.get("dimensions")
-                metadata.dimensions = dimensions
 
-                # Handle SVG files
-                if file_path.suffix.lower() == ".svg":
-                    width = dimensions[0] if dimensions else 0
-                    height = dimensions[1] if dimensions else 0
-                    metadata.markdown_content = f"""![{file_path.name}](attachments/{file_path.name})
+                # Update metadata with image-specific information
+                metadata.dimensions = image_metadata.get("dimensions")
+                if "inlined_content" in image_metadata:
+                    metadata.markdown_content = image_metadata["inlined_content"]
 
-<!-- EMBEDDED IMAGE: {file_path.name} -->
-<details>
-<summary> {file_path.name} ({width}x{height}, {size_bytes//1024}KB)</summary>
-
-{img_metadata.get('inlined_content', '[Error analyzing image]')}
-
-</details>"""
+                attachment_logger.debug(
+                    f"Image processed: dimensions={metadata.dimensions}"
+                )
             else:
                 # Process document files
+                attachment_logger.debug(f"Processing document file: {file_path}")
                 temp_path = self.temp_dir / file_path.name
                 temp_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(file_path, temp_path)
@@ -171,27 +163,39 @@ class AttachmentProcessor:
                 if file_path.suffix.lower() == ".pdf":
                     try:
                         # PDF handling is now done in the MarkItDown class using PyMuPDF
+                        attachment_logger.debug(
+                            f"Converting PDF to markdown: {file_path}"
+                        )
                         markdown_content = self.markitdown.convert_to_markdown(
                             file_path, force
                         )
                         if not markdown_content:
                             error_msg_doc = "PDF conversion produced no content"
-                            logger.error(error_msg_doc)
+                            attachment_logger.error(error_msg_doc)
                         else:
                             metadata.markdown_content = markdown_content
+                            attachment_logger.debug(
+                                f"PDF converted successfully, content length: {len(markdown_content)}"
+                            )
                     except Exception as e:
                         error_msg_doc = f"PDF conversion failed: {str(e)}"
-                        logger.error(error_msg_doc, exc_info=True)
+                        log_media_processing_error(file_path, error_msg_doc, "PDF")
                 else:
                     # Try to convert other document types to markdown
                     try:
                         unsupported_extensions = [".mov", ".3gp", ".qtvr"]
                         if file_path.suffix.lower() not in unsupported_extensions:
+                            attachment_logger.debug(
+                                f"Converting document to markdown: {file_path}"
+                            )
                             metadata.markdown_content = (
                                 self.markitdown.convert_to_markdown(file_path, force)
                             )
+                            attachment_logger.debug(
+                                f"Document converted successfully, content length: {len(metadata.markdown_content)}"
+                            )
                         else:
-                            logger.warning(
+                            attachment_logger.warning(
                                 f"Skipping unsupported file type: {file_path.name}"
                             )
                             metadata.markdown_content = (
@@ -199,14 +203,17 @@ class AttachmentProcessor:
                             )
                     except Exception as e:
                         error_msg_doc = f"Document conversion failed: {str(e)}"
-                        logger.error(error_msg_doc, exc_info=True)
+                        log_media_processing_error(file_path, error_msg_doc, "document")
                         metadata.markdown_content = (
                             f"[Error converting {file_path.name}: {str(e)}]"
                         )
 
         except Exception as e:
             error_msg = f"Processing failed: {str(e)}"
-            logger.warning(f"{error_msg} for {file_path.name}, using basic copy")
+            log_media_processing_error(file_path, error_msg, "attachment")
+            attachment_logger.warning(
+                f"{error_msg} for {file_path.name}, using basic copy"
+            )
             temp_path = self.temp_dir / file_path.name
             temp_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(file_path, temp_path)

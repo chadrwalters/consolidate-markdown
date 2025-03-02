@@ -1,1 +1,2 @@
 Always review all rules in the .cursor/rules directory before you start working on any task.
+Always load the rules in cursor-tools.mdc

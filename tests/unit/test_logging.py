@@ -3,6 +3,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -99,138 +100,63 @@ def test_log_levels(config):
 
 
 class TestSummaryLogger:
-    """Test suite for SummaryLogger class."""
+    """Tests for the SummaryLogger class."""
 
     @pytest.fixture
     def summary_logger(self):
-        """Create a SummaryLogger instance."""
+        """Create a SummaryLogger instance for testing."""
         return SummaryLogger()
 
     def test_initialization(self, summary_logger):
         """Test SummaryLogger initialization."""
-        expected_stats = {
-            "processed": 0,
-            "generated": 0,
-            "from_cache": 0,
-            "skipped": 0,
-            "documents_processed": 0,
-            "documents_generated": 0,
-            "documents_from_cache": 0,
-            "documents_skipped": 0,
-            "images_processed": 0,
-            "images_generated": 0,
-            "images_from_cache": 0,
-            "images_skipped": 0,
-            "gpt_generated": 0,
-            "gpt_from_cache": 0,
-            "gpt_skipped": 0,
-            "errors": [],
-        }
-        assert summary_logger.stats == expected_stats
-        assert summary_logger.source_stats == {}
+        # The current implementation uses messages instead of stats
+        assert hasattr(summary_logger, "messages")
+        assert summary_logger.messages == []
 
-    def test_source_stats_initialization(self, summary_logger):
-        """Test source statistics initialization."""
-        summary_logger._init_source_stats("test_source")
+    def test_add_message(self, summary_logger):
+        """Test adding a message to the summary."""
+        test_message = "Test message"
+        summary_logger.add(test_message)
+        assert test_message in summary_logger.messages
+        assert len(summary_logger.messages) == 1
 
-        expected_stats = {
-            "processed": 0,
-            "generated": 0,
-            "from_cache": 0,
-            "skipped": 0,
-            "documents_processed": 0,
-            "documents_generated": 0,
-            "documents_from_cache": 0,
-            "documents_skipped": 0,
-            "images_processed": 0,
-            "images_generated": 0,
-            "images_from_cache": 0,
-            "images_skipped": 0,
-            "gpt_generated": 0,
-            "gpt_from_cache": 0,
-            "gpt_skipped": 0,
-            "errors": [],
-        }
-        assert summary_logger.source_stats["test_source"] == expected_stats
+    def test_add_multiple_messages(self, summary_logger):
+        """Test adding multiple messages to the summary."""
+        messages = ["Message 1", "Message 2", "Message 3"]
+        for message in messages:
+            summary_logger.add(message)
 
-    def test_add_operations(self, summary_logger):
-        """Test adding various operations to summary."""
-        source = "test_source"
+        assert len(summary_logger.messages) == 3
+        for message in messages:
+            assert message in summary_logger.messages
 
-        # Add some operations
-        summary_logger.add_generated(source)
-        summary_logger.add_from_cache(source)
-        summary_logger.add_skipped(source)
+    def test_display_with_messages(self, summary_logger, monkeypatch, capsys):
+        """Test displaying the summary with messages."""
+        # Mock console.print to capture output
+        mock_print = MagicMock()
+        monkeypatch.setattr("consolidate_markdown.log_setup.console.print", mock_print)
 
-        # Verify source stats
-        assert summary_logger.source_stats[source]["generated"] == 1
-        assert summary_logger.source_stats[source]["from_cache"] == 1
-        assert summary_logger.source_stats[source]["skipped"] == 1
+        # Add some messages
+        summary_logger.add("Message 1")
+        summary_logger.add("Message 2")
 
-        # Verify global stats
-        assert summary_logger.stats["generated"] == 1
-        assert summary_logger.stats["from_cache"] == 1
-        assert summary_logger.stats["skipped"] == 1
+        # Display the summary
+        summary_logger.display()
 
-    def test_add_image_operations(self, summary_logger):
-        """Test adding image operations to summary."""
-        source = "test_source"
+        # Verify console.print was called
+        assert mock_print.call_count >= 1
 
-        summary_logger.add_image_generated(source)
-        summary_logger.add_image_from_cache(source)
+    def test_display_without_messages(self, summary_logger, monkeypatch):
+        """Test displaying the summary without messages."""
+        # Mock console.print to capture output
+        mock_print = MagicMock()
+        monkeypatch.setattr("consolidate_markdown.log_setup.console.print", mock_print)
 
-        assert summary_logger.source_stats[source]["images_generated"] == 1
-        assert summary_logger.source_stats[source]["images_from_cache"] == 1
+        # Display the summary with no messages
+        summary_logger.display()
 
-    def test_add_document_operations(self, summary_logger):
-        """Test adding document operations to summary."""
-        source = "test_source"
-
-        summary_logger.add_document_generated(source)
-        summary_logger.add_document_from_cache(source)
-
-        assert summary_logger.source_stats[source]["documents_generated"] == 1
-        assert summary_logger.source_stats[source]["documents_from_cache"] == 1
-
-    def test_add_gpt_operations(self, summary_logger):
-        """Test adding GPT operations to summary."""
-        source = "test_source"
-
-        summary_logger.add_gpt_generated(source)
-        summary_logger.add_gpt_from_cache(source)
-
-        assert summary_logger.source_stats[source]["gpt_generated"] == 1
-        assert summary_logger.source_stats[source]["gpt_from_cache"] == 1
-
-    def test_add_errors(self, summary_logger):
-        """Test adding errors to summary."""
-        source = "test_source"
-        error_msg = "Test error message"
-
-        summary_logger.add_error(source, error_msg)
-
-        assert len(summary_logger.errors) == 1
-        assert error_msg in summary_logger.errors
-
-    def test_get_summary(self, summary_logger):
-        """Test getting formatted summary."""
-        source = "test_source"
-
-        # Add various operations
-        summary_logger.add_generated(source)
-        summary_logger.add_image_generated(source)
-        summary_logger.add_document_generated(source)
-        summary_logger.add_gpt_generated(source)
-        summary_logger.add_error(source, "Test error")
-
-        summary = summary_logger.get_summary()
-
-        assert isinstance(summary, str)
-        assert source.title() in summary
-        assert "Generated:  1" in summary
-        assert "Images" in summary
-        assert "Documents" in summary
-        assert "Test error" in summary
+        # Verify console.print was not called
+        assert mock_print.call_count == 0
 
 
 def test_concurrent_logging(config):

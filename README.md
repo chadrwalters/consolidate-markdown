@@ -7,7 +7,6 @@ A tool for consolidating various data sources into markdown files.
 This tool processes data from multiple sources and converts them into markdown files. Supported sources include:
 
 - Claude conversations
-- ChatGPT conversations
 - Bear notes
 - Gmail emails
 - Images (with metadata)
@@ -42,23 +41,7 @@ Edit the `config.toml` file to configure:
 - Source directories for each data type
 - Logging level
 
-### ChatGPT Processor Configuration
-
-To configure the ChatGPT processor, add the following to your `config.toml` file:
-
-```toml
-[[sources]]
-type = "chatgpt"
-src_dir = "/path/to/chatgpt/export"
-dest_dir = "/path/to/output/directory"
-```
-
-The ChatGPT processor supports the following configuration options:
-
-- `src_dir`: Directory containing ChatGPT export files
-- `dest_dir`: Directory where markdown files will be created
-- `no_image`: Whether to skip GPT image description generation (global option)
-- `cache`: Whether to use caching to avoid reprocessing unchanged files (global option)
+### Claude Processor Configuration
 
 ## Usage
 
@@ -71,12 +54,10 @@ python -m consolidate_markdown
 Or use specific processors:
 
 ```bash
-python -m consolidate_markdown --processor claude
 python -m consolidate_markdown --processor bear
-python -m consolidate_markdown --processor gmail
+python -m consolidate_markdown --processor claude
 python -m consolidate_markdown --processor image
 python -m consolidate_markdown --processor xbookmarks
-python -m consolidate_markdown --processor chatgpt
 ```
 
 ## Output Format
@@ -105,28 +86,6 @@ Documents are represented as comments in the markdown:
 [document.pdf]()
 ```
 
-### ChatGPT Conversation Format
-
-ChatGPT conversations are converted to markdown files with the following structure:
-
-```markdown
-# Conversation Title
-*Created: 2023-05-15 14:30:45*
-
-## User:
-User message content
-
-## Assistant:
-Assistant message content
-
-<!-- ATTACHMENT: IMAGE: image.jpg (800x600, 150KB) -->
-<!-- GPT Description: A scenic mountain landscape with snow-capped peaks -->
-![A scenic mountain landscape with snow-capped peaks]()
-
-## User:
-Another user message
-```
-
 This approach provides several benefits:
 - Simplified output directory structure (flat hierarchy)
 - Reduced disk space usage (no duplicate files)
@@ -135,7 +94,7 @@ This approach provides several benefits:
 
 ## Adding New Processors
 
-Consolidate Markdown is designed to be extensible, allowing you to add support for new data sources by creating new processors. This guide outlines the steps and best practices for adding a new processor, drawing from the implementation of the ChatGPT processor as an example.
+Consolidate Markdown is designed to be extensible, allowing you to add support for new data sources by creating new processors. This guide outlines the steps and best practices for adding a new processor, drawing from the implementation of the Claude processor as an example.
 
 ### 1. Create a New Processor Class
 
@@ -238,7 +197,6 @@ class YourProcessor(SourceProcessor):
   from .processors.base import SourceProcessor
   from .processors.bear import BearProcessor
   from .processors.xbookmarks import XBookmarksProcessor
-  from .processors.chatgpt import ChatGPTProcessor # Example
   from .processors.claude import ClaudeProcessor # Example
   # Import your new processor here:
   from .processors.your_processor import YourProcessor
@@ -253,7 +211,6 @@ class YourProcessor(SourceProcessor):
   register_processor("bear", BearProcessor)
   register_processor("xbookmarks", XBookmarksProcessor)
   register_processor("claude", ClaudeProcessor)
-  register_processor("chatgpt", ChatGPTProcessor)
 
   # Register your new processor:
   register_processor("your_source_type", YourProcessor)
@@ -270,7 +227,7 @@ class YourProcessor(SourceProcessor):
 
 This is the most crucial part and will heavily depend on your source data format.
 
-* **File Handling**: Implement logic to read and parse your source files. Consider using streaming parsers (like `ijson` used in ChatGPT processor) if dealing with potentially large files.
+* **File Handling**: Implement logic to read and parse your source files. Consider using streaming parsers (like `ijson`) if dealing with potentially large files.
 * **Data Extraction**: Extract the relevant information you want to convert to markdown.
 * **Markdown Formatting**: Transform the extracted data into markdown. Use standard markdown syntax and consider how to represent different data elements (text, lists, code blocks, etc.).
 * **Attachment Handling (if applicable)**:
@@ -298,7 +255,7 @@ Write comprehensive unit tests for your new processor in the `tests/unit/` direc
 * **Test Core Logic**: Test the main processing logic in `_process_impl` and any helper methods.
 * **Test Caching**: Verify that caching works as expected (cache hits and misses).
 * **Test Error Handling**: Ensure your processor handles errors gracefully and reports them correctly.
-* **Mock External Dependencies**: Use mocking (`unittest.mock` or `pytest-mock`) to isolate your processor from external dependencies (API calls, file system operations, etc.) during unit testing. Look at existing test files (e.g., `test_chatgpt_processor.py`, `test_claude_processor.py`) for examples.
+* **Mock External Dependencies**: Use mocking (`unittest.mock` or `pytest-mock`) to isolate your processor from external dependencies (API calls, file system operations, etc.) during unit testing. Look at existing test files (e.g., `test_claude_processor.py`) for examples.
 
 ### 8. Update Documentation
 
@@ -310,7 +267,7 @@ Write comprehensive unit tests for your new processor in the `tests/unit/` direc
 * **Run all unit tests**: Ensure all tests pass, including the ones you added for your new processor.
 * **Integration testing**: Test your processor with real-world data from your source to ensure it works correctly in practice.
 
-By following these steps and referring to the existing processor implementations (especially `ChatGPTProcessor` and `ClaudeProcessor`), you can effectively add new processors to Consolidate Markdown and expand its capabilities. Remember to prioritize clear, well-tested, and maintainable code.
+By following these steps and referring to the existing processor implementations (especially `ClaudeProcessor`), you can effectively add new processors to Consolidate Markdown and expand its capabilities. Remember to prioritize clear, well-tested, and maintainable code.
 
 ## Development
 
@@ -324,7 +281,6 @@ pytest
 
 ```bash
 pytest tests/unit/test_claude_processor.py
-pytest tests/unit/test_chatgpt_processor.py
 ```
 
 ## License

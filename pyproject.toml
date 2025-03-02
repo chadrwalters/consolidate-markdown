@@ -11,7 +11,7 @@ dependencies = [
   "ijson~=3.2.3",  # Streaming JSON parser for large files
 
   # API clients
-  "openai~=1.0.0",
+  "openai~=1.61.1",
 
   # Image processing
   "pillow~=10.0.0",

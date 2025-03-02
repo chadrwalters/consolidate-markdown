@@ -66,7 +66,8 @@ class Runner:
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TimeElapsedColumn(),
             expand=True,
-            transient=False,  # Keep progress bars visible
+            transient=True,  # Make progress bars transient so they disappear when done
+            auto_refresh=True,  # Auto refresh the progress display
         ) as progress:
             # Set up progress-aware logging
             set_progress(progress)
@@ -112,7 +113,10 @@ class Runner:
                         # Validate and process
                         try:
                             processor.validate()
+                            # Add a clear separator before processing a source
+                            logger.info("=" * 80)
                             logger.info(f"Processing source: {source.type}")
+                            logger.info("-" * 80)
                             result = processor.process(self.config)
                             self.summary.merge(result)
 
@@ -122,7 +126,10 @@ class Runner:
                                 advance=1,
                                 description=f"[green]Completed {source.type}",
                             )
+                            # Add a clear separator after processing a source
+                            logger.info("-" * 80)
                             logger.info(f"Completed source: {source.type}")
+                            logger.info("=" * 80)
 
                         except FileNotFoundError as e:
                             # Skip if this is just a missing source file for Claude
@@ -149,6 +156,19 @@ class Runner:
                             advance=1,
                             description=f"[red]Failed {source.type}",
                         )
+
+                # Mark the source task as completed to ensure it's removed from display
+                progress.update(source_task, completed=len(sources))
+
+                # Force a refresh to clear any remaining progress bars
+                progress.refresh()
+
+                # Remove all tasks to ensure they don't show up in the final output
+                for task_id in progress.task_ids:
+                    try:
+                        progress.remove_task(task_id)
+                    except Exception:
+                        pass
 
             finally:
                 # Clear progress-aware logging

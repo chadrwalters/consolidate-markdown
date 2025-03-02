@@ -3,11 +3,12 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from consolidate_markdown.output import print_summary
-from consolidate_markdown.processors.result import ProcessingResult, ProcessorStats
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+from consolidate_markdown.output import print_summary
+from consolidate_markdown.processors.result import ProcessingResult, ProcessorStats
 
 
 class TestSummaryGeneration:
@@ -70,7 +71,6 @@ class TestSummaryGeneration:
                 "Bear Notes",
                 "X Bookmarks",
                 "Claude",
-                "ChatGPT",
             ]
             assert len(table.columns) == len(expected_columns)
             for i, col in enumerate(table.columns):

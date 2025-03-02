@@ -55,20 +55,28 @@ class GPTProcessor:
                     raise GPTError(
                         "OpenAI API key is required when using OpenAI provider"
                     )
+                # Note: Proxies should be configured via environment variables (HTTP_PROXY, HTTPS_PROXY)
+                # instead of passing a 'proxies' parameter to the OpenAI client
                 client_params: Dict[str, Any] = {
                     "api_key": config.openai_key,
                     "base_url": config.openai_base_url,
                 }
+                # Remove proxies if present (not supported in OpenAI v1.0+)
+                client_params.pop("proxies", None)
                 self.client = OpenAI(**client_params)
             elif self.provider == "openrouter":
                 if not config.openrouter_key:
                     raise GPTError(
                         "OpenRouter API key is required when using OpenRouter provider"
                     )
+                # Note: Proxies should be configured via environment variables (HTTP_PROXY, HTTPS_PROXY)
+                # instead of passing a 'proxies' parameter to the OpenAI client
                 router_client_params: Dict[str, Any] = {
                     "api_key": config.openrouter_key,
                     "base_url": config.openrouter_base_url,
                 }
+                # Remove proxies if present (not supported in OpenAI v1.0+)
+                router_client_params.pop("proxies", None)
                 self.client = OpenAI(**router_client_params)
             else:
                 raise GPTError(f"Unsupported API provider: {self.provider}")
@@ -204,6 +212,9 @@ class GPTProcessor:
                 messages=typed_messages,
                 max_tokens=500,
             )
+            # Log API request at debug level
+            logger.debug(f"GPT API request to {self.provider} completed")
+
             result = response.choices[0].message.content
             if result is None:
                 raise GPTError("OpenAI API returned no content")
@@ -251,6 +262,9 @@ class GPTProcessor:
                 messages=typed_messages,
                 max_tokens=500,
             )
+            # Log API request at debug level
+            logger.debug(f"GPT API request to {self.provider} completed")
+
             result = response.choices[0].message.content
             if result is None:
                 raise GPTError(
@@ -339,6 +353,9 @@ class GPTProcessor:
                 messages=typed_messages,
                 max_tokens=300,
             )
+            # Log API request at debug level
+            logger.debug(f"GPT API request to {self.provider} completed")
+
             content = response.choices[0].message.content
             if content is None:
                 logger.error(f"GPT API returned no content ({self.provider})")
@@ -351,6 +368,11 @@ class GPTProcessor:
             # Cache the result
             if self.cache_manager:
                 self.cache_manager.update_gpt_cache(image_hash, description)
+
+            # Log the description at debug level instead of info
+            logger.debug(
+                f"Generated description for {image_path.name}: {description[:100]}..."
+            )
 
             return description
 

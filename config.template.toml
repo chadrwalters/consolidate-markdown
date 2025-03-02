@@ -41,8 +41,3 @@ destDir = "./output/x"             # Output directory for X bookmarks
 type = "claude"
 srcDir = "~/Downloads/claude_exports" # Replace with your Claude exports path
 destDir = "./output/claude"           # Output directory for Claude exports
-
-[[sources]]
-type = "chatgpt"
-srcDir = "~/Downloads/ChatGPT_exports" # Replace with your ChatGPT exports path
-destDir = "./output/chatgpt"           # Output directory for ChatGPT exports

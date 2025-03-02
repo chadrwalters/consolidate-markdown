@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # Valid source types
-VALID_SOURCE_TYPES = ["bear", "xbookmarks", "claude", "chatgpt"]
+VALID_SOURCE_TYPES = ["bear", "xbookmarks", "claude"]
 
 # Valid API providers
 VALID_API_PROVIDERS = ["openai", "openrouter"]

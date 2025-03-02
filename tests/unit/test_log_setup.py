@@ -162,7 +162,7 @@ def test_handlers_setup(mock_handlers, temp_config):
     assert file_mock.call_count >= 1
 
     # Verify handlers are added to root logger
-    assert len(root_logger_mock.handlers) == 2
+    assert len(root_logger_mock.handlers) == 3
     assert progress_mock.return_value in root_logger_mock.handlers
     assert file_mock.return_value in root_logger_mock.handlers
 

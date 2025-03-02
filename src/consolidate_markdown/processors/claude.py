@@ -197,14 +197,21 @@ class ClaudeProcessor(SourceProcessor):
         # Create destination directory if it doesn't exist
         self.source_config.dest_dir.mkdir(parents=True, exist_ok=True)
 
-        # Process conversations.json file
+        # Check if source directory exists and has the conversations.json file
         conversations_file = self.source_config.src_dir / "conversations.json"
-        if not conversations_file.is_file():
-            error_msg = (
-                f"Could not find conversations.json in {self.source_config.src_dir}"
+        if (
+            not self.source_config.src_dir.exists()
+            or not self.source_config.src_dir.is_dir()
+        ):
+            logger.info(
+                f"Source directory does not exist: {self.source_config.src_dir}"
             )
-            logger.error(error_msg)
-            result.add_error(error_msg, self._processor_type)
+            logger.info("No Claude conversations to process")
+            return result
+
+        if not conversations_file.is_file():
+            logger.info(f"No conversations.json found in {self.source_config.src_dir}")
+            logger.info("No Claude conversations to process")
             return result
 
         try:
@@ -220,18 +227,39 @@ class ClaudeProcessor(SourceProcessor):
                 result.add_error(error_msg, self._processor_type)
                 return result
 
+            # Log the total number of conversations to process
+            logger.info(f"Processing {len(conversations)} Claude conversations...")
+
+            # Track processing statistics
+            processed_count = 0
+            skipped_count = 0
+            errors_count = 0
+
             # Process each conversation
-            for conversation in conversations:
+            for i, conversation in enumerate(conversations):
                 try:
+                    # Process the conversation
                     self._process_conversation(conversation, config, result)
-                    # Only increment if the conversation was processed or loaded from cache
-                    if result.last_action in ["generated", "from_cache"]:
-                        result.processed += 1
+
+                    # Update statistics based on the last action
+                    if result.last_action == "generated":
+                        processed_count += 1
+                    elif result.last_action == "from_cache":
+                        processed_count += 1
+                    elif result.last_action == "skipped":
+                        skipped_count += 1
+
+                    # Log batch progress every 20 conversations or at the end
+                    if (i + 1) % 20 == 0 or i + 1 == len(conversations):
+                        logger.info("-" * 30)
+                        logger.info(
+                            f"Processed {i + 1}/{len(conversations)} Claude conversations "
+                            f"({processed_count} successful, {skipped_count} skipped, {errors_count} errors)"
+                        )
                 except Exception as e:
-                    error_msg = f"Error processing conversation: {str(e)}"
-                    logger.error(error_msg)
-                    result.add_error(error_msg, self._processor_type)
-                    result.add_skipped(self._processor_type)
+                    logger.error(f"Error processing conversation {i}: {str(e)}")
+                    result.add_error(f"conversation_{i}", str(e))
+                    errors_count += 1
 
         except Exception as e:
             error_msg = (
@@ -239,6 +267,9 @@ class ClaudeProcessor(SourceProcessor):
             )
             logger.error(error_msg)
             result.add_error(error_msg, self._processor_type)
+
+        # Use the standardized format_completion_summary method
+        logger.info(self.format_completion_summary(result))
 
         return result
 
@@ -346,6 +377,7 @@ class ClaudeProcessor(SourceProcessor):
 
             # Check if we need to regenerate
             if not config.global_config.force_generation and output_file.exists():
+                logger.debug(f"{context} - Using cached version")
                 result.add_from_cache(self._processor_type)
                 return
 

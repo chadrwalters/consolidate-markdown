@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 # Define ordered processors for consistent display
-ORDERED_PROCESSORS = ["bear", "xbookmarks", "claude", "chatgpt"]
+ORDERED_PROCESSORS = ["bear", "xbookmarks", "claude"]
 
 # Define metric rows for summary table with grouping
 METRIC_ROWS = [
@@ -234,8 +234,6 @@ def print_summary(result: ProcessingResult) -> None:
                 if proc == "xbookmarks"
                 else "Claude"
                 if proc == "claude"
-                else "ChatGPT"
-                if proc == "chatgpt"
                 else proc.title()
             )
         )

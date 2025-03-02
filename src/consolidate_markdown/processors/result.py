@@ -228,7 +228,7 @@ class ProcessingResult:
         self.regenerated += 1  # Increment instead of setting to 1
         stats = self.get_processor_stats(processor_type)
         stats.processed += 1
-        stats.regenerated += 1  # Increment in processor stats too
+        stats.regenerated += 1  # Increment regenerated in processor stats too
         self.last_action = "generated"
 
     def add_skipped(self, processor_type: str) -> None:
