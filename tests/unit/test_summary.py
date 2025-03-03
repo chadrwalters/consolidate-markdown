@@ -44,7 +44,9 @@ class TestSummaryGeneration:
 
         return result
 
-    def test_summary_table_creation(self, result, mock_console) -> None:
+    def test_summary_table_creation(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test creation of summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -57,7 +59,9 @@ class TestSummaryGeneration:
             assert isinstance(panel, Panel)
             assert isinstance(panel.renderable, Table)
 
-    def test_processor_columns(self, result, mock_console) -> None:
+    def test_processor_columns(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test processor columns in summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -76,7 +80,9 @@ class TestSummaryGeneration:
             for i, col in enumerate(table.columns):
                 assert col.header == expected_columns[i]
 
-    def test_metric_rows(self, result, mock_console) -> None:
+    def test_metric_rows(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test metric rows in summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -93,7 +99,9 @@ class TestSummaryGeneration:
             assert "Images Processed" in metric_cells
             assert "GPT From Cache" in metric_cells
 
-    def test_error_display(self, result, mock_console) -> None:
+    def test_error_display(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test error display in summary."""
         result.errors.append("Test error")
         with patch("consolidate_markdown.output.console", mock_console):
@@ -112,7 +120,9 @@ class TestSummaryGeneration:
             panel_content = str(error_panel.renderable)
             assert "Test error" in panel_content
 
-    def test_processor_specific_errors(self, result, mock_console) -> None:
+    def test_processor_specific_errors(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test processor-specific error display."""
         result.processor_stats["bear"].errors.append("Bear error")
 
@@ -131,7 +141,9 @@ class TestSummaryGeneration:
             panel_content = str(error_panel.renderable)
             assert "Bear error" in panel_content
 
-    def test_zero_stats_display(self, mock_console) -> None:
+    def test_zero_stats_display(
+        self: "TestSummaryGeneration", mock_console: Mock
+    ) -> None:
         """Test display of empty/zero statistics."""
         result = ProcessingResult()
         with patch("consolidate_markdown.output.console", mock_console):
@@ -143,7 +155,9 @@ class TestSummaryGeneration:
             assert isinstance(panel, Panel)
             assert isinstance(panel.renderable, Table)
 
-    def test_separator_rows(self, result, mock_console) -> None:
+    def test_separator_rows(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test separator rows in summary table."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -154,7 +168,9 @@ class TestSummaryGeneration:
             # Verify separator rows are included
             assert any(row.style == "dim" for row in table.rows)
 
-    def test_no_errors_message(self, result, mock_console) -> None:
+    def test_no_errors_message(
+        self: "TestSummaryGeneration", result: ProcessingResult, mock_console: Mock
+    ) -> None:
         """Test display when no errors are present."""
         with patch("consolidate_markdown.output.console", mock_console):
             print_summary(result)
@@ -169,42 +185,42 @@ class TestSummaryGeneration:
             assert isinstance(text, str)
             assert "No errors detected" in text
 
-    def test_summary_creation() -> None:
+    def test_summary_creation(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_no_files() -> None:
+    def test_summary_with_no_files(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_one_file() -> None:
+    def test_summary_with_one_file(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_multiple_files() -> None:
+    def test_summary_with_multiple_files(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_errors() -> None:
+    def test_summary_with_errors(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_skipped() -> None:
+    def test_summary_with_skipped(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_warnings() -> None:
+    def test_summary_with_warnings(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_with_all_stats() -> None:
+    def test_summary_with_all_stats(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_str() -> None:
+    def test_summary_str(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
 
-    def test_summary_repr() -> None:
+    def test_summary_repr(self: "TestSummaryGeneration") -> None:
         # Implementation of the method
         pass
