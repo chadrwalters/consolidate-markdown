@@ -2,7 +2,7 @@
 name = "consolidate_markdown"
 version = "1.0.0"
 description = "Consolidate Markdown files from multiple sources with AI-powered image analysis"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
   # Core dependencies
   "tomli~=2.0.1",
@@ -57,7 +57,10 @@ addopts = "--cov=src/consolidate_markdown --cov-report=term-missing:skip-covered
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-packages = ["consolidate_markdown"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["consolidate_markdown*"]
 
 [project.scripts]
 consolidate-markdown = "consolidate_markdown.__main__:main"
