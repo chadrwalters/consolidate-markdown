@@ -22,6 +22,7 @@ class TestParseArgs:
             assert not args.force
             assert not args.delete
             assert args.log_level == "INFO"
+            assert args.verbosity == 1
             assert args.processor is None
             assert args.limit is None
 
@@ -38,6 +39,8 @@ class TestParseArgs:
                 "--delete",
                 "--log-level",
                 "DEBUG",
+                "--verbosity",
+                "2",
                 "--processor",
                 "bear",
                 "--limit",
@@ -50,6 +53,7 @@ class TestParseArgs:
             assert args.force
             assert args.delete
             assert args.log_level == "DEBUG"
+            assert args.verbosity == 2
             assert args.processor == "bear"
             assert args.limit == 10
 
@@ -84,6 +88,7 @@ class TestMain:
         mock_args.force = False
         mock_args.delete = False
         mock_args.log_level = "INFO"
+        mock_args.verbosity = 2
         mock_args.processor = None
         mock_args.limit = None
         return mock_args
@@ -93,10 +98,12 @@ class TestMain:
     @patch("consolidate_markdown.__main__.setup_logging")
     @patch("consolidate_markdown.__main__.Runner")
     @patch("consolidate_markdown.__main__.print_summary")
+    @patch("consolidate_markdown.__main__.print_compact_summary")
     @patch("pathlib.Path.mkdir")
     def test_main_normal_execution(
         self,
         mock_mkdir,
+        mock_print_compact_summary,
         mock_print_summary,
         mock_runner_class,
         mock_setup_logging,
@@ -129,17 +136,22 @@ class TestMain:
         mock_mkdir.assert_called()
         mock_runner_class.assert_called_once_with(mock_config)
         mock_runner.run.assert_called_once()
+        # With verbosity=2, it should call print_summary
         mock_print_summary.assert_called_once_with(mock_result)
+        # With verbosity=2, it should not call print_compact_summary
+        mock_print_compact_summary.assert_not_called()
 
     @patch("consolidate_markdown.__main__.parse_args")
     @patch("consolidate_markdown.__main__.load_config")
     @patch("consolidate_markdown.__main__.setup_logging")
     @patch("consolidate_markdown.__main__.Runner")
     @patch("consolidate_markdown.__main__.print_summary")
+    @patch("consolidate_markdown.__main__.print_compact_summary")
     @patch("pathlib.Path.mkdir")
     def test_main_with_processor_and_limit(
         self,
         mock_mkdir,
+        mock_print_compact_summary,
         mock_print_summary,
         mock_runner_class,
         mock_setup_logging,
@@ -176,10 +188,12 @@ class TestMain:
     @patch("consolidate_markdown.__main__.setup_logging")
     @patch("consolidate_markdown.__main__.Runner")
     @patch("consolidate_markdown.__main__.print_summary")
+    @patch("consolidate_markdown.__main__.print_compact_summary")
     @patch("pathlib.Path.mkdir")
     def test_main_with_errors(
         self,
         mock_mkdir,
+        mock_print_compact_summary,
         mock_print_summary,
         mock_runner_class,
         mock_setup_logging,
@@ -266,6 +280,7 @@ class TestMain:
     @patch("consolidate_markdown.__main__.setup_logging")
     @patch("consolidate_markdown.__main__.Runner")
     @patch("consolidate_markdown.__main__.print_summary")
+    @patch("consolidate_markdown.__main__.print_compact_summary")
     @patch("consolidate_markdown.__main__.print_deletion_message")
     @patch("consolidate_markdown.__main__.shutil.rmtree")
     @patch("pathlib.Path.mkdir")
@@ -276,6 +291,7 @@ class TestMain:
         mock_mkdir,
         mock_rmtree,
         mock_print_deletion,
+        mock_print_compact_summary,
         mock_print_summary,
         mock_runner_class,
         mock_setup_logging,

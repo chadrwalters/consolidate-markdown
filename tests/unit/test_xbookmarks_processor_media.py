@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 
 

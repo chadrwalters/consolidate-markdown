@@ -69,7 +69,16 @@ def test_setup_logging_handlers(config):
     console_handler = next(
         h for h in root_logger.handlers if isinstance(h, ProgressAwareHandler)
     )
-    assert console_handler.level == logging.DEBUG  # Should match config
+
+    # With verbosity implementation, console handler level can be WARNING or DEBUG
+    # depending on the verbosity setting - for tests it should be WARNING
+    if (
+        hasattr(config.global_config, "verbosity")
+        and config.global_config.verbosity <= 1
+    ):
+        assert console_handler.level == logging.WARNING
+    else:
+        assert console_handler.level == logging.DEBUG
 
     # Test that the handler can format messages
     test_record = logging.LogRecord(

@@ -7,16 +7,14 @@ from typing import Any, List, Optional, Set, TypeVar
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from consolidate_markdown.attachments.processor import (
     AttachmentMetadata,
     AttachmentProcessor,
 )
 from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import Config, GlobalConfig, SourceConfig
-from consolidate_markdown.processors.base import (
-    AttachmentHandlerMixin,
-    SourceProcessor,
-)
+from consolidate_markdown.processors.base import AttachmentHandlerMixin, SourceProcessor
 from consolidate_markdown.processors.result import ProcessingResult
 
 T = TypeVar("T")
@@ -170,11 +168,14 @@ def test_format_image_svg_with_png(attachment_handler, tmp_path, global_config) 
     )
 
     # We need to mock these attributes since they're not in the class definition
-    with patch.object(metadata, "png_path", str(png_path), create=True), patch.object(
-        metadata,
-        "inlined_content",
-        '<svg><rect width="100" height="100"/></svg>',
-        create=True,
+    with (
+        patch.object(metadata, "png_path", str(png_path), create=True),
+        patch.object(
+            metadata,
+            "inlined_content",
+            '<svg><rect width="100" height="100"/></svg>',
+            create=True,
+        ),
     ):
         # Create config and result
         config = Config(global_config=global_config, sources=[])

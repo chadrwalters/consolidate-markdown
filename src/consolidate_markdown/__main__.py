@@ -9,7 +9,11 @@ from pathlib import Path
 from consolidate_markdown.config import load_config
 from consolidate_markdown.exceptions import ConfigurationError, DependencyError
 from consolidate_markdown.log_setup import setup_logging
-from consolidate_markdown.output import print_deletion_message, print_summary
+from consolidate_markdown.output import (
+    print_compact_summary,
+    print_deletion_message,
+    print_summary,
+)
 from consolidate_markdown.processors.bear import BearProcessor
 from consolidate_markdown.processors.xbookmarks import XBookmarksProcessor
 from consolidate_markdown.runner import Runner
@@ -57,6 +61,14 @@ def parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="INFO",
         help="Set the logging level",
+    )
+    parser.add_argument(
+        "--verbosity",
+        "-v",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=1,
+        help="Set output verbosity (0=minimal, 1=medium, 2=detailed, 3=debug)",
     )
     parser.add_argument(
         "--processor",
@@ -133,6 +145,9 @@ def main() -> None:
                 shutil.rmtree(source.dest_dir)
                 source.dest_dir.mkdir(parents=True, exist_ok=True)
 
+    # Update config with verbosity level
+    config.global_config.verbosity = args.verbosity
+
     # Create and run the processor
     runner = Runner(config)
     if args.processor:
@@ -142,7 +157,13 @@ def main() -> None:
 
     try:
         result = runner.run()
-        print_summary(result)
+
+        # Use appropriate summary function based on verbosity
+        if args.verbosity <= 1:
+            print_compact_summary(result)
+        else:
+            print_summary(result)
+
         if result.errors:
             sys.exit(1)
     except Exception as e:

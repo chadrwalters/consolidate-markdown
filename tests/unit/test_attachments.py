@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import pytest
+
 from consolidate_markdown.attachments.processor import (
     AttachmentMetadata,
     AttachmentProcessor,
@@ -71,9 +72,11 @@ def process_attachment(
             path=file_path,
             is_image=False,
             size=size,
-            mime_type="application/pdf"
-            if file_path.suffix.lower() == ".pdf"
-            else "text/plain",
+            mime_type=(
+                "application/pdf"
+                if file_path.suffix.lower() == ".pdf"
+                else "text/plain"
+            ),
             markdown_content="Test document content",
         )
 

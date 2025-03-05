@@ -96,6 +96,7 @@ class SourceConfig:
 class GlobalConfig:
     cm_dir: Path = Path(".cm")
     log_level: str = "INFO"
+    verbosity: int = 1
     force_generation: bool = False
     no_image: bool = False
     openai_key: Optional[str] = None
@@ -109,6 +110,7 @@ class GlobalConfig:
         self,
         cm_dir: Path = Path(".cm"),
         log_level: str = "INFO",
+        verbosity: int = 1,
         force_generation: bool = False,
         no_image: bool = False,
         openai_key: Optional[str] = None,
@@ -121,6 +123,7 @@ class GlobalConfig:
         """Initialize global configuration."""
         self.cm_dir = cm_dir
         self.log_level = log_level
+        self.verbosity = verbosity
         self.force_generation = force_generation
         self.no_image = no_image
         self.openai_key = openai_key
@@ -211,6 +214,9 @@ def load_config(config_path: Path) -> Config:
         cm_dir=Path(data.get("global", {}).get("cm_dir", ".cm")),
         log_level=os.environ.get(
             "CM_LOG_LEVEL", data.get("global", {}).get("log_level", "INFO")
+        ),
+        verbosity=int(
+            os.environ.get("CM_VERBOSITY", data.get("global", {}).get("verbosity", 1))
         ),
         force_generation=data.get("global", {}).get("force_generation", False),
         no_image=os.environ.get("CM_NO_IMAGE", "").lower() == "true"

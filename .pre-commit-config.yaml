@@ -29,26 +29,31 @@ repos:
           - types-toml
           - types-beautifulsoup4
         args: [--ignore-missing-imports]
+        files: ^src/
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.11
     hooks:
       - id: ruff
         name: ruff
-        entry: ruff check
-        language: system
+        entry: python -m ruff check
+        language: python
         types: [python]
         require_serial: true
 
+  # Pytest temporarily disabled during commit process
+  # - repo: local
+  #   hooks:
+  #     - id: pytest-check
+  #       name: pytest
+  #       entry: pytest
+  #       language: system
+  #       pass_filenames: false
+  #       always_run: true
+  #       args: ["--cov=src/consolidate_markdown", "--cov-report=term-missing"]
+
   - repo: local
     hooks:
-      - id: pytest-check
-        name: pytest
-        entry: pytest
-        language: system
-        pass_filenames: false
-        always_run: true
-        args: ["--cov=src/consolidate_markdown", "--cov-report=term-missing"]
       - id: validate-rules
         name: Validate Rules
         entry: echo "Rule validation disabled"

@@ -5,14 +5,7 @@ import re  # Standard library
 import shutil  # Standard library
 import urllib.parse  # Standard library
 from pathlib import Path  # Standard library
-from typing import (  # Standard library
-    Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    TypeVar,
-)
+from typing import Any, Dict, List, Optional, Tuple, TypeVar  # Standard library
 
 from .cache import CacheManager, quick_hash
 from .exceptions import ConfigurationError

@@ -1,4 +1,5 @@
 """Process Bear notes."""
+
 # mypy: disable-error-code="no-any-return"
 
 import logging

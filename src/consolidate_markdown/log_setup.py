@@ -153,12 +153,34 @@ def setup_logging(config: Config) -> None:
     root_logger.addHandler(file_handler)
 
     # Configure Rich console logging with progress awareness
+    # For lower verbosity levels, only show WARNING and above log messages
+    # Handle the case where log_level might be a string (in tests) or int (in real usage)
+    if (
+        hasattr(config.global_config, "verbosity")
+        and config.global_config.verbosity <= 1
+    ):
+        # Convert log_level to int if it's a string
+        log_level_value = config.global_config.log_level
+        if isinstance(log_level_value, str):
+            log_level_value = getattr(logging, log_level_value)
+
+        # Ensure we're comparing integers for log levels
+        log_level_int: int = int(log_level_value)
+        console_log_level = max(log_level_int, logging.WARNING)
+    else:
+        # Use the configured log level
+        log_level_value = config.global_config.log_level
+        if isinstance(log_level_value, str):
+            console_log_level = getattr(logging, log_level_value)
+        else:
+            console_log_level = log_level_value
+
     console_handler = ProgressAwareHandler(
         console=console,
         rich_tracebacks=True,
         markup=True,
         show_path=False,
-        level=config.global_config.log_level,
+        level=console_log_level,
         show_time=False,  # Time is already in the message
         enable_link_path=False,  # Don't show file links
     )

@@ -388,7 +388,18 @@ class ClaudeProcessor(SourceProcessor):
                     f"{context} - Generated markdown content length: {len(markdown) if markdown else 0}"
                 )
                 if markdown is None:
-                    logger.warning(f"{context} - Skipping conversation with no content")
+                    # For verbosity level 0-1, use debug level instead of warning
+                    if (
+                        hasattr(config.global_config, "verbosity")
+                        and config.global_config.verbosity <= 1
+                    ):
+                        logger.debug(
+                            f"{context} - Skipping conversation with no content"
+                        )
+                    else:
+                        logger.warning(
+                            f"{context} - Skipping conversation with no content"
+                        )
                     result.add_skipped(self._processor_type)
                     return
 
@@ -588,7 +599,14 @@ Extracted Content:
 
             # Skip empty conversations
             if not messages:
-                logger.warning(f"{title} - No messages")
+                # For verbosity level 0-1, use debug level instead of warning
+                if (
+                    hasattr(config.global_config, "verbosity")
+                    and config.global_config.verbosity <= 1
+                ):
+                    logger.debug(f"{title} - No messages")
+                else:
+                    logger.warning(f"{title} - No messages")
                 return None
 
             # Process each message

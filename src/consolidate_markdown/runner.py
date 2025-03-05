@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, Optional, Type
 
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
@@ -14,6 +15,7 @@ from rich.progress import (
 from consolidate_markdown.cache import CacheManager
 from consolidate_markdown.config import Config
 from consolidate_markdown.log_setup import set_progress
+from consolidate_markdown.output import format_count
 from consolidate_markdown.processors import PROCESSOR_TYPES
 from consolidate_markdown.processors.base import ProcessingResult, SourceProcessor
 
@@ -59,16 +61,32 @@ class Runner:
         sources = list(self.config.sources)  # Convert to list for progress
         logger.info(f"Starting consolidation with {len(sources)} source(s)")
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeElapsedColumn(),
-            expand=True,
-            transient=True,  # Make progress bars transient so they disappear when done
-            auto_refresh=True,  # Auto refresh the progress display
-        ) as progress:
+        # Print initial message
+        console = Console()
+        console.print("\nConsolidating markdown files...")
+
+        # Progress display depends on verbosity level
+        if self.config.global_config.verbosity <= 1:
+            # Simple progress for low verbosity levels - no progress bars
+            progress = Progress(
+                auto_refresh=False,  # Don't auto refresh to avoid progress bar display
+                console=None,  # Use null console to suppress progress output
+                transient=True,  # Make progress bars transient
+            )
+        else:
+            # Detailed progress for high verbosity levels
+            progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeElapsedColumn(),
+                expand=True,
+                transient=True,  # Make progress bars transient
+                auto_refresh=True,  # Auto refresh the progress display
+            )
+
+        with progress:
             # Set up progress-aware logging
             set_progress(progress)
             try:
@@ -84,6 +102,16 @@ class Runner:
                     ):
                         logger.debug(f"Skipping {source.type} processor (not selected)")
                         continue
+
+                    # Get display name for this processor
+                    display_name = source.type.title()
+                    if source.type == "bear":
+                        display_name = "Bear notes"
+                    elif source.type == "xbookmarks":
+                        display_name = "X Bookmarks"
+
+                    # Print processor start with spinner
+                    console.print(f"\n{display_name}: ⠦ Processing...")
 
                     # Update progress description
                     progress.update(
@@ -113,12 +141,26 @@ class Runner:
                         # Validate and process
                         try:
                             processor.validate()
-                            # Add a clear separator before processing a source
+                            # Keep separators in logs but not in user-facing output
                             logger.info("=" * 80)
                             logger.info(f"Processing source: {source.type}")
                             logger.info("-" * 80)
+
+                            # Process the source
                             result = processor.process(self.config)
                             self.summary.merge(result)
+
+                            # Print completion message with checkmark
+                            stats = result.processor_stats.get(source.type)
+                            if stats:
+                                console.print(
+                                    f"✓ {display_name} completed "
+                                    f"({format_count(stats.processed)} total: "
+                                    f"{format_count(stats.regenerated)} generated, "
+                                    f"{format_count(stats.from_cache)} from cache)"
+                                )
+                            else:
+                                console.print(f"✓ {display_name} completed")
 
                             # Update progress
                             progress.update(
@@ -126,6 +168,7 @@ class Runner:
                                 advance=1,
                                 description=f"[green]Completed {source.type}",
                             )
+
                             # Add a clear separator after processing a source
                             logger.info("-" * 80)
                             logger.info(f"Completed source: {source.type}")
@@ -138,6 +181,9 @@ class Runner:
                                 and source.type == "claude"
                             ):
                                 logger.info(f"Skipping Claude source: {str(e)}")
+                                console.print(
+                                    f"⚠ {display_name} processor skipped (no source files)"
+                                )
                                 progress.update(
                                     source_task,
                                     advance=1,

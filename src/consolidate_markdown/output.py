@@ -214,6 +214,118 @@ def format_count(count: int) -> str:
     return f"{count:,}"
 
 
+def print_compact_summary(result: ProcessingResult) -> None:
+    """Print a compact summary of processing results, designed for medium verbosity level.
+
+    Args:
+        result: The processing results to display
+    """
+    console.print("\n[bold green]Consolidation Complete[/bold green]")
+    console.print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+    # Calculate totals across all processors
+    total_processed = sum(stats.processed for stats in result.processor_stats.values())
+    total_generated = sum(
+        stats.regenerated for stats in result.processor_stats.values()
+    )
+    total_from_cache = sum(
+        stats.from_cache for stats in result.processor_stats.values()
+    )
+    total_skipped = sum(stats.skipped for stats in result.processor_stats.values())
+
+    # Print totals line
+    console.print(
+        f"Total: {format_count(total_processed)} | "
+        f"Generated: {format_count(total_generated)} | "
+        f"From cache: {format_count(total_from_cache)} | "
+        f"Skipped: {format_count(total_skipped)}"
+    )
+
+    # Print per-processor summary
+    console.print("")
+    for proc in ORDERED_PROCESSORS:
+        proc_stats = result.processor_stats.get(proc)
+        if not proc_stats:
+            continue
+
+        display_name = (
+            "Bear"
+            if proc == "bear"
+            else (
+                "X Bookmarks"
+                if proc == "xbookmarks"
+                else "Claude"
+                if proc == "claude"
+                else proc.title()
+            )
+        )
+
+        # Format the processor line with stats in parentheses
+        processed = proc_stats.processed
+        if processed > 0:
+            generated = proc_stats.regenerated
+            from_cache = proc_stats.from_cache
+            skipped = "skipped" if proc_stats.skipped > 0 else ""
+
+            # Create processor summary
+            proc_line = f"* {display_name} ({format_count(processed)}): "
+            if generated > 0:
+                proc_line += f"{format_count(generated)} new"
+                if from_cache > 0:
+                    proc_line += f", {format_count(from_cache)} from cache"
+            elif from_cache > 0:
+                proc_line += f"{format_count(from_cache)} from cache"
+            elif skipped:
+                proc_line += skipped
+
+            console.print(proc_line)
+        else:
+            console.print(f"* {display_name} (0): skipped")
+
+    # Display warnings and errors
+    warnings = []
+    errors = []
+
+    # Check for skipped processors
+    skipped_procs = [
+        proc
+        for proc in ORDERED_PROCESSORS
+        if proc not in result.processor_stats
+        or result.processor_stats[proc].processed == 0
+    ]
+    if skipped_procs:
+        warnings.append(
+            f"{len(skipped_procs)} processor{'s were' if len(skipped_procs) > 1 else ' was'} skipped"
+        )
+
+    # Collect all errors
+    for proc in ORDERED_PROCESSORS:
+        proc_stats = result.processor_stats.get(proc)
+        if proc_stats and proc_stats.errors:
+            for err in proc_stats.errors:
+                errors.append(f"{proc.title()}: {err}")
+
+    # Add any unassociated errors
+    for err in result.errors:
+        if not any(err in stats.errors for stats in result.processor_stats.values()):
+            errors.append(f"General: {err}")
+
+    # Display warnings if any
+    if warnings:
+        console.print("\n[bold yellow]⚠ Warnings:[/bold yellow]")
+        for warning in warnings:
+            console.print(f"  • {warning}")
+
+    # Display errors if any
+    if errors:
+        console.print("\n[bold red]⛔ Errors:[/bold red]")
+        for error in errors:
+            console.print(f"  • {error}")
+    elif not warnings:
+        # Only show this if there are no warnings or errors
+        console.print("\n[bold green]✓ Process completed successfully[/bold green]")
+
+
 def print_summary(result: ProcessingResult) -> None:
     """Print a formatted summary of processing results.
 
